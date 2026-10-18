@@ -17,7 +17,7 @@ C4Container
 
     Rel(anonUser, frontend, "Uses", "HTTPS")
     Rel(authUser, frontend, "Uses", "HTTPS")
-    Rel(frontend, api, "Calls", "REST")
+    Rel(frontend, api, "Proxies server-side (BFF Route Handlers/RSC)", "REST, rede Docker streamtube")
     Rel(frontend, storage, "Streams", "HTTPS")
 
     Rel(api, db, "Reads/Writes")

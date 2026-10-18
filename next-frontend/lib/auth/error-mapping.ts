@@ -83,3 +83,33 @@ export function mapForgotPasswordErrorToForm<T extends FieldValues>(
 
   setError("root.serverError" as Path<T>, { type: "server", message })
 }
+
+/**
+ * Reset-password screen (per saneamento-fase-02-e-infra/TD-04 — Error Catalog →
+ * "Mapeamento erro → estado de tela"):
+ *  - 401 (`INVALID_TOKEN` / `TOKEN_EXPIRED`): the link is dead → form-level
+ *    message pointing the user back to /forgot-password (the component renders
+ *    the link; this helper only sets the message and a stable `type`).
+ *  - 400: upstream validation → form-level message with the envelope text.
+ *  - anything else → `root.serverError`.
+ */
+export const RESET_LINK_INVALID_MESSAGE =
+  "Este link de redefinição é inválido ou expirou. Solicite um novo link."
+
+export function mapResetPasswordErrorToForm<T extends FieldValues>(
+  envelope: ApiErrorEnvelope,
+  setError: UseFormSetError<T>,
+): void {
+  if (envelope.statusCode === 401) {
+    setError("root.serverError" as Path<T>, {
+      type: "reset-link-invalid",
+      message: RESET_LINK_INVALID_MESSAGE,
+    })
+    return
+  }
+
+  setError("root.serverError" as Path<T>, {
+    type: "server",
+    message: flattenMessage(envelope.message),
+  })
+}

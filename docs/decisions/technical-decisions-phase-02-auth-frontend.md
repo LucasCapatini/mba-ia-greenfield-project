@@ -312,6 +312,9 @@ A static page renders skeleton; a `"use client"` component reads `useSearchParam
 
 **Decision:** A (RSC processes token server-side; Client form below for reset's input step)
 
+**Revisions:**
+- 2026-10-18 — A confirmação deixa de depender de token single-use estrito: `GET /auth/confirm-email` passou a ser idempotente para tokens já usados de contas confirmadas (`saneamento-fase-02-e-infra/TD-03`), então o prefetch do cliente de e-mail não produz mais a tela "already confirmed" no clique real — o RSC renderiza `success` nas duas visitas. Rotas efetivamente entregues: `/confirm-email` e `/reset-password` (não `/confirm`), com links de e-mail gerados a partir de `FRONTEND_URL` (`saneamento-fase-02-e-infra/TD-02`). Rationale: a mitigação prevista nos Cons da Option A ("endpoint idempotente — comportamento de backend a verificar") foi formalizada e implementada pela task de saneamento; o padrão RSC-dono-do-token permanece.
+
 ---
 
 ## Decisions Summary

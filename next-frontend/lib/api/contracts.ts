@@ -40,6 +40,12 @@ export type ForgotPasswordDto =
 export type RefreshTokenDto =
   paths["/auth/refresh"]["post"]["requestBody"]["content"]["application/json"];
 
+export type ResetPasswordDto =
+  paths["/auth/reset-password"]["post"]["requestBody"]["content"]["application/json"];
+
+export type ResendConfirmationDto =
+  paths["/auth/resend-confirmation"]["post"]["requestBody"]["content"]["application/json"];
+
 // Upstream success response bodies
 export type RegisterResponse =
   paths["/auth/register"]["post"]["responses"][201]["content"]["application/json"];

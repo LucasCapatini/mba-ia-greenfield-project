@@ -13,6 +13,7 @@ docker compose ps   # all services must show status "running"
 Then verify each infrastructure service is actually ready to accept connections — not just running:
 
 - **PostgreSQL:** `docker compose exec db pg_isready -U streamtube` — expect `accepting connections`
+- **Mailpit:** `curl -I http://localhost:8025` — expect `HTTP/1.1 200 OK` (the web UI on `8025`; the API sends SMTP to `mailpit:1025`)
 
 Only start the NestJS dev server (`npm run start:dev`) when the user **explicitly** asks to run the application — never as part of "start the environment".
 
@@ -34,6 +35,9 @@ docker compose exec nestjs-api npm run start:dev
 Services:
 - `nestjs-api` — NestJS API, port `3000`
 - `db` — PostgreSQL 17, port `5432`, database `streamtube`, user/password `streamtube`
+- `mailpit` — SMTP sink for dev: SMTP on `1025` (used by the API as `MAIL_HOST=mailpit`), web UI on `http://localhost:8025`
+
+All three services are attached to the named Docker network `streamtube`, declared in `compose.yaml` and consumed as `external` by `next-frontend/compose.yaml`. **This stack must be started before the frontend stack** — the network only exists once `docker compose up -d` has run here.
 
 All verification and teardown commands run on the **host machine**:
 
@@ -44,9 +48,13 @@ curl http://localhost:3000
 # Verify PostgreSQL is ready (runs inside the db container)
 docker compose exec db pg_isready -U streamtube
 
+# Verify Mailpit is up (web UI)
+curl -I http://localhost:8025
+
 # Check container logs
 docker compose logs nestjs-api
 docker compose logs db
+docker compose logs mailpit
 
 # Tear down the entire environment
 docker compose down
@@ -63,10 +71,15 @@ npm run start:dev                        # Dev server with hot-reload
 npm run build                            # Compile to dist/
 npm run start:prod                       # Run compiled build
 
-npm test                                 # Unit tests
-npm run test:watch                       # Unit tests in watch mode
+npm test                                 # Unit + integration (*.spec.ts + *.integration-spec.ts) — pass -- --runInBand (see "Test execution")
+npm run test:integration                 # Integration only (*.integration-spec.ts), already --runInBand
+npm run test:watch                       # Watch mode
 npm run test:cov                         # Coverage report
-npm run test:e2e                         # End-to-end tests (always with --runInBand)
+npm run test:e2e                         # End-to-end tests (test/, supertest; serial by config)
+
+npm run migration:run                    # Apply TypeORM migrations (synchronize is off — required after a fresh db)
+npm run migration:generate -- src/database/migrations/<Name>   # Diff entities → new migration
+npm run openapi:export                   # Regenerate openapi.json from the Swagger document (then sync to the frontend — see root CLAUDE.md)
 
 npx tsc --noEmit                         # Type-check (required before declaring a task done)
 npm run lint                             # ESLint with auto-fix
@@ -78,8 +91,10 @@ npm run format                           # Prettier formatting
 ```bash
 docker compose ps
 docker compose logs nestjs-api
+docker compose logs mailpit
 docker compose exec db pg_isready -U streamtube
 curl http://localhost:3000
+curl -I http://localhost:8025
 ```
 
 ### Test execution
@@ -121,6 +136,7 @@ These settings are required in `package.json` (jest config) and `test/jest-e2e.j
 
 - `setupFiles: ["dotenv/config"]` — without this, `.env` is not loaded inside the Jest process. `DB_HOST`, `JWT_SECRET`, etc. fall back to undefined or to the host's `localhost`, breaking container-to-container DNS.
 - `testRegex: '.*\\.(spec|integration-spec)\\.ts$'` — covers both unit (`*.spec.ts`) and integration (`*.integration-spec.ts`) suffixes.
+- `testTimeout: 30000` (in both configs) — DB-backed suites boot a Nest module and run migrations in `beforeAll`; on the Docker Desktop bind mount a cold boot exceeds Jest's default 5 s hook timeout and fails spuriously.
 
 Do not add new test-file suffixes; if a new test type is needed, update the regex deliberately.
 
@@ -130,13 +146,23 @@ Do not add new test-file suffixes; if a new test type is needed, update the rege
 
 ```dotenv
 # Wrong — the unquoted angle brackets are shell redirection syntax and break parsing
-MAIL_FROM=StreamTube <noreply@streamtube.local>
+MAIL_FROM=StreamTube <noreply@streamtube.com>
 
-# Right — quote the value
-MAIL_FROM="StreamTube <noreply@streamtube.local>"
+# Also wrong — quoting only the display name leaves `<...>` outside the quotes; Docker Compose refuses to start the stack
+MAIL_FROM="StreamTube" <noreply@streamtube.com>
+
+# Right — one quoted string wrapping the whole value (this is the form in .env.example)
+MAIL_FROM="StreamTube <noreply@streamtube.com>"
 ```
 
-Whenever possible, prefer storing only the bare address in `.env` and composing display names in code (e.g., in `mail.config.ts`) so the file stays shell-safe.
+The in-code defaults (`mail.config.ts`, `env.validation.ts`) still use the display-name-quoted form — that is fine in TypeScript, but never copy it into `.env`. If the display name ever becomes configurable, prefer keeping only the bare address in `.env` and composing the display name in code so the file stays shell-safe.
+
+### URL variables
+
+- `FRONTEND_URL` — **required** (`Joi.string().uri()`); the API fails to boot without it. It is the base of the links embedded in e-mails: `${FRONTEND_URL}/confirm-email?token=…` and `${FRONTEND_URL}/reset-password?token=…` — both are Next.js routes, not API routes (`saneamento-fase-02-e-infra/TD-02`). For local dev use the browser-facing frontend address (`http://localhost:3001`), not the Compose service name: the link is opened by a human browser, not by a container.
+- `APP_URL` — the API's own public base URL (e.g., Swagger/server metadata). Not used to build e-mail links.
+
+Start from `cp .env.example .env` — the example carries both keys with working local values.
 
 ## Build Assets
 

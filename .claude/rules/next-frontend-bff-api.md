@@ -15,7 +15,7 @@ These rules govern the BFF (Backend-for-Frontend) layer: same-origin Route Handl
 |---|---|---|
 | `next-frontend/openapi.json` | Committed local copy of the upstream OpenAPI spec. Lives here because the next-frontend container only sees its own subproject. | No — refreshed by `scripts/sync-openapi.sh` (repo-root, host-only). |
 | `next-frontend/lib/api/types.gen.ts` | Generated `paths` interface; emitted by `openapi-typescript` from the local spec copy. | **Never.** Regenerate via `npm run openapi:types`. |
-| `next-frontend/lib/api/upstream.ts` | Server-only typed HTTP client (`openapi-fetch` over `paths`). The **only** module that calls the upstream host. | Yes — sparingly (middleware, base config). |
+| `next-frontend/lib/api/upstream.ts` | Server-only typed HTTP client (`openapi-fetch` over `paths`). The **only** module that calls the upstream host — consumed by Route Handlers **and** by RSC pages that need upstream data at render time (e.g. `app/(auth)/confirm-email/page.tsx`). Resolves `fetch` at call time (see below). | Yes — sparingly (middleware, base config). |
 | `next-frontend/lib/api/contracts.ts` | BFF↔components barrel. **The only file in the project authorized to import `paths` from `types.gen.ts`** (with the documented `mocks/` exception — see the MSW rule). Feature code consumes named aliases from here. | Yes — feature SIs append aliases as endpoints are wired. |
 
 ## Developer flow when the upstream contract changes
@@ -26,6 +26,8 @@ These rules govern the BFF (Backend-for-Frontend) layer: same-origin Route Handl
 4. Commit `next-frontend/openapi.json` AND `next-frontend/lib/api/types.gen.ts` **in the same PR**. Both are committed-by-design.
 
 CI guard: `.github/workflows/openapi-freshness.yml` re-runs steps 1–2 and fails the PR if `git diff --exit-code` shows drift in either file. Merging a stale pair is structurally impossible.
+
+**Limit of the gate:** CI does **not** run the backend's `npm run openapi:export` (that needs a booted Nest app with a database). It only checks sync → gen → diff, i.e. that the committed `nestjs-project/openapi.json` matches the committed frontend copy and generated types. Regenerating `nestjs-project/openapi.json` after a controller/DTO change remains a local, in-container step (step 0 of the flow) — forgetting it is not caught by CI.
 
 ## Consumption patterns
 
@@ -90,6 +92,10 @@ upstream.use(authMiddleware);
 ```
 
 `client.use(...)` is additive — calling it on every request multiplies handlers.
+
+### `upstream.ts` — `fetch` resolved at call time
+
+The client is created with `fetch: (input) => (globalThis.__mswFetch ?? globalThis.fetch)(input)`. Do not simplify this to `fetch: globalThis.fetch` or drop the option: Next.js patches `globalThis.fetch` after `instrumentation.ts` has started MSW, so a reference captured at module load (or `openapi-fetch`'s default) bypasses the server-side mock in E2E and hits the real API. `__mswFetch` is only set by `instrumentation.ts` when `MSW_ENABLED=true`; in production it is `undefined` and the native fetch is used. Any other server module that needs raw `fetch` to the upstream (there should be none — use `upstream`) must follow the same call-time rule.
 
 ## What does NOT belong in this layer
 

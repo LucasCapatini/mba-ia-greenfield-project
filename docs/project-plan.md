@@ -62,6 +62,8 @@ Fluxo completo de criação de conta, confirmação por e-mail, login, logout e 
 
 **Entregáveis:** fluxo completo de cadastro → confirmação → login → recuperação de senha funcionando. Canal criado automaticamente para cada usuário.
 
+_Status (2026-10-18): concluída em três fatias — `docs/phases/phase-02-auth/` (backend), `docs/phases/phase-02-auth-frontend/` (telas de signup/login/forgot-password + BFF) e `docs/tasks/task-saneamento-fase-02-e-infra/` (telas de confirmação de conta, redefinição e reenvio, logout no header, links de e-mail via `FRONTEND_URL`, rede Docker compartilhada e gate de OpenAPI em CI)._
+
 ---
 
 ### Fase 03 — Upload e Processamento de Vídeos

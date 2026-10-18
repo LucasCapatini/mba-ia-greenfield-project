@@ -91,11 +91,13 @@ curl -I http://localhost:3001
 npx playwright test
 
 # Run a specific test file
-npx playwright test tests/smoke.e2e-spec.ts
+npx playwright test tests/auth-login.e2e-spec.ts
 
 # Open the HTML report after a run
 npx playwright show-report
 ```
+
+**Windows note (applies to every `npx playwright …` in this file):** the host install has no `playwright.cmd` shim, so `npx playwright` fails with "command not found". Invoke the CLI through Node instead — `node node_modules/@playwright/test/cli.js test [tests/<file>.e2e-spec.ts]` (and `… cli.js show-report`). Chromium must be installed on the host once (`node node_modules/@playwright/test/cli.js install chromium`).
 
 
 ## Long-running Processes
@@ -132,9 +134,9 @@ Source of decisions: `docs/decisions/technical-decisions-next-frontend-openapi-t
 
 - `API_URL` — the upstream NestJS base URL. **Server-only**: validated and exposed via `lib/env.ts` (`@t3-oss/env-nextjs` + Zod 4). Accessing `env.API_URL` from a Client Component throws at runtime. There is **no** client-exposed (`NEXT_PUBLIC_*`) variant for the backend URL, and there must not be one — introducing a public backend URL would defeat the BFF model.
 - `lib/env.ts` is the **source of truth** for environment variable reads in `next-frontend/`.
-- See `.env.example` for the canonical key set and `lib/env.ts` for the `createEnv({ server, client, shared, ... })` schema.
+- See `.env.example` for the canonical key set and `lib/env.ts` for the `createEnv({ server, client, shared, ... })` schema. Current keys: `API_URL` (upstream base URL, server-only), `SESSION_PASSWORD` (iron-session cookie secret, ≥ 32 chars, server-only) and the optional `MSW_ENABLED=true` (process env read by `instrumentation.ts` — only set it for the E2E dev server, never in `.env.local` for normal use). Bootstrap with `cp .env.example .env.local`.
 
-The concrete value of `API_URL` depends on Docker Compose topology (e.g., `http://nestjs-api:3000` on a shared Compose network vs `http://host.docker.internal:3000` from a separate stack). The stacks are currently separate — networking integration is deferred to its own infra task; in the meantime, `.env.local` carries whichever value the local environment can reach.
+The two Compose stacks stay separate projects but share the named Docker network `streamtube`, created by `nestjs-project/compose.yaml` and declared `external` in `next-frontend/compose.yaml`. `API_URL` is therefore always `http://nestjs-api:3000` (the Compose service name — see `.env.example`). **Start the backend stack before the frontend**: without the network, `docker compose up` in `next-frontend/` fails with "network streamtube declared as external, but could not be found". Never point the upstream at the host machine's gateway alias or at `localhost` — only the Compose service name resolves across the shared network.
 
 Media streaming will eventually come from Object Storage (S3/MinIO) — TBD.
 
@@ -191,17 +193,22 @@ docker compose exec -d next-frontend sh -c "MSW_ENABLED=true npm run dev"
 # 3. Wait until the server is ready (retries up to ~30 s)
 curl --retry 15 --retry-delay 2 --retry-connrefused -I http://localhost:3001
 
-# 4. Run the E2E suite on the host
+# 3b. Confirm MSW actually registered — this line MUST appear, otherwise the suite hits the real API
+docker compose logs next-frontend | grep "\[msw\] server-side mocking enabled"
+
+# 4. Run the E2E suite on the host (Windows: node node_modules/@playwright/test/cli.js test)
 npx playwright test
 
 # Or a single spec
-npx playwright test tests/xxxx.e2e-spec.ts
+npx playwright test tests/auth-login.e2e-spec.ts
 ```
 
 **Important rules:**
 - Step 2 must use `MSW_ENABLED=true` — without it `instrumentation.ts` skips MSW and upstream calls will fail or hit the real NestJS API.
 - Never add `webServer` to `playwright.config.ts` — Playwright must not manage the dev server process (it runs inside Docker, not on the host).
 - If the dev server is already running from a previous session, skip steps 2–3 and go straight to step 4.
+- **New route directories are not picked up by the running dev server.** Turbopack's watcher on the Windows/Docker Desktop bind mount misses newly created `app/**` folders (404 until restart) and sometimes stale `mocks/` handler edits. After adding a route or a handler, run `docker compose restart next-frontend` and start step 2 again — do not try to kill the old `next dev` from inside the container.
+- The `node:22-slim` image has no `ps`/`pkill`/`wget`. To inspect processes use `/proc` (`ls /proc | grep -E '^[0-9]+$'` + `cat /proc/<pid>/cmdline`); for HTTP probes from inside the container use `node -e "fetch('http://localhost:3000').then(r=>console.log(r.status))"`. Restarting the container is the reliable way to stop a dev server.
 
 ### MSW + Vitest — wired
 
@@ -213,10 +220,11 @@ Real browser → real Next.js (RSC, layouts, real `/api/**` Route Handlers serve
 
 **Mechanism.**
 
-1. `instrumentation.ts` `register()` — when `NEXT_RUNTIME === "nodejs"` **and** `MSW_ENABLED=true`, dynamically imports `mocks/server.ts` and calls `server.listen({ onUnhandledRequest: "bypass" })`.
-2. Reuses the `mocks/` upstream handlers (same set as Vitest); no browser-level handler set, no `tests/handlers/`.
-3. Per-scenario outcomes via **reserved trigger fixtures** in the shared handlers (e.g. `email: "conflict@example.com"` → 409, `"badrequest@example.com"` → 400; else success). No per-test `server.use()`. Keep the trigger table small.
-4. Playwright runs on the **host** (`npx playwright test`, `http://localhost:3001`); the containerized `next dev` must run with `MSW_ENABLED=true`. No `webServer` in `playwright.config.ts` (dev server is containerized).
+1. `instrumentation.ts` `register()` — when `NEXT_RUNTIME === "nodejs"` **and** `MSW_ENABLED=true`, dynamically imports `mocks/server.ts`, calls `server.listen({ onUnhandledRequest: "bypass" })`, then stores the MSW-intercepted fetch as `globalThis.__mswFetch` and logs `[msw] server-side mocking enabled (upstream NestJS is faked)`.
+2. `lib/api/upstream.ts` resolves `fetch` **at call time** — `fetch: (input) => (globalThis.__mswFetch ?? globalThis.fetch)(input)`. Next.js patches `globalThis.fetch` after `register()` runs, so any module that captures `fetch` at load time (or lets `openapi-fetch` default to it) silently bypasses MSW and hits the real API (`ECONNREFUSED` in E2E). Never capture `fetch` at module evaluation in server code; in production `__mswFetch` is `undefined` and the native fetch is used.
+3. Reuses the `mocks/` upstream handlers (same set as Vitest) for both Route Handlers and RSC pages (e.g. `/confirm-email` calls `upstream.GET` during render); no browser-level handler set, no `tests/handlers/`.
+4. Per-scenario outcomes via **reserved trigger fixtures** in the shared handlers (`mocks/handlers/auth.ts`): e-mails `conflict@example.com` → 409, `badrequest@example.com` → 400; tokens `expired-token` → 401 `TOKEN_EXPIRED`, `invalid-token` → 401 `INVALID_TOKEN`, `badrequest-token` → 400 `VALIDATION_ERROR`; anything else → success. No per-test `server.use()`. Keep the trigger table small.
+5. Playwright runs on the **host** (`npx playwright test`, `http://localhost:3001`); the containerized `next dev` must run with `MSW_ENABLED=true`. No `webServer` in `playwright.config.ts` (dev server is containerized).
 
 **Hard rules.**
 
@@ -235,22 +243,36 @@ Next.js App Router with React Server Components, TypeScript strict, React 19, Ta
 next-frontend/
 ├── app/                              # Next.js App Router (routes, layouts, pages)
 │   ├── globals.css                   # Tokens + @theme inline + base layer
-│   ├── layout.tsx                    # Root layout (fonts wired here)
-│   ├── <route>/page.tsx
-│   └── api/<route>/__tests__/        # Route handler integration tests (*.integration.test.ts)
+│   ├── layout.tsx                    # Root layout (fonts, SessionProvider hydrated from the iron-session cookie)
+│   ├── (auth)/                       # Anonymous screens, no app chrome: login, signup, forgot-password,
+│   │                                 #   confirm-email (RSC consumes the token), reset-password, resend-confirmation
+│   ├── (app)/                        # Application routes — layout.tsx renders <AppHeader /> (session-aware, logout)
+│   │   └── page.tsx                  # Home placeholder
+│   └── api/auth/<route>/route.ts     # BFF Route Handlers: signup, login, logout, forgot-password, reset-password, resend-confirmation
+│       └── __tests__/                # Route handler integration tests (*.integration.test.ts)
 ├── components/
 │   ├── ui/                           # shadcn primitives — ONLY add via shadcn CLI
 │   ├── icons/                        # Custom SVG icon components
+│   ├── auth/                         # Auth forms/cards (react-hook-form + Zod) + session-provider
+│   ├── layout/app-header.tsx         # Minimal session-aware header (Entrar / Criar conta / Sair)
 │   └── <feature>/__tests__/          # Component unit/integration tests (*.test.ts | *.integration.test.ts)
+├── hooks/                            # Client hooks (use-session) + __tests__/
 ├── lib/
+│   ├── api/                          # upstream.ts (typed openapi-fetch client), contracts.ts (aliases), types.gen.ts (generated)
+│   ├── auth/                         # Session helpers + error mapping (upstream envelope → form errors)
+│   ├── env.ts                        # Validated server env (API_URL, SESSION_PASSWORD)
 │   ├── utils.ts                      # `cn(...)` helper (clsx + extended tailwind-merge)
 │   └── __tests__/                    # Utils tests (*.test.ts)
 ├── mocks/                            # MSW handlers + server (msw/node) — loaded by Vitest setupFiles AND instrumentation.ts
+├── specs/                            # *.plan.md test specs emitted by /plan-test-specs (one per E2E file in tests/)
 ├── tests/                            # Playwright e2e (*.e2e-spec.ts) — real /api/** run; upstream NestJS faked server-side
+├── instrumentation.ts                # Boots server-side MSW when MSW_ENABLED=true (E2E only)
+├── openapi.json                      # Committed copy of the backend spec (refreshed by scripts/sync-openapi.sh)
+├── .env.example                      # Canonical env keys (copy to .env.local)
 └── components.json                   # shadcn config (do not edit by hand)
 ```
 
-Path aliases live in `tsconfig.json` and `components.json` — `@/components`, `@/components/ui`, `@/components/icons`, `@/lib`, `@/lib/utils`, `@/hooks` (create when first hook is added).
+Path aliases live in `tsconfig.json` and `components.json` — `@/components`, `@/components/ui`, `@/components/icons`, `@/lib`, `@/lib/utils`, `@/hooks`.
 
 ## Design Tokens — Source of Truth
 

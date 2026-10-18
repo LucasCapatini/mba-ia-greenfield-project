@@ -124,6 +124,9 @@ _Subprojects in scope:_
 
 **Decision:** B (Random Opaque Tokens in Database)
 
+**Revisions:**
+- 2026-10-18 — Para `EMAIL_CONFIRMATION`, `used_at` passa a registrar o primeiro uso e um token já usado cuja conta está confirmada responde `204` em vez de `InvalidToken` (`saneamento-fase-02-e-infra/TD-03`, implementado em `AuthService.confirm`); `PASSWORD_RESET` segue single-use estrito. Rationale: prefetchers de e-mail consumiam o token antes do clique do usuário, que via "link inválido" na primeira visita; a revogabilidade e o rastreamento por token da Option B são preservados — só a semântica de reuso do tipo de confirmação muda.
+
 ---
 
 ## TD-05: Email Sending Infrastructure

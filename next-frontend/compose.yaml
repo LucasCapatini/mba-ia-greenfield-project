@@ -7,5 +7,12 @@ services:
       - 3001:3000
     volumes:
       - .:/home/node/app
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    networks:
+      - streamtube
+
+# Rede criada pela stack do backend (nestjs-project/compose.yaml). Suba o backend antes do frontend;
+# sem a rede, `docker compose up` falha com "network streamtube declared as external, but could not be found".
+networks:
+  streamtube:
+    external: true
+    name: streamtube

@@ -17,10 +17,10 @@ By convention, MSW lives under `next-frontend/mocks/`. The tree is per-domain �
 - `mocks/handlers/<domain>.ts` — handlers for a single API domain (e.g., `auth.ts`, `videos.ts`, `channels.ts`). One handler per `(method, path)` entry from the OpenAPI `paths`; per-test deviations layer via `server.use(...)`.
 - `mocks/handlers/index.ts` — barrel re-export. Each phase appends one `import { handlers as <domain>Handlers } from "./<domain>"` line plus one spread into the exported `handlers` array.
 - `mocks/factories/<domain>.ts` — response-body factories for the domain. Each shape exports a `buildX(overrides?: Partial<X>): X` function.
-- `mocks/server.ts` — `setupServer(...handlers)` from `msw/node`, imported by Vitest's `setupFiles`.
+- `mocks/server.ts` — `setupServer(...handlers)` from `msw/node`. Imported by Vitest's `setupFiles` **and** dynamically by `instrumentation.ts` for E2E, where it is started with `onUnhandledRequest: "bypass"` (Vitest uses `"error"`). The handler set is therefore shared by both runners — a trigger value added for E2E must not collide with a Vitest fixture.
 - `mocks/setup.ts` — Vitest setup file that registers the MSW lifecycle (`listen` / `resetHandlers` / `close`).
 
-Tests override fixtures per-case via `server.use(http.get(...))` inside `beforeEach` or individual `it` blocks.
+Tests override fixtures per-case via `server.use(http.get(...))` inside `beforeEach` or individual `it` blocks. **`server.use(...)` exists only in Vitest** — E2E specs cannot reach the server-side instance, so per-scenario E2E outcomes come from the reserved trigger fixtures baked into the shared handlers (see `next-frontend/CLAUDE.md` → "E2E architecture").
 
 ## Lifecycle (Vitest `setupFiles`)
 
@@ -58,6 +58,8 @@ export const buildUser = (overrides: Partial<User> = {}): User => ({
   ...overrides,
 });
 ```
+
+**Current state:** the auth domain keeps its small fixtures inline in `mocks/handlers/auth.ts` (token pair, error envelopes, trigger constants) and `mocks/factories/` is still empty. Create `mocks/factories/<domain>.ts` the first time a response shape is needed by more than one handler or test — do not pre-create empty factory files.
 
 `@faker-js/faker` is **opt-in** and scoped to bulk-collection builders only (e.g., `buildVideoList(n, seed)`). When used, call `faker.seed(N)` **immediately before** generating the collection so determinism is local to that builder and does not interact with the global cursor. Faker is not installed at foundation — the first phase that authors a `buildXList` triggers the install.
 

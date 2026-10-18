@@ -153,6 +153,8 @@
 | "Recuperação de senha: solicitação via e-mail → link com token → redefinição"      | ForgotPasswordForm + SubmitButton (parcial — apenas solicitação) | /forgot-password (set-new-password ausente do Figma) |
 | "Telas de cadastro, login, confirmação de conta e recuperação de senha"            | Telas signup + login + forgot-password      | /signup, /login, /forgot-password (confirmação de-scoped) |
 
+_Nota histórica (2026-10-18): as lacunas "de-scoped"/"sem UI" acima — confirmação de conta, logout e redefinição de senha — foram entregues depois por `task-saneamento-fase-02-e-infra` (`/confirm-email`, `/reset-password`, `/resend-confirmation` e o `AppHeader` com logout), derivadas do padrão visual de `/forgot-password` sem novo node Figma (`saneamento-fase-02-e-infra/TD-04`). Este inventário não foi re-extraído; as três primeiras open questions abaixo estão fechadas por aquela task._
+
 ## Open questions
 
 - Capability "Confirmação de conta via e-mail com link de ativação" não tem tela inventariada — de-scoped pelo usuário em 2026-05-14 ("o restante não iremos implementar agora"). O fluxo end-to-end de cadastro depende desta tela para fechar (após signup → e-mail com link → tela de confirmação); precisará ser retomada em uma fase posterior. TD-07 (Email-Link Landing Pattern) prevê RSC processando o token server-side; recomenda-se gerar o inventory da tela antes de implementar.

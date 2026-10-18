@@ -250,6 +250,30 @@ describe('AuthService — confirm (integration)', () => {
       TokenExpiredException,
     );
   });
+
+  it('is idempotent: confirming twice with the same token resolves and leaves used_at untouched', async () => {
+    const capturePromise = captureConfirmationToken(authService);
+    const { id: userId } = await authService.register({
+      email: 'confirm-twice@example.com',
+      password: 'password123',
+    });
+    const capturedToken = await capturePromise;
+
+    await authService.confirm(capturedToken);
+    const firstUsedAt = (await verificationTokenRepository.findOneBy({
+      user_id: userId,
+    }))!.used_at;
+    expect(firstUsedAt).toBeInstanceOf(Date);
+
+    await expect(authService.confirm(capturedToken)).resolves.toBeUndefined();
+
+    const token = await verificationTokenRepository.findOneBy({
+      user_id: userId,
+    });
+    expect(token!.used_at!.getTime()).toBe(firstUsedAt!.getTime());
+    const user = await userRepository.findOneBy({ id: userId });
+    expect(user!.is_confirmed).toBe(true);
+  });
 });
 
 describe('AuthService — resendConfirmation (integration)', () => {

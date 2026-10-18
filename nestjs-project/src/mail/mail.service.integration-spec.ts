@@ -86,6 +86,50 @@ describe('MailService (integration)', () => {
     expect(detail.HTML).toContain('1 hour');
   });
 
+  describe('e-mail links target the frontend (FRONTEND_URL), never the API', () => {
+    type MailpitSummary = { ID: string };
+    type MailpitDetail = { HTML: string };
+    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3001';
+
+    async function latestMessageHtml(): Promise<string> {
+      const [latest] = (await getMailpitMessages()) as MailpitSummary[];
+      const detail = (await getMailpitMessage(latest.ID)) as MailpitDetail;
+      return detail.HTML;
+    }
+
+    it('confirmation link is `${FRONTEND_URL}/confirm-email?token=<token>`', async () => {
+      await mailService.sendConfirmationEmail(
+        'user@example.com',
+        'Alice',
+        'confirm-token-abc',
+      );
+
+      const html = await latestMessageHtml();
+
+      expect(html).toContain(
+        `${frontendUrl}/confirm-email?token=confirm-token-abc`,
+      );
+      expect(html).not.toContain('/auth/confirm-email');
+      expect(html).not.toContain(':3000/');
+    });
+
+    it('reset link is `${FRONTEND_URL}/reset-password?token=<token>`', async () => {
+      await mailService.sendPasswordResetEmail(
+        'user@example.com',
+        'Bob',
+        'reset-token-xyz',
+      );
+
+      const html = await latestMessageHtml();
+
+      expect(html).toContain(
+        `${frontendUrl}/reset-password?token=reset-token-xyz`,
+      );
+      expect(html).not.toContain('/auth/reset-password');
+      expect(html).not.toContain(':3000/');
+    });
+  });
+
   it('both emails use the configured MAIL_FROM address as sender', async () => {
     await mailService.sendConfirmationEmail('user@example.com', 'Alice', 'tok');
 

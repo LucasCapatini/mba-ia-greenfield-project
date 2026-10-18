@@ -118,11 +118,38 @@ export class AuthService {
     };
   }
 
+  /**
+   * Idempotent on purpose: e-mail clients and proxies prefetch links, which
+   * would otherwise burn the single-use token before the user clicks it.
+   * A token already consumed by an already-confirmed account answers success
+   * without touching the database. Password-reset tokens stay strictly
+   * single-use (see `consumeVerificationToken`).
+   */
   async confirm(token: string): Promise<void> {
-    const record = await this.consumeVerificationToken(
-      token,
-      VerificationTokenType.EMAIL_CONFIRMATION,
-    );
+    const record = await this.verificationTokenRepository.findOne({
+      where: {
+        token_hash: this.hashToken(token),
+        type: VerificationTokenType.EMAIL_CONFIRMATION,
+      },
+      relations: ['user'],
+    });
+
+    if (!record) {
+      throw new InvalidTokenException();
+    }
+
+    if (record.used_at) {
+      if (record.user.is_confirmed) {
+        return;
+      }
+      throw new InvalidTokenException();
+    }
+
+    if (record.expires_at < new Date()) {
+      throw new TokenExpiredException();
+    }
+
+    record.used_at = new Date();
     record.user.is_confirmed = true;
 
     await Promise.all([
