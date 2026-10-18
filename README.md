@@ -18,14 +18,14 @@ Este é um projeto greenfield desenvolvido para demonstrar como construir uma ap
 
 ## Quadro Branco
 
-- [Quadro Branco](./whiteboard.png)
+- [Quadro Branco](./whiteboard.svg)
 
 ---
 
 ## 🎨 Design System (Figma)
 
 - [FC Tube.fig](./FC%20Tube.fig) — arquivo-fonte do **design system** do projeto no Figma.
-- [FC Tube sem padrão.fig](./FC%20Tube%20sem%20padrao.fig) — arquivo-fonte puro, sem tokens, cores, tipografia e espaçamento.
+- [FC Tube sem padrão.fig](./FC%20Tube%20sem%20padr%C3%A3o.fig) — arquivo-fonte puro, sem tokens, cores, tipografia e espaçamento.
 
 Contém os fundamentos visuais do StreamTube — tokens (cores, tipografia, espaçamento, raios), componentes e as telas da plataforma. É a referência de design para a implementação do frontend: os componentes em `next-frontend/components/ui` (shadcn) e os tokens em `next-frontend/app/globals.css` derivam deste arquivo. Abra-o no Figma (`Arquivo → Importar`) para consultar especificações e estados visuais.
 
@@ -34,7 +34,7 @@ Contém os fundamentos visuais do StreamTube — tokens (cores, tipografia, espa
 ## 📋 Pré-requisitos
 
 - Docker e Docker Compose
-- Node.js v25+ (para rodar os testes E2E do Playwright no host)
+- Node.js 22+ no host (apenas para os testes E2E do Playwright e para `scripts/*.sh`; todo o resto roda dentro dos containers)
 - npm
 
 ## 🏗️ Arquitetura
@@ -59,6 +59,9 @@ Os dois subprojetos têm stacks Docker **separadas**. Suba primeiro o backend, r
 
 ```bash
 cd nestjs-project
+
+# Cria o .env a partir do exemplo (inclui FRONTEND_URL, destino dos links de e-mail)
+cp .env.example .env
 
 # Sobe API, banco e Mailpit
 docker compose up -d
@@ -87,8 +90,9 @@ Serviços disponíveis:
 ```bash
 cd next-frontend
 
-# Garanta que o .env.local existe (veja .env.example)
-# API_URL aponta para o backend; SESSION_PASSWORD protege a sessão (iron-session)
+# Cria o .env.local a partir do exemplo
+# API_URL aponta para o backend pelo nome do serviço; SESSION_PASSWORD protege a sessão (iron-session)
+cp .env.example .env.local
 
 docker compose up -d
 docker compose exec next-frontend npm install        # apenas na primeira vez
@@ -97,7 +101,7 @@ docker compose exec -d next-frontend npm run dev
 
 A aplicação ficará disponível em **http://localhost:3001**.
 
-> As stacks são separadas, então o frontend acessa o backend via `host.docker.internal:3000` (configurado em `next-frontend/.env.local` e no `extra_hosts` do compose).
+> As stacks são projetos Compose separados que compartilham a rede Docker nomeada `streamtube`, criada pela stack do backend. Por isso o backend deve subir primeiro; o frontend acessa a API pelo nome do serviço (`API_URL=http://nestjs-api:3000` em `next-frontend/.env.local`).
 
 ## 🧪 Testes
 
@@ -105,20 +109,32 @@ A aplicação ficará disponível em **http://localhost:3001**.
 
 ```bash
 cd nestjs-project
-docker compose exec nestjs-api npm test               # unitários + integração
-docker compose exec nestjs-api npm run test:e2e       # end-to-end (HTTP via supertest)
-docker compose exec nestjs-api npm run test:cov       # cobertura
+docker compose exec nestjs-api npm test -- --runInBand   # unitários + integração (banco compartilhado → serial)
+docker compose exec nestjs-api npm run test:integration  # apenas integração (já em --runInBand)
+docker compose exec nestjs-api npm run test:e2e          # end-to-end (HTTP via supertest)
+docker compose exec nestjs-api npm run test:cov          # cobertura
 ```
 
-Sufixos: `*.spec.ts` (unitário), `*.integration-spec.ts` (integração com banco real), `*.e2e-spec.ts` (end-to-end). Testes de integração/e2e rodam com `--runInBand`.
+Sufixos: `*.spec.ts` (unitário), `*.integration-spec.ts` (integração com banco real), `*.e2e-spec.ts` (end-to-end). Testes de integração/e2e rodam com `--runInBand`. O `testTimeout` do Jest é de 30 s porque a primeira subida do banco no bind mount do Docker Desktop (Windows) ultrapassa o padrão de 5 s.
 
 ### Frontend (Vitest + Playwright)
 
 ```bash
 cd next-frontend
 docker compose exec next-frontend npm test            # unitários + integração (Vitest + MSW)
-npx playwright test                                   # end-to-end (no host, com dev server em MSW_ENABLED=true)
 ```
+
+Os testes E2E (Playwright) rodam **no host** contra o dev server containerizado com o MSW ligado no servidor — a API NestJS é simulada, nunca chamada:
+
+```bash
+cd next-frontend
+docker compose exec -d next-frontend sh -c "MSW_ENABLED=true npm run dev"
+curl --retry 15 --retry-delay 2 --retry-connrefused -I http://localhost:3001
+docker compose logs next-frontend | grep "\[msw\]"   # deve mostrar: [msw] server-side mocking enabled
+npx playwright test                                   # ou: npx playwright test tests/<arquivo>.e2e-spec.ts
+```
+
+> **Windows:** se `npx playwright` falhar por falta do shim `.cmd`, use `node node_modules/@playwright/test/cli.js test`. Ao criar novas pastas de rota, rode `docker compose restart next-frontend` antes dos E2E — o watcher do Turbopack não detecta diretórios novos no bind mount.
 
 Sufixos: `*.test.ts(x)` (unitário), `*.integration.test.ts(x)` (Route Handlers com MSW), `*.e2e-spec.ts` (Playwright). MSW intercepta as chamadas à API NestJS — os testes nunca batem no backend real.
 
@@ -135,7 +151,7 @@ Endpoints da API (`nestjs-project`):
 | Método & Rota | Descrição |
 |---------------|-----------|
 | `POST /auth/register` | Cadastro de usuário (cria usuário + canal) |
-| `GET /auth/confirm-email?token=` | Confirmação de conta via link do e-mail |
+| `GET /auth/confirm-email?token=` | Confirmação de conta via link do e-mail (**idempotente**: reabrir o link de uma conta já confirmada responde 204) |
 | `POST /auth/resend-confirmation` | Reenvio do e-mail de confirmação |
 | `POST /auth/login` | Login (retorna access + refresh token) |
 | `POST /auth/refresh` | Rotação de refresh token (com family + grace period) |
@@ -146,47 +162,89 @@ Endpoints da API (`nestjs-project`):
 
 Telas e Route Handlers BFF (`next-frontend`):
 
-- `/(auth)/signup`, `/(auth)/login`, `/(auth)/forgot-password` — formulários com React Hook Form + Zod e validação inline.
-- `app/api/auth/{signup,login,logout,forgot-password}` — proxy same-origin para a API.
+- `/(auth)/signup`, `/(auth)/login`, `/(auth)/forgot-password`, `/(auth)/reset-password`, `/(auth)/resend-confirmation` — formulários com React Hook Form + Zod e validação inline.
+- `/(auth)/confirm-email` — página RSC que confirma a conta ao abrir o link do e-mail (estados: sucesso, link expirado, link inválido — os dois últimos oferecem o reenvio inline).
+- `/(app)` — área da aplicação com `AppHeader` (`components/layout/app-header.tsx`): mostra Entrar/Criar conta para anônimos e e-mail + botão Sair (logout) para autenticados.
+- `app/api/auth/{signup,login,logout,forgot-password,reset-password,resend-confirmation}` — proxy same-origin para a API.
+- Os e-mails transacionais apontam para o frontend: `${FRONTEND_URL}/confirm-email?token=` e `${FRONTEND_URL}/reset-password?token=` (variável obrigatória no `.env` do backend).
 
 Segurança: senhas com **Argon2**, **JWT** com `JwtAuthGuard` global (opt-out via `@Public()`), **rotação de refresh token** com detecção de reuso, **rate limiting** (`ThrottlerGuard`) nos endpoints de auth, e sessão no navegador via **iron-session** (cookies HTTP-only).
 
 ## 🛠️ Estrutura do Projeto
 
 ```
-green-field-ia-project/
+mba-ia-greenfield-project/
+├── .claude/                             # Fundação de IA: rules (por path), skills (pipeline de planejamento), agents, hooks
+├── .github/workflows/
+│   └── openapi-freshness.yml            # CI: garante que o contrato OpenAPI do frontend está em sincronia com o backend
+├── _claude-sessions/                    # Transcrições brutas das sessões com o Claude, numeradas NN-slug.txt (ver "Processo com IA")
 ├── docs/
 │   ├── project-plan.md                  # Planejamento geral do projeto
-│   ├── phases/                          # Planos e implementação por fase
+│   ├── design-system-pillars.md         # Pilares do design system
+│   ├── design-system-ai-implementable.md # Design system em formato implementável por IA
+│   ├── decisions/                       # Decisões técnicas (TDs) por fase/task — technical-decisions-{slug}.md
+│   ├── phases/                          # Planos, contexto, validação e progresso por fase
 │   │   ├── phase-01-configuracao-base/
 │   │   ├── phase-02-auth/               # Auth (backend)
 │   │   └── phase-02-auth-frontend/      # Auth (frontend)
+│   ├── tasks/                           # Trabalhos ad-hoc (mesmos artefatos das fases) — ex.: task-saneamento-fase-02-e-infra/
+│   ├── inventories/                     # Inventário de telas extraído do Figma
 │   └── diagrams/
-│       └── software-arch.mermaid        # Diagrama de arquitetura (C4)
+│       ├── software-arch.mermaid        # Diagrama de arquitetura (C4)
+│       └── skills-workflow.mermaid      # Pipeline de skills de planejamento/implementação
+├── scripts/
+│   └── sync-openapi.sh                  # Copia nestjs-project/openapi.json → next-frontend/openapi.json
 ├── nestjs-project/                      # Backend API (NestJS 11)
 │   ├── src/
-│   │   ├── auth/                        # Cadastro, login, JWT, refresh, reset de senha
+│   │   ├── auth/                        # Cadastro, login, JWT, refresh, confirmação e reset de senha
 │   │   ├── users/                       # Entidade e serviço de usuários
 │   │   ├── channels/                    # Canal 1:1 por usuário (nickname do e-mail)
-│   │   ├── mail/                        # Envio de e-mails (templates Handlebars)
+│   │   ├── mail/                        # Envio de e-mails (templates Handlebars; links usam FRONTEND_URL)
 │   │   ├── common/                      # Filtros, pipes e exceptions de domínio
 │   │   ├── config/                      # Configs namespaced (Joi)
 │   │   └── database/                    # data-source, migrations e seeds
+│   ├── specs/                           # Test specs (*.plan.md) que originam os testes e2e
 │   ├── test/                            # Testes e2e
+│   ├── openapi.json                     # Contrato gerado por `npm run openapi:export`
+│   ├── .env.example                     # Variáveis de ambiente (copiar para .env)
 │   ├── compose.yaml                     # Docker Compose (API + PostgreSQL + Mailpit)
 │   └── Dockerfile.dev
 ├── next-frontend/                       # Frontend (Next.js 16, App Router)
-│   ├── app/                             # Rotas, layouts, páginas e Route Handlers BFF
-│   ├── components/                      # Componentes de auth, UI (shadcn) e ícones
-│   ├── lib/                             # env, api (openapi-fetch), auth/session
-│   ├── mocks/                           # MSW (handlers + server)
+│   ├── app/
+│   │   ├── (auth)/                      # signup, login, forgot-password, reset-password, confirm-email, resend-confirmation
+│   │   ├── (app)/                       # Área da aplicação (layout com AppHeader)
+│   │   └── api/auth/                    # Route Handlers BFF (proxy same-origin para a API)
+│   ├── components/                      # auth, layout (AppHeader), UI (shadcn) e ícones
+│   ├── hooks/                           # Hooks (useSession)
+│   ├── lib/                             # env, api (openapi-fetch + types.gen.ts), auth/session
+│   ├── mocks/                           # MSW (handlers + server; também usado server-side via instrumentation.ts)
+│   ├── specs/                           # Test specs (*.plan.md) que originam os E2E
 │   ├── tests/                           # E2E (Playwright)
+│   ├── instrumentation.ts               # Liga o MSW no servidor quando MSW_ENABLED=true
+│   ├── openapi.json                     # Cópia do contrato do backend (fonte de lib/api/types.gen.ts)
+│   ├── .env.example                     # Variáveis de ambiente (copiar para .env.local)
 │   ├── compose.yaml                     # Docker Compose (dev server)
 │   └── Dockerfile.dev
-├── CLAUDE.md                            # Instruções para IA
+├── CLAUDE.md                            # Instruções para IA (cada subprojeto tem o seu próprio CLAUDE.md)
 ├── FC Tube.fig                          # Design system do projeto (Figma)
-├── whiteboard.png                       # Quadro branco do projeto
+├── FC Tube sem padrão.fig               # Design system sem tokens (Figma)
+├── whiteboard.svg                       # Quadro branco do projeto
 └── README.md
+```
+
+## 🌿 Fluxo de branches
+
+O repositório segue o Git Flow descrito em [`CLAUDE.md`](./CLAUDE.md) § Git Conventions:
+
+- **`main`** — código estável, pronto para produção. Nunca recebe commits diretos.
+- **`dev`** — branch de integração. Toda branch de trabalho nasce de `dev` e volta para `dev` por Pull Request.
+- **`feature/*`**, **`bugfix/*`**, **`hotfix/*`**, **`docs/*`** — branches de trabalho, uma por escopo (uma feature, correção ou refatoração por vez).
+- Quando `dev` está estável, é mesclada em `main`.
+
+```bash
+git checkout dev && git pull
+git checkout -b feature/<slug>        # trabalhe aqui
+git push -u origin feature/<slug>     # abra o PR para dev
 ```
 
 ## 📚 Fases do Projeto
@@ -201,7 +259,16 @@ green-field-ia-project/
 | **06** | Interações Sociais (Likes, Comentários, Inscrições) | ⏳ Planejada |
 | **07** | Página Inicial, Busca e Finalização | ⏳ Planejada |
 
-Detalhes completos em `docs/project-plan.md`.
+Detalhes completos em `docs/project-plan.md`. Pendências da Fase 02 (telas de confirmação/reset, logout, rede Docker compartilhada, CI do contrato OpenAPI) foram saneadas em `docs/tasks/task-saneamento-fase-02-e-infra/`.
+
+## 🤖 Processo com IA
+
+O objetivo central do desafio é mostrar **como** a aplicação foi construída com IA, não só o resultado. O processo fica registrado no próprio repositório:
+
+- [`CLAUDE.md`](./CLAUDE.md) § *Planning & Implementation Workflow* — o pipeline de skills customizadas (`/research → /plan-context → /plan-validate ⇄ /plan-resolve → /plan-build → /plan-test-specs → /implement`, com `/decide` e `/screen-inventory` como entradas laterais), definido em `.claude/skills/` e ilustrado em `docs/diagrams/skills-workflow.mermaid`.
+- `docs/decisions/` — cada decisão técnica (TD) com opções, prós/contras, recomendação e a decisão tomada; revisões posteriores ficam em blocos `Revisions`.
+- `docs/phases/` e `docs/tasks/` — por fase ou task: `context.md`, `validation.md`, o plano dividido em SIs e o `progress.md` da execução. Os `specs/*.plan.md` de cada subprojeto derivam os testes e2e desses planos.
+- `_claude-sessions/` — transcrições brutas das sessões, numeradas `NN-slug.txt` e commitadas junto do trabalho que produziram. Lacuna conhecida: as sessões de tipagem OpenAPI, fundação MSW e frontend da Fase 02 não foram arquivadas.
 
 ## 📖 Stack Tecnológica
 

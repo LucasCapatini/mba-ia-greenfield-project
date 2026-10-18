@@ -1,28 +1,67 @@
 %%{init: {'theme': 'dark'}}%%
 flowchart LR
     plan["📋<br/>project-plan.md"]
-
-    research["🔍<br/>/research"]
-    tdocs["📄<br/>technical-decisions.md"]
+    figma["🎨<br/>Figma"]
     user["👤<br/>User"]
 
-    planphase["📋<br/>/plan-phase"]
-    phase["📄<br/>phase-NN.md"]
-    implement["⚙️<br/>Implementar"]
+    research["🔍<br/>/research"]
+    tdocs["📄<br/>docs/decisions/<br/>technical-decisions-{slug}.md"]
+    decide["💡<br/>/decide"]
+    inventory["🖼️<br/>/screen-inventory"]
+    invdoc["📄<br/>docs/inventories/<br/>screen-inventory-{slug}.md"]
+
+    plancontext["📋<br/>/plan-context"]
+    contextdoc["📄<br/>context.md"]
+    planvalidate["✅<br/>/plan-validate"]
+    validationdoc["📄<br/>validation.md<br/>(clean | dirty)"]
+    planresolve["🔧<br/>/plan-resolve"]
+    planbuild["🏗️<br/>/plan-build"]
+    plandoc["📄<br/>{phase-NN-slug | task-slug}.md<br/>(SIs + Tech Specs)"]
+    testspecs["🧪<br/>/plan-test-specs"]
+    specdoc["📄<br/>&lt;subproject&gt;/specs/*.plan.md"]
+    implement["⚙️<br/>/implement"]
+    progress["📄<br/>progress.md"]
 
     plan --> research
     research --> tdocs
     tdocs --> user
-    user --> planphase
-    planphase --> phase
-    phase --> implement
+    user --> plancontext
+    figma -.-> inventory
+    inventory -.-> invdoc
+    invdoc -.-> plancontext
+    decide -.->|revisão / novo TD| tdocs
 
-    plan -.-> planphase
+    plan -.-> plancontext
+    tdocs --> plancontext
+    plancontext --> contextdoc
+    contextdoc --> planvalidate
+    planvalidate --> validationdoc
+    validationdoc -->|dirty| planresolve
+    planresolve -->|edita Decision / context| planvalidate
+    validationdoc -->|clean| planbuild
+    planbuild --> plandoc
+    plandoc --> testspecs
+    testspecs --> specdoc
+    plandoc --> implement
+    specdoc --> implement
+    implement --> progress
 
     style research fill:#FF7043,stroke:#E64A19,color:#FFF,stroke-width:3px
-    style planphase fill:#FF7043,stroke:#E64A19,color:#FFF,stroke-width:3px
+    style decide fill:#FF7043,stroke:#E64A19,color:#FFF
+    style inventory fill:#FF7043,stroke:#E64A19,color:#FFF
+    style plancontext fill:#FF7043,stroke:#E64A19,color:#FFF,stroke-width:3px
+    style planvalidate fill:#FF7043,stroke:#E64A19,color:#FFF,stroke-width:3px
+    style planresolve fill:#FF7043,stroke:#E64A19,color:#FFF,stroke-width:3px
+    style planbuild fill:#FF7043,stroke:#E64A19,color:#FFF,stroke-width:3px
+    style testspecs fill:#FF7043,stroke:#E64A19,color:#FFF,stroke-width:3px
     style implement fill:#66BB6A,stroke:#43A047,color:#FFF,stroke-width:3px
     style tdocs fill:#42A5F5,stroke:#1E88E5,color:#FFF
+    style invdoc fill:#42A5F5,stroke:#1E88E5,color:#FFF
+    style contextdoc fill:#42A5F5,stroke:#1E88E5,color:#FFF
+    style validationdoc fill:#42A5F5,stroke:#1E88E5,color:#FFF
+    style plandoc fill:#42A5F5,stroke:#1E88E5,color:#FFF
+    style specdoc fill:#42A5F5,stroke:#1E88E5,color:#FFF
+    style progress fill:#42A5F5,stroke:#1E88E5,color:#FFF
     style plan fill:#7C4DFF,stroke:#651FFF,color:#FFF
-    style phase fill:#42A5F5,stroke:#1E88E5,color:#FFF
+    style figma fill:#7C4DFF,stroke:#651FFF,color:#FFF
     style user fill:#37474F,stroke:#78909C,color:#ECEFF1

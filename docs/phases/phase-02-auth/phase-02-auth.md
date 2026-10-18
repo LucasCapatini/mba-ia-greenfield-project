@@ -215,6 +215,7 @@ Deliver the complete authentication lifecycle — registration with automatic ch
 
 - `POST /auth/confirm-email` with a valid, unused, non-expired token returns 204 with no response body — the user's `is_confirmed` becomes `true`
 - `POST /auth/confirm-email` with an already-used token returns 401 with `INVALID_TOKEN`
+  _(superseded by `saneamento-fase-02-e-infra/TD-03`: `confirm` is now idempotent — a used token whose user is already confirmed returns 204 again, so the RSC landing page survives link prefetch/double-open; `used_at` records the first use for `EMAIL_CONFIRMATION`, while `PASSWORD_RESET` stays strictly single-use)_
 - `POST /auth/confirm-email` with an expired token returns 401 with `TOKEN_EXPIRED`
 - `POST /auth/resend-confirmation` with a registered, unconfirmed email invalidates previous confirmation tokens, sends a new confirmation email, and returns 204 with no response body
 - `POST /auth/resend-confirmation` with a non-existent or already-confirmed email returns 204 with no response body — email existence is not revealed
@@ -515,6 +516,7 @@ Deliver the complete authentication lifecycle — registration with automatic ch
 - `GET /auth/confirm-email?token=<expired-token>` returns 401 with `TOKEN_EXPIRED`
 - `GET /auth/confirm-email` without a `token` query parameter returns 400 with a validation error
 - The confirmation link generated in outgoing emails (`${appUrl}/auth/confirm-email?token=${token}`) opens correctly when clicked in a browser
+  _(superseded by `saneamento-fase-02-e-infra/TD-02`: e-mail links now use the required `FRONTEND_URL` and point at the Next.js routes — `${FRONTEND_URL}/confirm-email?token=…` and `${FRONTEND_URL}/reset-password?token=…`; the RSC page then calls `GET /auth/confirm-email` through the typed upstream client)_
 
 ---
 
@@ -633,6 +635,8 @@ Deliver the complete authentication lifecycle — registration with automatic ch
 - 401 INVALID_TOKEN: when the token is not found or already used
 - 401 TOKEN_EXPIRED: when the token has expired
 - 400 validation error: when `token` query parameter is missing or empty
+
+_(superseded by `saneamento-fase-02-e-infra/TD-03`: an already-used token whose user is already confirmed returns 204 — idempotent; 401 INVALID_TOKEN is kept for unknown tokens and for used tokens whose user is not confirmed)_
 
 ---
 
@@ -774,6 +778,8 @@ The `error` field carries the domain error code from the catalog (e.g., `"EMAIL_
 | INVALID_TOKEN | 401 | Invalid or already used token | GET /auth/confirm-email, POST /auth/reset-password, or POST /auth/refresh with a token not found in DB or already consumed |
 | TOKEN_EXPIRED | 401 | Token has expired | GET /auth/confirm-email, POST /auth/reset-password, or POST /auth/refresh with an expired token |
 | TOKEN_REUSE_DETECTED | 401 | Token reuse detected — all sessions revoked | POST /auth/refresh with an already-revoked refresh token beyond the 10s grace period |
+
+_(INVALID_TOKEN row superseded for `GET /auth/confirm-email` by `saneamento-fase-02-e-infra/TD-03`: an already-consumed confirmation token for an already-confirmed user returns 204, not 401. `POST /auth/reset-password` and `POST /auth/refresh` are unchanged.)_
 
 ---
 

@@ -282,6 +282,8 @@ _No inherited conventions from prior phases._
 | "Recuperação de senha (destination screen / set-new-password)" | deferred | deferred_to_next_phase — `/forgot-password` ships this phase sending the e-mail; the reset-password destination screen is absent from Figma → link destination remains a 404 until a later phase delivers the screen via `/screen-inventory` extension run. Documented as a known gap. | phase-02-auth-frontend/TD-07 |
 | "Telas de cadastro, login, confirmação de conta e recuperação de senha" | deferred | a tela de confirmação da conta não será implementada nesta fase corrente, será adiada — the umbrella bullet's full coverage requires the confirmação and reset-password destination screens; both are deferred per Non-UI rows above. The 3 ship-this-phase telas (signup, login, forgot-password) are inventoried and covered by their own verbs; the umbrella bullet itself is deferred to the phase that lands the missing screens. | phase-02-auth-frontend/TD-01, phase-02-auth-frontend/TD-04 |
 
+_Historical note (2026-10-18): all four rows above were delivered by `task-saneamento-fase-02-e-infra` (2026-10) — `/confirm-email` (SI-8, `app/(auth)/confirm-email/page.tsx`), logout via the session-aware `AppHeader` in `app/(app)/layout.tsx` (SI-10), `/reset-password` (SI-9, `app/(auth)/reset-password/page.tsx`) and `/resend-confirmation` (SI-11), closing the umbrella "Telas…" bullet. See `docs/tasks/task-saneamento-fase-02-e-infra/` and `docs/decisions/technical-decisions-saneamento-fase-02-e-infra.md` (TD-03/TD-04/TD-05). The table is kept as written for the audit trail._
+
 ## Testing Requirements
 
 ### next-frontend
