@@ -7,6 +7,13 @@ services:
       - 3001:3000
     volumes:
       - .:/home/node/app
+      # Volumes nomeados sobrepõem node_modules e .next do bind mount (9p, lento no Windows/Docker Desktop):
+      # `require("jsdom")` levava ~100 s pelo bind mount e estourava o timeout de 60 s do worker do Vitest.
+      # node_modules nasce vazio — rode `docker compose exec next-frontend npm install` após o primeiro `up`
+      # e sempre que package.json/package-lock.json mudarem. .next é cache do dev server, regenerado sozinho.
+      # `docker compose down -v` apaga os dois. O Playwright roda no host com o node_modules do host.
+      - node_modules:/home/node/app/node_modules
+      - next_cache:/home/node/app/.next
     networks:
       - streamtube
 
@@ -16,3 +23,7 @@ networks:
   streamtube:
     external: true
     name: streamtube
+
+volumes:
+  node_modules: {}
+  next_cache: {}
