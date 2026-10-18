@@ -66,7 +66,7 @@ cp .env.example .env
 # Sobe API, banco e Mailpit
 docker compose up -d
 
-# Instala dependências (apenas na primeira vez)
+# Instala dependências no volume nomeado (após o primeiro up e sempre que package.json mudar)
 docker compose exec nestjs-api npm install
 
 # Cria o schema do banco (obrigatório — synchronize está desabilitado)
@@ -95,13 +95,15 @@ cd next-frontend
 cp .env.example .env.local
 
 docker compose up -d
-docker compose exec next-frontend npm install        # apenas na primeira vez
+docker compose exec next-frontend npm install        # após o primeiro up e sempre que package.json mudar
 docker compose exec -d next-frontend npm run dev
 ```
 
 A aplicação ficará disponível em **http://localhost:3001**.
 
 > As stacks são projetos Compose separados que compartilham a rede Docker nomeada `streamtube`, criada pela stack do backend. Por isso o backend deve subir primeiro; o frontend acessa a API pelo nome do serviço (`API_URL=http://nestjs-api:3000` em `next-frontend/.env.local`).
+>
+> `node_modules` (e, no frontend, também `.next`) ficam em **volumes nomeados** do Docker, não no bind mount do Windows — é o que mantém a compilação do Nest e os testes do Vitest rápidos. Consequências: o `npm install` roda sempre dentro do container, o `node_modules` do host não é o do container, e `docker compose down -v` apaga os volumes (o próximo `up` exige `npm install` de novo).
 
 ## 🧪 Testes
 
@@ -135,6 +137,8 @@ npx playwright test                                   # ou: npx playwright test 
 ```
 
 > **Windows:** se `npx playwright` falhar por falta do shim `.cmd`, use `node node_modules/@playwright/test/cli.js test`. Ao criar novas pastas de rota, rode `docker compose restart next-frontend` antes dos E2E — o watcher do Turbopack não detecta diretórios novos no bind mount.
+>
+> O Playwright usa o `node_modules` **do host** (única exceção à regra de nunca rodar `npm` fora do container): quando a versão de `@playwright/test` mudar no `package.json`, rode `npm ci` no host uma vez.
 
 Sufixos: `*.test.ts(x)` (unitário), `*.integration.test.ts(x)` (Route Handlers com MSW), `*.e2e-spec.ts` (Playwright). MSW intercepta as chamadas à API NestJS — os testes nunca batem no backend real.
 

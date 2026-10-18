@@ -7,6 +7,11 @@ services:
       - 3000:3000
     volumes:
       - .:/home/node/app
+      # Volume nomeado sobrepõe o node_modules do bind mount (9p, lento no Windows/Docker Desktop):
+      # compilação fria do Nest caía de ~6 min e cada suíte Jest pagava o I/O do bind mount.
+      # O volume nasce vazio — rode `docker compose exec nestjs-api npm install` após o primeiro `up`
+      # e sempre que package.json/package-lock.json mudarem. `docker compose down -v` o apaga.
+      - node_modules:/home/node/app/node_modules
     networks:
       - streamtube
     depends_on:
@@ -44,3 +49,6 @@ services:
 networks:
   streamtube:
     name: streamtube
+
+volumes:
+  node_modules: {}

@@ -25,7 +25,8 @@ This project runs inside Docker. Always use the container for development:
 # Start containers
 docker compose up -d
 
-# Install dependencies (first time only)
+# Install dependencies — after the first `up` and whenever package.json / package-lock.json change
+# (node_modules lives in a named Docker volume, not on the bind mount; it starts empty)
 docker compose exec nestjs-api npm install
 
 # Run the dev server (watch mode)
@@ -36,6 +37,7 @@ Services:
 - `nestjs-api` — NestJS API, port `3000`
 - `db` — PostgreSQL 17, port `5432`, database `streamtube`, user/password `streamtube`
 - `mailpit` — SMTP sink for dev: SMTP on `1025` (used by the API as `MAIL_HOST=mailpit`), web UI on `http://localhost:8025`
+- `node_modules` volume — named volume `nestjs-project_node_modules` mounted over `/home/node/app/node_modules`, so dependencies never touch the slow 9p bind mount (type-check went from minutes to seconds). The host's `nestjs-project/node_modules` is **not** what the container uses; `docker compose down -v` deletes the volume and the next `up` needs `npm install` again.
 
 All three services are attached to the named Docker network `streamtube`, declared in `compose.yaml` and consumed as `external` by `next-frontend/compose.yaml`. **This stack must be started before the frontend stack** — the network only exists once `docker compose up -d` has run here.
 
@@ -56,7 +58,7 @@ docker compose logs nestjs-api
 docker compose logs db
 docker compose logs mailpit
 
-# Tear down the entire environment
+# Tear down the entire environment (add -v to also drop the node_modules volume — the next up needs npm install again)
 docker compose down
 ```
 
@@ -137,6 +139,7 @@ These settings are required in `package.json` (jest config) and `test/jest-e2e.j
 - `setupFiles: ["dotenv/config"]` — without this, `.env` is not loaded inside the Jest process. `DB_HOST`, `JWT_SECRET`, etc. fall back to undefined or to the host's `localhost`, breaking container-to-container DNS.
 - `testRegex: '.*\\.(spec|integration-spec)\\.ts$'` — covers both unit (`*.spec.ts`) and integration (`*.integration-spec.ts`) suffixes.
 - `testTimeout: 30000` (in both configs) — DB-backed suites boot a Nest module and run migrations in `beforeAll`; on the Docker Desktop bind mount a cold boot exceeds Jest's default 5 s hook timeout and fails spuriously.
+- `--forceExit` on the `test` and `test:e2e` scripts (`package.json`) — Jest otherwise hangs after a green run ("Jest did not exit one second after the test run has completed") because DB-backed suites leave handles open. The flag is a symptom fix so the scripts return to the prompt; the root-cause fix (`--detectOpenHandles` to find the leaking suites and close their connections) is a separate hygiene task. `test:integration`, `test:watch` and `test:cov` do not carry the flag.
 
 Do not add new test-file suffixes; if a new test type is needed, update the regex deliberately.
 

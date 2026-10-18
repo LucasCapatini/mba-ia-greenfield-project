@@ -32,7 +32,8 @@ This project runs inside Docker. Always use the container for development:
 # Start container (from next-frontend/)
 docker compose up -d
 
-# Install dependencies (first time only)
+# Install dependencies — after the first `up` and whenever package.json / package-lock.json change
+# (node_modules lives in a named Docker volume, not on the bind mount; it starts empty)
 docker compose exec next-frontend npm install
 
 # Run the dev server (watch mode) — see "Long-running Processes" below
@@ -42,7 +43,7 @@ docker compose exec next-frontend npm run dev
 Service:
 - `next-frontend` — Next.js dev container, host port `3001` → container port `3000`. Browser accesses the app at **`http://localhost:3001`**.
 
-Bind mount: the repo's `next-frontend/` directory is mounted at `/home/node/app` inside the container, so file edits on the host are reflected immediately.
+Bind mount: the repo's `next-frontend/` directory is mounted at `/home/node/app` inside the container, so file edits on the host are reflected immediately. Two named volumes overlay it — `node_modules` (`next-frontend_node_modules`) and `.next` (`next-frontend_next_cache`) — so dependencies and the Turbopack cache never touch the slow 9p bind mount (`require("jsdom")` went from ~100 s to under 1 s, which is what lets Vitest run in parallel). Consequences: the host's `next-frontend/node_modules` is **not** what the container uses; `.next` is no longer visible on the host; `docker compose down -v` drops both volumes and the next `up` needs `npm install` again.
 
 Teardown and inspection commands run on the **host machine**:
 
@@ -59,7 +60,7 @@ docker compose down
 
 ## Commands
 
-**Strict rule:** every `npm`, `npx`, `node`, `tsc`, and shadcn command runs **inside the container**, never on the host. Running on the host uses a different Node version, bypasses the container's working directory, and can leave artifacts owned by the wrong user on the bind mount.
+**Strict rule:** every `npm`, `npx`, `node`, `tsc`, and shadcn command runs **inside the container**, never on the host. Running on the host uses a different Node version, bypasses the container's working directory, and can leave artifacts owned by the wrong user on the bind mount. **Single documented exception:** Playwright runs on the host and needs a host-side `node_modules` — see "E2E test prerequisites" for the `npm ci` rule.
 
 ### Container-only commands (always prefix with `docker compose exec next-frontend`)
 
@@ -207,6 +208,7 @@ npx playwright test tests/auth-login.e2e-spec.ts
 - Step 2 must use `MSW_ENABLED=true` — without it `instrumentation.ts` skips MSW and upstream calls will fail or hit the real NestJS API.
 - Never add `webServer` to `playwright.config.ts` — Playwright must not manage the dev server process (it runs inside Docker, not on the host).
 - If the dev server is already running from a previous session, skip steps 2–3 and go straight to step 4.
+- **Playwright uses the host's `node_modules`**, not the container's volume — the container's `npm install` never refreshes it. This is the only sanctioned host-side install: when `@playwright/test` changes in `package.json`, run `npm ci` once on the host (and `node node_modules/@playwright/test/cli.js install chromium` if the Playwright version changed). Vitest, `tsc` and lint still run only inside the container.
 - **New route directories are not picked up by the running dev server.** Turbopack's watcher on the Windows/Docker Desktop bind mount misses newly created `app/**` folders (404 until restart) and sometimes stale `mocks/` handler edits. After adding a route or a handler, run `docker compose restart next-frontend` and start step 2 again — do not try to kill the old `next dev` from inside the container.
 - The `node:22-slim` image has no `ps`/`pkill`/`wget`. To inspect processes use `/proc` (`ls /proc | grep -E '^[0-9]+$'` + `cat /proc/<pid>/cmdline`); for HTTP probes from inside the container use `node -e "fetch('http://localhost:3000').then(r=>console.log(r.status))"`. Restarting the container is the reliable way to stop a dev server.
 

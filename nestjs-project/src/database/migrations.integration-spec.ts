@@ -31,12 +31,13 @@ describe('Database migrations (integration)', () => {
 
     await dataSource.initialize();
 
-    await Promise.all([
-      ...MANAGED_TABLES.map((table) =>
-        dataSource.query(`DROP TABLE IF EXISTS "${table}" CASCADE`),
-      ),
-      dataSource.query(`DROP TABLE IF EXISTS "migrations" CASCADE`),
-    ]);
+    // One statement, one connection: concurrent DROP ... CASCADE calls (Promise.all
+    // across pool connections) acquire FK-dependent locks in different orders and
+    // intermittently fail with "deadlock detected" in the full --runInBand run.
+    const tables = [...MANAGED_TABLES, 'migrations']
+      .map((table) => `"${table}"`)
+      .join(', ');
+    await dataSource.query(`DROP TABLE IF EXISTS ${tables} CASCADE`);
     // Enum types survive DROP TABLE; without this the second migration's
     // CREATE TYPE fails on any DB where migrations already ran once.
     await dataSource.query(

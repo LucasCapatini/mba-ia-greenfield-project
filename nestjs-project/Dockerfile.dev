@@ -4,6 +4,11 @@ RUN apt update && apt install -y procps curl
 
 WORKDIR /home/node/app
 
+# Ponto de montagem do volume nomeado de node_modules (compose.yaml), criado já com dono `node`:
+# um volume novo copia conteúdo e propriedade deste caminho da imagem na primeira montagem,
+# então o `npm install` rodando como `node` não falha com EACCES.
+RUN mkdir -p /home/node/app/node_modules && chown -R node:node /home/node/app
+
 USER node
 
 CMD [ "tail", "-f", "/dev/null" ] 
