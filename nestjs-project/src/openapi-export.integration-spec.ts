@@ -128,4 +128,47 @@ describe('exportSpec (integration)', () => {
       }
     }
   });
+
+  describe('explicit contract for the account-confirmation / reset flows (SI-6)', () => {
+    type Schema = { required?: string[]; properties?: Record<string, unknown> };
+    type Param = { name: string; in: string; required?: boolean };
+
+    const schemas = () =>
+      (document.components as { schemas: Record<string, Schema> }).schemas;
+    const paths = () =>
+      document.paths as Record<
+        string,
+        Record<string, { parameters?: Param[] }>
+      >;
+
+    it('GET /auth/confirm-email declares the required `token` query parameter', () => {
+      const params = paths()['/auth/confirm-email'].get.parameters ?? [];
+      const token = params.find((p) => p.name === 'token');
+
+      expect(token).toBeDefined();
+      expect(token?.in).toBe('query');
+      expect(token?.required).toBe(true);
+    });
+
+    it('ResetPasswordDto declares token and new_password (8..128) as required', () => {
+      const dto = schemas().ResetPasswordDto;
+
+      expect(dto.required).toEqual(
+        expect.arrayContaining(['token', 'new_password']),
+      );
+      expect(dto.properties).toMatchObject({
+        token: { type: 'string' },
+        new_password: { type: 'string', minLength: 8, maxLength: 128 },
+      });
+    });
+
+    it('ResendConfirmationDto declares a required e-mail', () => {
+      const dto = schemas().ResendConfirmationDto;
+
+      expect(dto.required).toEqual(['email']);
+      expect(dto.properties).toMatchObject({
+        email: { type: 'string', format: 'email' },
+      });
+    });
+  });
 });

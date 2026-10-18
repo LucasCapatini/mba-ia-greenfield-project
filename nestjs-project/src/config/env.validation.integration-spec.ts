@@ -6,6 +6,7 @@ const requiredEnv = {
   DB_NAME: 'db',
   JWT_SECRET: 'secret',
   JWT_REFRESH_SECRET: 'refresh-secret',
+  FRONTEND_URL: 'http://localhost:3001',
 };
 
 const validate = (env: Record<string, string>) =>

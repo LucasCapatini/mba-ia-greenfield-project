@@ -7,6 +7,8 @@ services:
       - 3000:3000
     volumes:
       - .:/home/node/app
+    networks:
+      - streamtube
     depends_on:
       db:
         condition: service_healthy
@@ -21,6 +23,8 @@ services:
       - POSTGRES_USER=streamtube
       - POSTGRES_PASSWORD=streamtube
       - POSTGRES_DB=streamtube
+    networks:
+      - streamtube
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U streamtube"]
       interval: 5s
@@ -32,5 +36,11 @@ services:
     ports:
       - "1025:1025"
       - "8025:8025"
+    networks:
+      - streamtube
 
-
+# Rede nomeada compartilhada com a stack do frontend (next-frontend/compose.yaml a declara como external).
+# Suba esta stack primeiro: ela cria a rede; o frontend apenas se anexa a ela.
+networks:
+  streamtube:
+    name: streamtube

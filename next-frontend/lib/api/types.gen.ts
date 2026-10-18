@@ -49,7 +49,7 @@ export interface paths {
         };
         /**
          * Confirm email address
-         * @description Validates the confirmation token and marks the user's email as confirmed.
+         * @description Validates the confirmation token and marks the user's email as confirmed. Idempotent: calling it again with a token already consumed by a confirmed account returns 204 (protects against e-mail-client link prefetch).
          */
         get: operations["AuthController_confirmEmail"];
         put?: never;
@@ -205,11 +205,29 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         RegisterDto: Record<string, never>;
-        ResendConfirmationDto: Record<string, never>;
+        ResendConfirmationDto: {
+            /**
+             * Format: email
+             * @description E-mail address of the account awaiting confirmation
+             * @example user@example.com
+             */
+            email: string;
+        };
         LoginDto: Record<string, never>;
         RefreshTokenDto: Record<string, never>;
         ForgotPasswordDto: Record<string, never>;
-        ResetPasswordDto: Record<string, never>;
+        ResetPasswordDto: {
+            /**
+             * @description Raw password-reset token received in the e-mail link
+             * @example 3f9c2e1d8b7a4c6e9f0a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f5a6
+             */
+            token: string;
+            /**
+             * @description New password
+             * @example new-strong-password
+             */
+            new_password: string;
+        };
         ApiErrorEnvelope: {
             /** @example 401 */
             statusCode: number;
@@ -294,7 +312,10 @@ export interface operations {
     };
     AuthController_confirmEmail: {
         parameters: {
-            query?: never;
+            query: {
+                /** @description Raw confirmation token received in the e-mail link */
+                token: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;

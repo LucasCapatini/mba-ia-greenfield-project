@@ -79,9 +79,20 @@
     },
     "/auth/confirm-email": {
       "get": {
-        "description": "Validates the confirmation token and marks the user's email as confirmed.",
+        "description": "Validates the confirmation token and marks the user's email as confirmed. Idempotent: calling it again with a token already consumed by a confirmed account returns 204 (protects against e-mail-client link prefetch).",
         "operationId": "AuthController_confirmEmail",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "query",
+            "description": "Raw confirmation token received in the e-mail link",
+            "schema": {
+              "example": "3f9c2e1d8b7a4c6e9f0a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f5a6",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "204": {
             "description": "Email confirmed successfully"
@@ -463,7 +474,17 @@
       },
       "ResendConfirmationDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "E-mail address of the account awaiting confirmation",
+            "format": "email",
+            "example": "user@example.com"
+          }
+        },
+        "required": [
+          "email"
+        ]
       },
       "LoginDto": {
         "type": "object",
@@ -479,7 +500,24 @@
       },
       "ResetPasswordDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Raw password-reset token received in the e-mail link",
+            "example": "3f9c2e1d8b7a4c6e9f0a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f5a6"
+          },
+          "new_password": {
+            "type": "string",
+            "description": "New password",
+            "minLength": 8,
+            "maxLength": 128,
+            "example": "new-strong-password"
+          }
+        },
+        "required": [
+          "token",
+          "new_password"
+        ]
       },
       "ApiErrorEnvelope": {
         "type": "object",
