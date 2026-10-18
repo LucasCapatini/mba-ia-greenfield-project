@@ -200,6 +200,130 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/videos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pré-cadastro do vídeo e abertura do upload multipart
+         * @description Cria o rascunho no canal do usuário autenticado, abre a sessão multipart no object storage e devolve os parâmetros para o cliente enviar as partes direto ao storage. Nenhum byte de vídeo passa pela API.
+         */
+        post: operations["VideosController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/videos/{publicId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Estado e metadados do vídeo
+         * @description Para o dono acompanhar o processamento (polling de processing_status) e ler os metadados extraídos pelo worker. thumbnail_url é uma URL GET pré-assinada quando a thumbnail existe.
+         */
+        get: operations["VideosController_getVideo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/videos/{publicId}/playback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * URLs de reprodução e download
+         * @description Emite stream_url (GET pré-assinado; o storage atende Range → 206) e download_url (mesma URL com Content-Disposition: attachment) válidas por PLAYBACK_URL_TTL. Só para vídeos com processing_status = ready.
+         */
+        get: operations["VideosController_getPlayback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/videos/{publicId}/upload/parts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * URLs pré-assinadas para um lote de partes
+         * @description Devolve uma URL de UploadPart por parte solicitada (até 100 por chamada), válida por UPLOAD_URL_TTL. O cliente faz PUT do conteúdo diretamente em cada URL (host S3_PUBLIC_ENDPOINT) e guarda o header ETag da resposta.
+         */
+        post: operations["VideosController_presignParts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/videos/{publicId}/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Estado da sessão de upload (retomada)
+         * @description Lista as partes já aceitas pelo storage (ListParts) para que o cliente retome o envio após falha ou recarga da página sem reenviar o que já chegou.
+         */
+        get: operations["VideosController_getUploadState"];
+        put?: never;
+        post?: never;
+        /**
+         * Cancela o upload e descarta o rascunho
+         * @description Aborta o multipart no storage (as partes já enviadas são descartadas) e remove o rascunho e a sessão. Só é possível enquanto a sessão está ativa.
+         */
+        delete: operations["VideosController_abortUpload"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/videos/{publicId}/upload/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Conclui o upload e inicia o processamento
+         * @description Confere a lista de partes do cliente contra o storage, fecha o multipart (CompleteMultipartUpload), grava o tamanho real, marca a sessão como concluída e enfileira o processamento. Responde 202: o vídeo fica em processing até o worker terminar.
+         */
+        post: operations["VideosController_completeUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -227,6 +351,148 @@ export interface components {
              * @example new-strong-password
              */
             new_password: string;
+        };
+        CreateVideoDto: {
+            /**
+             * @example video/mp4
+             * @enum {string}
+             */
+            content_type: "video/mp4" | "video/webm";
+        };
+        UploadSessionResponse: {
+            /** @description UploadId do multipart no storage. */
+            upload_id: string;
+            /**
+             * @description Bytes por parte.
+             * @example 67108864
+             */
+            part_size: number;
+            /**
+             * @description Número total de partes = ceil(size_bytes / part_size).
+             * @example 3
+             */
+            part_count: number;
+            /**
+             * @description Prazo da sessão (ISO-8601); depois dele o rascunho é descartado.
+             * @example 2026-10-19T19:00:00.000Z
+             */
+            expires_at: string;
+        };
+        VideoCreatedResponse: {
+            /**
+             * @description Identificador público (11 chars) usado na URL.
+             * @example dQw4w9WgXcQ
+             */
+            public_id: string;
+            /**
+             * @example draft
+             * @enum {string}
+             */
+            status: "draft";
+            /**
+             * @example uploading
+             * @enum {string}
+             */
+            processing_status: "uploading" | "processing" | "ready" | "failed";
+            upload: components["schemas"]["UploadSessionResponse"];
+        };
+        VideoResponse: {
+            /** @example dQw4w9WgXcQ */
+            public_id: string;
+            /**
+             * @example draft
+             * @enum {string}
+             */
+            status: "draft";
+            /** @enum {string} */
+            processing_status: "uploading" | "processing" | "ready" | "failed";
+            /**
+             * @description Código quando `failed`.
+             * @enum {string|null}
+             */
+            processing_error: "UNSUPPORTED_FORMAT" | "PROBE_FAILED" | "THUMBNAIL_FAILED" | "OBJECT_MISSING" | null;
+            original_filename: string;
+            /** @example video/mp4 */
+            content_type: string;
+            size_bytes: number | null;
+            /** @example 12.345 */
+            duration_seconds: number | null;
+            width: number | null;
+            height: number | null;
+            /** @enum {string|null} */
+            container: "mp4" | "webm" | null;
+            /** @example h264 */
+            video_codec: Record<string, never> | null;
+            /** @example aac */
+            audio_codec: Record<string, never> | null;
+            /** @description URL GET pré-assinada da thumbnail (cliente público) quando existe. */
+            thumbnail_url: Record<string, never> | null;
+            /** @description ISO-8601 */
+            created_at: string;
+            /** @description ISO-8601 */
+            processed_at: Record<string, never> | null;
+        };
+        PlaybackResponse: {
+            /** @description GET pré-assinado do vídeo; o storage atende `Range` (206). */
+            stream_url: string;
+            /** @description GET pré-assinado com `Content-Disposition: attachment; filename="…"`. */
+            download_url: string;
+            thumbnail_url: Record<string, never> | null;
+            /** @description Validade das URLs (ISO-8601), now + PLAYBACK_URL_TTL. */
+            expires_at: string;
+        };
+        PresignPartsDto: Record<string, never>;
+        PresignedPartResponse: {
+            /** @example 1 */
+            part_number: number;
+            /** @description URL pré-assinada para `PUT` direto no storage (host S3_PUBLIC_ENDPOINT). */
+            url: string;
+        };
+        PresignedPartsResponse: {
+            upload_id: string;
+            part_size: number;
+            /** @description Validade das URLs deste lote (ISO-8601). */
+            expires_at: string;
+            parts: components["schemas"]["PresignedPartResponse"][];
+        };
+        UploadedPartResponse: {
+            part_number: number;
+            /** @description ETag aceito pelo storage (com aspas). */
+            etag: string;
+            /** @description Bytes da parte. */
+            size: number;
+        };
+        UploadStateResponse: {
+            upload_id: string;
+            /**
+             * @example active
+             * @enum {string}
+             */
+            state: "active" | "completed" | "aborted" | "expired";
+            part_size: number;
+            part_count: number;
+            expected_bytes: number;
+            /** @description Prazo da sessão (ISO-8601). */
+            expires_at: string;
+            /** @description Partes já aceitas pelo storage (ListParts). */
+            uploaded_parts: components["schemas"]["UploadedPartResponse"][];
+        };
+        CompleteUploadDto: Record<string, never>;
+        UploadCompletedResponse: {
+            /** @example dQw4w9WgXcQ */
+            public_id: string;
+            /**
+             * @example draft
+             * @enum {string}
+             */
+            status: "draft";
+            /**
+             * @example processing
+             * @enum {string}
+             */
+            processing_status: "uploading" | "processing" | "ready" | "failed";
+            /** @description Tamanho confirmado pela soma das partes. */
+            size_bytes: number;
         };
         ApiErrorEnvelope: {
             /** @example 401 */
@@ -602,6 +868,507 @@ export interface operations {
             };
             /** @description Missing or invalid access token */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    VideosController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateVideoDto"];
+            };
+        };
+        responses: {
+            /** @description Rascunho criado e sessão aberta */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoCreatedResponse"];
+                };
+            };
+            /** @description VALIDATION_ERROR ou VIDEO_UNSUPPORTED_MEDIA_TYPE */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description VIDEO_TOO_LARGE — size_bytes acima de UPLOAD_MAX_BYTES */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description STORAGE_UNAVAILABLE — falha ao abrir o multipart no storage */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    VideosController_getVideo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador público do vídeo (11 chars base64url) */
+                publicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Estado atual do vídeo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoResponse"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description VIDEO_FORBIDDEN */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description VIDEO_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description STORAGE_UNAVAILABLE — falha ao assinar a thumbnail */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    VideosController_getPlayback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador público do vídeo (11 chars base64url) */
+                publicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description URLs assinadas */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaybackResponse"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description VIDEO_FORBIDDEN */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description VIDEO_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description VIDEO_NOT_READY — processing_status ≠ ready */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description STORAGE_UNAVAILABLE — falha ao assinar as URLs */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    VideosController_presignParts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador público do vídeo (11 chars base64url) */
+                publicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PresignPartsDto"];
+            };
+        };
+        responses: {
+            /** @description URLs emitidas */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresignedPartsResponse"];
+                };
+            };
+            /** @description VALIDATION_ERROR — lote inválido ou part_number acima de part_count */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description VIDEO_FORBIDDEN — o vídeo pertence a outro canal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description VIDEO_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description UPLOAD_NOT_ACTIVE — sessão já concluída, abortada ou expirada */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description STORAGE_UNAVAILABLE */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    VideosController_getUploadState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador público do vídeo (11 chars base64url) */
+                publicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sessão ativa com as partes recebidas */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadStateResponse"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description VIDEO_FORBIDDEN */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description VIDEO_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description UPLOAD_NOT_ACTIVE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description STORAGE_UNAVAILABLE */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    VideosController_abortUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador público do vídeo (11 chars base64url) */
+                publicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Upload cancelado e rascunho removido */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description VIDEO_FORBIDDEN */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description VIDEO_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description UPLOAD_NOT_ACTIVE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description STORAGE_UNAVAILABLE */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    VideosController_completeUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador público do vídeo (11 chars base64url) */
+                publicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompleteUploadDto"];
+            };
+        };
+        responses: {
+            /** @description Upload concluído; processamento enfileirado */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadCompletedResponse"];
+                };
+            };
+            /** @description VALIDATION_ERROR */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description VIDEO_FORBIDDEN */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description VIDEO_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description UPLOAD_NOT_ACTIVE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description VIDEO_TOO_LARGE — soma das partes acima de UPLOAD_MAX_BYTES */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description UPLOAD_INCOMPLETE — parte faltando ou etag divergente do storage */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description STORAGE_UNAVAILABLE */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

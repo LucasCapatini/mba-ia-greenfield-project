@@ -449,6 +449,659 @@
           "auth"
         ]
       }
+    },
+    "/videos": {
+      "post": {
+        "description": "Cria o rascunho no canal do usuário autenticado, abre a sessão multipart no object storage e devolve os parâmetros para o cliente enviar as partes direto ao storage. Nenhum byte de vídeo passa pela API.",
+        "operationId": "VideosController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVideoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Rascunho criado e sessão aberta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoCreatedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR ou VIDEO_UNSUPPORTED_MEDIA_TYPE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "VIDEO_TOO_LARGE — size_bytes acima de UPLOAD_MAX_BYTES",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "STORAGE_UNAVAILABLE — falha ao abrir o multipart no storage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Pré-cadastro do vídeo e abertura do upload multipart",
+        "tags": [
+          "videos"
+        ]
+      }
+    },
+    "/videos/{publicId}": {
+      "get": {
+        "description": "Para o dono acompanhar o processamento (polling de processing_status) e ler os metadados extraídos pelo worker. thumbnail_url é uma URL GET pré-assinada quando a thumbnail existe.",
+        "operationId": "VideosController_getVideo",
+        "parameters": [
+          {
+            "name": "publicId",
+            "required": true,
+            "in": "path",
+            "description": "Identificador público do vídeo (11 chars base64url)",
+            "schema": {
+              "example": "dQw4w9WgXcQ",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado atual do vídeo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "VIDEO_FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "VIDEO_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "STORAGE_UNAVAILABLE — falha ao assinar a thumbnail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Estado e metadados do vídeo",
+        "tags": [
+          "videos"
+        ]
+      }
+    },
+    "/videos/{publicId}/playback": {
+      "get": {
+        "description": "Emite stream_url (GET pré-assinado; o storage atende Range → 206) e download_url (mesma URL com Content-Disposition: attachment) válidas por PLAYBACK_URL_TTL. Só para vídeos com processing_status = ready.",
+        "operationId": "VideosController_getPlayback",
+        "parameters": [
+          {
+            "name": "publicId",
+            "required": true,
+            "in": "path",
+            "description": "Identificador público do vídeo (11 chars base64url)",
+            "schema": {
+              "example": "dQw4w9WgXcQ",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "URLs assinadas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybackResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "VIDEO_FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "VIDEO_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "VIDEO_NOT_READY — processing_status ≠ ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "STORAGE_UNAVAILABLE — falha ao assinar as URLs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "URLs de reprodução e download",
+        "tags": [
+          "videos"
+        ]
+      }
+    },
+    "/videos/{publicId}/upload/parts": {
+      "post": {
+        "description": "Devolve uma URL de UploadPart por parte solicitada (até 100 por chamada), válida por UPLOAD_URL_TTL. O cliente faz PUT do conteúdo diretamente em cada URL (host S3_PUBLIC_ENDPOINT) e guarda o header ETag da resposta.",
+        "operationId": "VideosController_presignParts",
+        "parameters": [
+          {
+            "name": "publicId",
+            "required": true,
+            "in": "path",
+            "description": "Identificador público do vídeo (11 chars base64url)",
+            "schema": {
+              "example": "dQw4w9WgXcQ",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresignPartsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "URLs emitidas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresignedPartsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR — lote inválido ou part_number acima de part_count",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "VIDEO_FORBIDDEN — o vídeo pertence a outro canal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "VIDEO_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "UPLOAD_NOT_ACTIVE — sessão já concluída, abortada ou expirada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "STORAGE_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "URLs pré-assinadas para um lote de partes",
+        "tags": [
+          "videos"
+        ]
+      }
+    },
+    "/videos/{publicId}/upload": {
+      "get": {
+        "description": "Lista as partes já aceitas pelo storage (ListParts) para que o cliente retome o envio após falha ou recarga da página sem reenviar o que já chegou.",
+        "operationId": "VideosController_getUploadState",
+        "parameters": [
+          {
+            "name": "publicId",
+            "required": true,
+            "in": "path",
+            "description": "Identificador público do vídeo (11 chars base64url)",
+            "schema": {
+              "example": "dQw4w9WgXcQ",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sessão ativa com as partes recebidas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadStateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "VIDEO_FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "VIDEO_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "UPLOAD_NOT_ACTIVE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "STORAGE_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Estado da sessão de upload (retomada)",
+        "tags": [
+          "videos"
+        ]
+      },
+      "delete": {
+        "description": "Aborta o multipart no storage (as partes já enviadas são descartadas) e remove o rascunho e a sessão. Só é possível enquanto a sessão está ativa.",
+        "operationId": "VideosController_abortUpload",
+        "parameters": [
+          {
+            "name": "publicId",
+            "required": true,
+            "in": "path",
+            "description": "Identificador público do vídeo (11 chars base64url)",
+            "schema": {
+              "example": "dQw4w9WgXcQ",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Upload cancelado e rascunho removido"
+          },
+          "401": {
+            "description": "Missing or invalid access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "VIDEO_FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "VIDEO_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "UPLOAD_NOT_ACTIVE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "STORAGE_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Cancela o upload e descarta o rascunho",
+        "tags": [
+          "videos"
+        ]
+      }
+    },
+    "/videos/{publicId}/upload/complete": {
+      "post": {
+        "description": "Confere a lista de partes do cliente contra o storage, fecha o multipart (CompleteMultipartUpload), grava o tamanho real, marca a sessão como concluída e enfileira o processamento. Responde 202: o vídeo fica em processing até o worker terminar.",
+        "operationId": "VideosController_completeUpload",
+        "parameters": [
+          {
+            "name": "publicId",
+            "required": true,
+            "in": "path",
+            "description": "Identificador público do vídeo (11 chars base64url)",
+            "schema": {
+              "example": "dQw4w9WgXcQ",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteUploadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Upload concluído; processamento enfileirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadCompletedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "VIDEO_FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "VIDEO_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "UPLOAD_NOT_ACTIVE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "VIDEO_TOO_LARGE — soma das partes acima de UPLOAD_MAX_BYTES",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "UPLOAD_INCOMPLETE — parte faltando ou etag divergente do storage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "STORAGE_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Conclui o upload e inicia o processamento",
+        "tags": [
+          "videos"
+        ]
+      }
     }
   },
   "info": {
@@ -517,6 +1170,381 @@
         "required": [
           "token",
           "new_password"
+        ]
+      },
+      "CreateVideoDto": {
+        "type": "object",
+        "properties": {
+          "content_type": {
+            "type": "string",
+            "enum": [
+              "video/mp4",
+              "video/webm"
+            ],
+            "example": "video/mp4"
+          }
+        },
+        "required": [
+          "content_type"
+        ]
+      },
+      "UploadSessionResponse": {
+        "type": "object",
+        "properties": {
+          "upload_id": {
+            "type": "string",
+            "description": "UploadId do multipart no storage."
+          },
+          "part_size": {
+            "type": "integer",
+            "description": "Bytes por parte.",
+            "example": 67108864
+          },
+          "part_count": {
+            "type": "integer",
+            "description": "Número total de partes = ceil(size_bytes / part_size).",
+            "example": 3
+          },
+          "expires_at": {
+            "type": "string",
+            "description": "Prazo da sessão (ISO-8601); depois dele o rascunho é descartado.",
+            "example": "2026-10-19T19:00:00.000Z"
+          }
+        },
+        "required": [
+          "upload_id",
+          "part_size",
+          "part_count",
+          "expires_at"
+        ]
+      },
+      "VideoCreatedResponse": {
+        "type": "object",
+        "properties": {
+          "public_id": {
+            "type": "string",
+            "description": "Identificador público (11 chars) usado na URL.",
+            "example": "dQw4w9WgXcQ"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft"
+            ],
+            "example": "draft"
+          },
+          "processing_status": {
+            "type": "string",
+            "enum": [
+              "uploading",
+              "processing",
+              "ready",
+              "failed"
+            ],
+            "example": "uploading"
+          },
+          "upload": {
+            "$ref": "#/components/schemas/UploadSessionResponse"
+          }
+        },
+        "required": [
+          "public_id",
+          "status",
+          "processing_status",
+          "upload"
+        ]
+      },
+      "VideoResponse": {
+        "type": "object",
+        "properties": {
+          "public_id": {
+            "type": "string",
+            "example": "dQw4w9WgXcQ"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft"
+            ],
+            "example": "draft"
+          },
+          "processing_status": {
+            "type": "string",
+            "enum": [
+              "uploading",
+              "processing",
+              "ready",
+              "failed"
+            ]
+          },
+          "processing_error": {
+            "type": "string",
+            "enum": [
+              "UNSUPPORTED_FORMAT",
+              "PROBE_FAILED",
+              "THUMBNAIL_FAILED",
+              "OBJECT_MISSING"
+            ],
+            "nullable": true,
+            "description": "Código quando `failed`."
+          },
+          "original_filename": {
+            "type": "string"
+          },
+          "content_type": {
+            "type": "string",
+            "example": "video/mp4"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "nullable": true
+          },
+          "duration_seconds": {
+            "type": "number",
+            "nullable": true,
+            "example": 12.345
+          },
+          "width": {
+            "type": "integer",
+            "nullable": true
+          },
+          "height": {
+            "type": "integer",
+            "nullable": true
+          },
+          "container": {
+            "type": "string",
+            "enum": [
+              "mp4",
+              "webm"
+            ],
+            "nullable": true
+          },
+          "video_codec": {
+            "type": "object",
+            "nullable": true,
+            "example": "h264"
+          },
+          "audio_codec": {
+            "type": "object",
+            "nullable": true,
+            "example": "aac"
+          },
+          "thumbnail_url": {
+            "type": "object",
+            "nullable": true,
+            "description": "URL GET pré-assinada da thumbnail (cliente público) quando existe."
+          },
+          "created_at": {
+            "type": "string",
+            "description": "ISO-8601"
+          },
+          "processed_at": {
+            "type": "object",
+            "nullable": true,
+            "description": "ISO-8601"
+          }
+        },
+        "required": [
+          "public_id",
+          "status",
+          "processing_status",
+          "processing_error",
+          "original_filename",
+          "content_type",
+          "size_bytes",
+          "duration_seconds",
+          "width",
+          "height",
+          "container",
+          "video_codec",
+          "audio_codec",
+          "thumbnail_url",
+          "created_at",
+          "processed_at"
+        ]
+      },
+      "PlaybackResponse": {
+        "type": "object",
+        "properties": {
+          "stream_url": {
+            "type": "string",
+            "description": "GET pré-assinado do vídeo; o storage atende `Range` (206)."
+          },
+          "download_url": {
+            "type": "string",
+            "description": "GET pré-assinado com `Content-Disposition: attachment; filename=\"…\"`."
+          },
+          "thumbnail_url": {
+            "type": "object",
+            "nullable": true
+          },
+          "expires_at": {
+            "type": "string",
+            "description": "Validade das URLs (ISO-8601), now + PLAYBACK_URL_TTL."
+          }
+        },
+        "required": [
+          "stream_url",
+          "download_url",
+          "thumbnail_url",
+          "expires_at"
+        ]
+      },
+      "PresignPartsDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "PresignedPartResponse": {
+        "type": "object",
+        "properties": {
+          "part_number": {
+            "type": "integer",
+            "example": 1
+          },
+          "url": {
+            "type": "string",
+            "description": "URL pré-assinada para `PUT` direto no storage (host S3_PUBLIC_ENDPOINT)."
+          }
+        },
+        "required": [
+          "part_number",
+          "url"
+        ]
+      },
+      "PresignedPartsResponse": {
+        "type": "object",
+        "properties": {
+          "upload_id": {
+            "type": "string"
+          },
+          "part_size": {
+            "type": "integer"
+          },
+          "expires_at": {
+            "type": "string",
+            "description": "Validade das URLs deste lote (ISO-8601)."
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PresignedPartResponse"
+            }
+          }
+        },
+        "required": [
+          "upload_id",
+          "part_size",
+          "expires_at",
+          "parts"
+        ]
+      },
+      "UploadedPartResponse": {
+        "type": "object",
+        "properties": {
+          "part_number": {
+            "type": "integer"
+          },
+          "etag": {
+            "type": "string",
+            "description": "ETag aceito pelo storage (com aspas)."
+          },
+          "size": {
+            "type": "integer",
+            "description": "Bytes da parte."
+          }
+        },
+        "required": [
+          "part_number",
+          "etag",
+          "size"
+        ]
+      },
+      "UploadStateResponse": {
+        "type": "object",
+        "properties": {
+          "upload_id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "completed",
+              "aborted",
+              "expired"
+            ],
+            "example": "active"
+          },
+          "part_size": {
+            "type": "integer"
+          },
+          "part_count": {
+            "type": "integer"
+          },
+          "expected_bytes": {
+            "type": "integer"
+          },
+          "expires_at": {
+            "type": "string",
+            "description": "Prazo da sessão (ISO-8601)."
+          },
+          "uploaded_parts": {
+            "description": "Partes já aceitas pelo storage (ListParts).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UploadedPartResponse"
+            }
+          }
+        },
+        "required": [
+          "upload_id",
+          "state",
+          "part_size",
+          "part_count",
+          "expected_bytes",
+          "expires_at",
+          "uploaded_parts"
+        ]
+      },
+      "CompleteUploadDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UploadCompletedResponse": {
+        "type": "object",
+        "properties": {
+          "public_id": {
+            "type": "string",
+            "example": "dQw4w9WgXcQ"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft"
+            ],
+            "example": "draft"
+          },
+          "processing_status": {
+            "type": "string",
+            "enum": [
+              "uploading",
+              "processing",
+              "ready",
+              "failed"
+            ],
+            "example": "processing"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "description": "Tamanho confirmado pela soma das partes."
+          }
+        },
+        "required": [
+          "public_id",
+          "status",
+          "processing_status",
+          "size_bytes"
         ]
       },
       "ApiErrorEnvelope": {
