@@ -9,7 +9,9 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // One worker: the server-side MSW fake (mocks/store.ts) is a single in-memory state per dev
+  // server, and the login handler resets it — parallel spec files would race on it.
+  workers: 1,
   reporter: "html",
   use: {
     baseURL: "http://localhost:3001",
