@@ -186,14 +186,33 @@ describe('exportSpec (integration)', () => {
         }
       ).schemas;
 
+    // Phase 04 (SI-04.3, TD-07): the two reads became public with optional auth — no security
+    // requirement, an optional Authorization header, and no 403 (a hidden draft answers 404).
+    it.each([
+      ['/videos/{publicId}', ['200', '401', '404', '503']],
+      ['/videos/{publicId}/playback', ['200', '401', '404', '409', '503']],
+    ])(
+      '%s get is a public read with an optional Authorization header',
+      (path, statuses) => {
+        const operation = paths()[path]?.get as Operation & {
+          parameters?: Array<{ name: string; in: string; required?: boolean }>;
+        };
+
+        expect(operation).toBeDefined();
+        expect(Object.keys(operation.responses).sort()).toEqual(
+          [...statuses].sort(),
+        );
+        expect(operation.security ?? []).toEqual([]);
+        const header = operation.parameters?.find(
+          (param) => param.in === 'header' && param.name === 'Authorization',
+        );
+        expect(header?.required).toBe(false);
+        expect((operation.summary ?? '').length).toBeGreaterThan(0);
+      },
+    );
+
     it.each([
       ['/videos', 'post', ['201', '400', '401', '413', '503']],
-      ['/videos/{publicId}', 'get', ['200', '401', '403', '404', '503']],
-      [
-        '/videos/{publicId}/playback',
-        'get',
-        ['200', '401', '403', '404', '409', '503'],
-      ],
       [
         '/videos/{publicId}/upload/parts',
         'post',
