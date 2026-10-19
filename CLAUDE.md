@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 StreamTube — a video sharing platform (YouTube-like). Users can upload, manage, and publish videos. Anonymous users can watch freely; social features (comments, subscriptions, likes) require authentication.
 
-Phases 01 (base config), 02 (auth: register → email confirmation → login → password reset, backend + frontend) and 03 (video upload via presigned multipart, processing worker and playback URLs — backend only) are done. Phases 04–07 (video & channel management, watch page, social, home/search) are planned. Full plan and phase scopes: [docs/project-plan.md](docs/project-plan.md).
+Phases 01 (base config), 02 (auth: register → email confirmation → login → password reset, backend + frontend), 03 (video upload via presigned multipart, processing worker and playback URLs — backend) and 04 (video & channel management: categories, edit/publish, custom thumbnails, deletion, studio screens incl. the upload UI, public channel page — backend + frontend) are done. Phases 05–07 (watch page, social, home/search) are planned. Full plan and phase scopes: [docs/project-plan.md](docs/project-plan.md).
 
 ## Repository Structure
 
@@ -28,8 +28,8 @@ See `docs/diagrams/software-arch.mermaid`. Key containers:
 - **API** (NestJS) → business rules, auth (JWT access + rotating refresh tokens with reuse detection), DB, transactional e-mail. `JwtAuthGuard` and `ThrottlerGuard` are registered globally via `APP_GUARD` in `AuthModule`; routes opt out with `@Public()`. Global `ValidationPipe` (`whitelist` + `forbidNonWhitelisted`) and domain/validation exception filters are wired in `main.ts`.
 - **Database** (PostgreSQL) → `synchronize` is **off** everywhere; schema changes go through TypeORM migrations in `src/database/migrations/` (run via `npm run migration:run`).
 - **Email Service** (Mailpit in dev) → account confirmation and password recovery.
-- **Object Storage** (S3-compatible; RustFS in dev) → video files and thumbnails. The browser uploads parts and streams directly through presigned URLs; the API only orchestrates (`StorageModule`, two S3 clients: internal `S3_ENDPOINT` and browser-facing `S3_PUBLIC_ENDPOINT`).
-- **Message Queue** (pg-boss on the same PostgreSQL, schema `pgboss`) → jobs `video.process` and `upload.expire` (`QueueModule`).
+- **Object Storage** (S3-compatible; RustFS in dev) → video files and thumbnails. The browser uploads parts and streams directly through presigned URLs; the API only orchestrates (`StorageModule`, two S3 clients: internal `S3_ENDPOINT` and browser-facing `S3_PUBLIC_ENDPOINT`). Thumbnails are the one exception to presigned reads: the bucket policy allows anonymous `GET` on `thumbnails/*` only (stable URLs); `videos/*` stays private.
+- **Message Queue** (pg-boss on the same PostgreSQL, schema `pgboss`) → jobs `video.process`, `upload.expire` and `video.delete` (`QueueModule`).
 - **Video Worker** (FFmpeg) → second entrypoint of `nestjs-project` (`src/worker.ts` → `WorkerModule`, compose service `video-worker`): consumes the queues, validates formats by probing the bytes, extracts metadata and thumbnails. It never imports `AppModule`. Details in `nestjs-project/CLAUDE.md`.
 
 ### OpenAPI contract chain (backend → frontend)
