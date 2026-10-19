@@ -9271,7 +9271,7 @@ Summary:
    - The user then ran `/plan-test-specs 4`, then `/implement 4` (default mode, pause between SIs).
    - The user's latest request: "Pode seguir para SI-04.0.2".
    - Always respond in Portuguese with correct accents.
-   - Account context from the system-reminder (Claude Code attached it, not a user preference): the user's email is lucas.capatini@mobi2buy.ai. Use it only to identify the user and never send it to unrelated services.
+   - Account context from the system-reminder (Claude Code attached it, not a user preference): the user's email is [e-mail do usuário]. Use it only to identify the user and never send it to unrelated services.
    - Commit trailer: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Git operations are user-owned; nothing has been committed.
 
 2. Key Technical Concepts:
@@ -22938,7 +22938,7 @@ Summary:
    - Always respond in Portuguese with correct accents.
    - Commit trailer when committing: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
    - Nothing has been committed; git operations are user-owned.
-   - Account context (from a system-reminder that Claude Code attached, not a user message): the user's email is lucas.capatini@mobi2buy.ai. Use it only to identify the user and never send it to unrelated services.
+   - Account context (from a system-reminder that Claude Code attached, not a user message): the user's email is [e-mail do usuário]. Use it only to identify the user and never send it to unrelated services.
    - Earlier feedback, saved to memory: in /research, present TDs in chat and fill Decision fields from the user's answers.
 
 2. Key Technical Concepts:
@@ -35391,7 +35391,7 @@ Vou fazer as duas coisas em paralelo: levantar o estado do git para montar o pas
       {"contents":[{"uri":"file://figma/docs/rate-limits-access.md","mimeType":"text/markdown","text":"---\ntitle: \"Rate limits & access\"\n---\n\n# Rate limits & access\n\n## Who can use the MCP server, and what are the rate limits? {#rate-limits}\n\nHow often you can use the MCP server depends on your plan and seat. Per-minute limits apply in addition to daily or monthly limits.\n\n| Seat | Starter | Professional | Organization | Enterprise |\n|---|---|---|---|---|\n| View, Collab | Up to 20 per month | Up to 20 per month | Up to 20 per month | Up to 20 per month |\n| Full, Dev | — | Up to 200 per day, 10 per minute | Up to 200 per day, 15 per minute | Up to 600 per day, 20 per minute |\n\nEducation plans have the same limits as Full and Dev seats on the Professional plan: up to 200 tool calls per day and 10 per minute.\n\nRate limits apply to tools that read data from Figma. Some tools are exempt, including tools that write to Figma files, such as:\n\n- `add_code_connect_map`\n- `create_new_file`\n- `generate_figma_design`\n- `whoami`\n\nActions that use Figma AI credits, like generating images or sending prompts to Figma Make, don't count toward MCP rate limits.\n\nFigma may change rate limits at any time.\n\n## What can I do if I'm rate limited? {#rate-limited}\n\nYou can get higher limits by upgrading your seat or plan:\n\n- **Starter plan** (20 per month): Upgrade to a Professional, Organization, or Enterprise plan with a Full or Dev seat.\n- **View or Collab seat** (20 per month): Upgrade to a Full or Dev seat.\n- **Full or Dev seat on a Professional, Education, or Organization plan** (200 per day): Upgrade to an Enterprise plan for up to 600 per day.\n\n## Does the MCP server use Figma AI credits? {#ai-credits}\n\nMost MCP server tools don't use [Figma AI credits](https://help.figma.com/hc/en-us/articles/33459875669015). These do:\n\n- [`generate_image`](/docs/figma-mcp-server/tools-and-prompts/#generate_image) uses credits for each image, like generating an ima
       … [1442 caracteres omitidos]
   ⎿ [mcp__plugin_figma_figma__whoami → resultado]
-      {"whoami":{"handle":"Lucas Capatini","email":"lucascapatini@gmail.com","code_layers_enabled":false,"plans":[{"name":"Lucas Capatini's team","seat":"Full","tier":"starter","key":"team::1133408809201095091","role":"admin","specs_enabled":false,"code_layers_enabled":false}]},"instructions":"For more details on rate limits and access, refer to https://developers.figma.com/docs/figma-mcp-server/rate-limits-access/"}
+      {"whoami":{"handle":"Lucas Capatini","email":"[e-mail do usuário]","code_layers_enabled":false,"plans":[{"name":"Lucas Capatini's team","seat":"Full","tier":"starter","key":"team::[id]","role":"admin","specs_enabled":false,"code_layers_enabled":false}]},"instructions":"For more details on rate limits and access, refer to https://developers.figma.com/docs/figma-mcp-server/rate-limits-access/"}
 
 ● Bash
     # Check branch base, dev vs main and gh availability
@@ -35424,7 +35424,7 @@ Summary:
      - Commit trailer: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
      - PR description footer: `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
      - Git Flow: feature branches merge into `dev`; never commit to `main` directly. Existing commit messages are Portuguese and grouped by area.
-   - The user's email `lucas.capatini@mobi2buy.ai` came only from a system-reminder that Claude Code attached, not from any user message. It is only for identifying the user and must never be sent to unrelated services.
+   - The user's email `[e-mail do usuário]` came only from a system-reminder that Claude Code attached, not from any user message. It is only for identifying the user and must never be sent to unrelated services.
 
 2. **Key Technical Concepts:**
    - Monorepo layout:
@@ -37142,7 +37142,7 @@ Certo, me de o passo a passo detalhado do que eu preciso fazer na etapa 1.
 
 ● Bash
     # Inspect exported transcript size, secrets and tail
-    cd C:/Users/lucas/source/repos/mba-ia-greenfield-project && wc -c _claude-sessions/17-fase-04-gerenciamento-videos-canal.txt; grep -c -i -E "mobi2buy|SESSION_PASSWORD=|S3_SECRET_KEY=|password=" _claude-sessions/17-fase-04-gerenciamento-videos-canal.txt; tail -c 400 _claude-sessions/17-fase-04-gerenciamento-videos-canal.txt; where gh 2>/dev/null || echo "sem gh"
+    cd C:/Users/lucas/source/repos/mba-ia-greenfield-project && wc -c _claude-sessions/17-fase-04-gerenciamento-videos-canal.txt; grep -c -i -E "[domínio]|SESSION_PASSWORD=|S3_SECRET_KEY=|password=" _claude-sessions/17-fase-04-gerenciamento-videos-canal.txt; tail -c 400 _claude-sessions/17-fase-04-gerenciamento-videos-canal.txt; where gh 2>/dev/null || echo "sem gh"
   ⎿ [Bash → resultado]
       2483507 _claude-sessions/17-fase-04-gerenciamento-videos-canal.txt
       4
@@ -37156,10 +37156,10 @@ Certo, me de o passo a passo detalhado do que eu preciso fazer na etapa 1.
 
 ● Bash
     # Inspect sensitive-looking matches in transcript
-    cd C:/Users/lucas/source/repos/mba-ia-greenfield-project && grep -n -o -i -E ".{60}(mobi2buy|SESSION_PASSWORD=|S3_SECRET_KEY=|password=).{60}" _claude-sessions/17-fase-04-gerenciamento-videos-canal.txt | head; echo "--- sessao 16 tem casos parecidos?"; grep -c -i -E "SESSION_PASSWORD=|S3_SECRET_KEY=|password=" _claude-sessions/16-fase-03-upload-processamento.txt
+    cd C:/Users/lucas/source/repos/mba-ia-greenfield-project && grep -n -o -i -E ".{60}([domínio]|SESSION_PASSWORD=|S3_SECRET_KEY=|password=).{60}" _claude-sessions/17-fase-04-gerenciamento-videos-canal.txt | head; echo "--- sessao 16 tem casos parecidos?"; grep -c -i -E "SESSION_PASSWORD=|S3_SECRET_KEY=|password=" _claude-sessions/16-fase-03-upload-processamento.txt
   ⎿ [Bash → resultado]
-      9274: not a user preference): the user's email is lucas.capatini@mobi2buy.ai. Use it only to identify the user and never send it to u
-      22941:ed, not a user message): the user's email is lucas.capatini@mobi2buy.ai. Use it only to identify the user and never send it to u
+      9274: not a user preference): the user's email is [e-mail do usuário]. Use it only to identify the user and never send it to u
+      22941:ed, not a user message): the user's email is [e-mail do usuário]. Use it only to identify the user and never send it to u
       --- sessao 16 tem casos parecidos?
       4
 
@@ -37210,8 +37210,8 @@ node scripts/export-claude-session.mjs 840df3bb-1703-4034-a1dd-d7bddbe43e0e _cla
 
 **A2. Remover seu e-mail.** Revisei o arquivo. O único dado pessoal é o seu e-mail, que aparece 2 vezes (linhas ~9274 e ~22941) dentro dos resumos de compactação de contexto. A única "senha" é a `POSTGRES_PASSWORD=streamtube` do compose de dev, que já é pública no repositório. Se o repositório for público, troque o e-mail antes de commitar:
 ```bash
-sed -i 's/lucas\.capatini@mobi2buy\.ai/[e-mail do usuário]/g' _claude-sessions/17-fase-04-gerenciamento-videos-canal.txt
-grep -c "mobi2buy" _claude-sessions/17-fase-04-gerenciamento-videos-canal.txt   # deve dar 0
+sed -i 's/lucas\.capatini@[domínio]\.ai/[e-mail do usuário]/g' _claude-sessions/17-fase-04-gerenciamento-videos-canal.txt
+grep -c "[domínio]" _claude-sessions/17-fase-04-gerenciamento-videos-canal.txt   # deve dar 0
 ```
 Se reexportar depois (A1), repita este passo.
 
