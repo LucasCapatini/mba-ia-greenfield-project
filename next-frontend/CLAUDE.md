@@ -113,6 +113,11 @@ Next.js 16 App Router with React 19 Server Components by default. Routes, layout
 
 - **Server Components** (default): can `fetch` from the NestJS API directly server-side. Prefer this for data loading — keeps payloads small and avoids client-side waterfalls.
 - **Client Components** (`"use client"`): only when the component uses `useState`/`useEffect`/refs/browser APIs or interactive event handlers. Keep client boundaries as deep in the tree as possible.
+**Data strategy (per `video-channel-management/TD-12`):** reads happen in RSC through `upstream` (with the session token when there is one); mutations go through `app/api/**` Route Handlers and, on success, the Client Component calls `router.refresh()` so the RSC re-reads. Client-side polling exists **only** for video processing — `hooks/use-processing-poll.ts` (`useProcessingPoll(ids)`) hits `/api/videos/{publicId}` every 3 s while an id is outside `ready|failed` and refreshes the route when one settles. No TanStack Query / SWR / client cache in this phase (re-evaluate in Phase 06); filters and pagination live in `searchParams`. No `cacheComponents`: `fetch` is uncached by default in Next 16 and pages that read `cookies()` are dynamic, so `router.refresh()` always re-runs the RSC.
+
+**Studio guard:** `proxy.ts` (Next 16 Proxy, ex-middleware; matcher `/studio/:path*`) does the optimistic session check and redirects anonymous requests to `/login?returnTo=<path+query>` — layouts do not receive the pathname. The login page passes `returnTo` (sanitized by `lib/auth/return-to.ts` → same-site paths only, otherwise `/`) to `LoginForm`, which lands there after a successful login. `app/(app)/studio/layout.tsx` re-checks the session as defense in depth and mounts `<UploadProvider>` (`components/upload/upload-provider.tsx`, per `TD-11`), which keeps upload state alive across `/studio/**` navigation and warns on `beforeunload` only while an upload is in flight.
+
+**Browser upload client (per `video-channel-management/TD-11`; `phase-03-upload-processing/TD-03`):** `lib/upload/multipart-uploader.ts` (`startUpload` / `resumeUpload` → `{ done, progress, cancel }`) slices the file by `part_size`, asks `POST /api/videos/{id}/upload/parts` for URLs in batches of ≤ 100, `PUT`s up to 4 parts at a time, retries each part 3× with exponential backoff (a 403 re-signs the pending batch first), skips `uploaded_parts` on resume and finishes with `POST …/upload/complete`; `cancel()` aborts the in-flight `PUT`s and calls `DELETE …/upload`. **The part `PUT`s are the one explicit exception to the strict BFF**: they go straight from the browser to the presigned `S3_PUBLIC_ENDPOINT` URLs — every API call still goes through `/api/**`. Components read the state via `useUpload(publicId)` from `components/upload/upload-provider.tsx`.
 
 ### Talking to the NestJS API
 
@@ -135,7 +140,7 @@ Source of decisions: `docs/decisions/technical-decisions-next-frontend-openapi-t
 
 - `API_URL` — the upstream NestJS base URL. **Server-only**: validated and exposed via `lib/env.ts` (`@t3-oss/env-nextjs` + Zod 4). Accessing `env.API_URL` from a Client Component throws at runtime. There is **no** client-exposed (`NEXT_PUBLIC_*`) variant for the backend URL, and there must not be one — introducing a public backend URL would defeat the BFF model.
 - `lib/env.ts` is the **source of truth** for environment variable reads in `next-frontend/`.
-- See `.env.example` for the canonical key set and `lib/env.ts` for the `createEnv({ server, client, shared, ... })` schema. Current keys: `API_URL` (upstream base URL, server-only), `SESSION_PASSWORD` (iron-session cookie secret, ≥ 32 chars, server-only) and the optional `MSW_ENABLED=true` (process env read by `instrumentation.ts` — only set it for the E2E dev server, never in `.env.local` for normal use). Bootstrap with `cp .env.example .env.local`.
+- See `.env.example` for the canonical key set and `lib/env.ts` for the `createEnv({ server, client, shared, ... })` schema. Current keys: `API_URL` (upstream base URL, server-only), `SESSION_PASSWORD` (iron-session cookie secret, ≥ 32 chars, server-only) and the optional `MSW_ENABLED=true` (process env read by `instrumentation.ts` — only set it for the E2E server (`next start`), never in `.env.local` for normal use). Bootstrap with `cp .env.example .env.local`.
 
 The two Compose stacks stay separate projects but share the named Docker network `streamtube`, created by `nestjs-project/compose.yaml` and declared `external` in `next-frontend/compose.yaml`. `API_URL` is therefore always `http://nestjs-api:3000` (the Compose service name — see `.env.example`). **Start the backend stack before the frontend**: without the network, `docker compose up` in `next-frontend/` fails with "network streamtube declared as external, but could not be found". Never point the upstream at the host machine's gateway alias or at `localhost` — only the Compose service name resolves across the shared network.
 
@@ -150,7 +155,7 @@ Stack decisions for this project:
 - **Vitest** for unit and integration tests of pages, components, hooks, utils, and BFF route handlers.
 - **Playwright** for end-to-end tests (full browser flow).
 - **MSW (`msw` + `msw/node`)** as the fake API for BFF tests: route handlers are tested **as functions** — they are imported and called directly, while `msw/node` intercepts the `fetch` calls they make to the NestJS API and returns fixtures. BFF tests **never** point to the real NestJS API.
-- **MSW (`msw/node` via `instrumentation.ts`)** as the fake API for E2E tests: the dev server boots server-side MSW so the **real** `/api/**` Route Handlers run; only their upstream NestJS `fetch` is faked, reusing the `mocks/` handler set (no browser-level/BFF handler set). See "E2E architecture" below.
+- **MSW (`msw/node` via `instrumentation.ts`)** as the fake API for E2E tests: the E2E server (production build) boots server-side MSW so the **real** `/api/**` Route Handlers run; only their upstream NestJS `fetch` is faked, reusing the `mocks/` handler set (no browser-level/BFF handler set). See "E2E architecture" below.
 
 ## Test type selection — apply mechanically
 
@@ -182,22 +187,23 @@ npx playwright test tests/foo.e2e-spec.ts
 
 ### E2E test prerequisites — start the environment before running Playwright
 
-Playwright runs on the **host** and targets the **containerized** dev server. Before running any `*.e2e-spec.ts`, the dev server must be running inside the container with `MSW_ENABLED=true`. Follow these steps in order:
+Playwright runs on the **host** and targets the **containerized** app served by a **production build** (`next build` + `next start`) with `MSW_ENABLED=true`. The dev server is not used for E2E: on the Windows/Docker Desktop bind mount, `next dev` (16.2.6, Turbopack and webpack) intermittently fails to serve deep route handlers — `/api/videos/{publicId}/upload*` answered 404 depending on the `.next` state, while `next build` serves every route deterministically. Follow these steps in order:
 
 ```bash
-# 1. Ensure the container is up (idempotent)
+# 1. Ensure the container is up and no dev server is running (a restart stops it)
 docker compose up -d
+docker compose restart next-frontend
 
-# 2. Start the dev server with MSW enabled — runs in background (never exits)
-docker compose exec -d next-frontend sh -c "MSW_ENABLED=true npm run dev"
+# 2. Build — rerun after every app/, components/, lib/ or mocks/ change you want the suite to see
+docker compose exec next-frontend npm run build
 
-# 3. Wait until the server is ready (retries up to ~30 s)
+# 3. Serve the build with MSW enabled — runs in background (never exits)
+docker compose exec -d next-frontend sh -c "MSW_ENABLED=true npm run start"
+
+# 4. Wait until the server is ready (retries up to ~30 s)
 curl --retry 15 --retry-delay 2 --retry-connrefused -I http://localhost:3001
 
-# 3b. Confirm MSW actually registered — this line MUST appear, otherwise the suite hits the real API
-docker compose logs next-frontend | grep "\[msw\] server-side mocking enabled"
-
-# 4. Run the E2E suite on the host (Windows: node node_modules/@playwright/test/cli.js test)
+# 5. Run the E2E suite on the host (Windows: node node_modules/@playwright/test/cli.js test)
 npx playwright test
 
 # Or a single spec
@@ -205,11 +211,11 @@ npx playwright test tests/auth-login.e2e-spec.ts
 ```
 
 **Important rules:**
-- Step 2 must use `MSW_ENABLED=true` — without it `instrumentation.ts` skips MSW and upstream calls will fail or hit the real NestJS API.
-- Never add `webServer` to `playwright.config.ts` — Playwright must not manage the dev server process (it runs inside Docker, not on the host).
-- If the dev server is already running from a previous session, skip steps 2–3 and go straight to step 4.
+- Step 3 must use `MSW_ENABLED=true` — without it `instrumentation.ts` skips MSW and upstream calls will fail or hit the real NestJS API (`instrumentation.ts` runs in `next start` too).
+- Never add `webServer` to `playwright.config.ts` — Playwright must not manage the server process (it runs inside Docker, not on the host). `workers: 1`: the server-side MSW store is one in-memory state per server and the login handler resets it, so spec files must not run in parallel.
+- If a production server built from the current code is already running, skip steps 1–4. Never run `npm run build` while `next dev` is running: both write to `.next`.
 - **Playwright uses the host's `node_modules`**, not the container's volume — the container's `npm install` never refreshes it. This is the only sanctioned host-side install: when `@playwright/test` changes in `package.json`, run `npm ci` once on the host (and `node node_modules/@playwright/test/cli.js install chromium` if the Playwright version changed). Vitest, `tsc` and lint still run only inside the container.
-- **New route directories are not picked up by the running dev server.** Turbopack's watcher on the Windows/Docker Desktop bind mount misses newly created `app/**` folders (404 until restart) and sometimes stale `mocks/` handler edits. After adding a route or a handler, run `docker compose restart next-frontend` and start step 2 again — do not try to kill the old `next dev` from inside the container.
+- **`next dev` on this bind mount (manual development only).** Turbopack's watcher misses newly created `app/**` folders (404 until restart) and sometimes stale `mocks/` handler edits; deep route handlers can also 404 intermittently (see above). Restart with `docker compose restart next-frontend` — do not try to kill the old `next dev` from inside the container.
 - The `node:22-slim` image has no `ps`/`pkill`/`wget`. To inspect processes use `/proc` (`ls /proc | grep -E '^[0-9]+$'` + `cat /proc/<pid>/cmdline`); for HTTP probes from inside the container use `node -e "fetch('http://localhost:3000').then(r=>console.log(r.status))"`. Restarting the container is the reliable way to stop a dev server.
 
 ### MSW + Vitest — wired
@@ -226,7 +232,11 @@ Real browser → real Next.js (RSC, layouts, real `/api/**` Route Handlers serve
 2. `lib/api/upstream.ts` resolves `fetch` **at call time** — `fetch: (input) => (globalThis.__mswFetch ?? globalThis.fetch)(input)`. Next.js patches `globalThis.fetch` after `register()` runs, so any module that captures `fetch` at load time (or lets `openapi-fetch` default to it) silently bypasses MSW and hits the real API (`ECONNREFUSED` in E2E). Never capture `fetch` at module evaluation in server code; in production `__mswFetch` is `undefined` and the native fetch is used.
 3. Reuses the `mocks/` upstream handlers (same set as Vitest) for both Route Handlers and RSC pages (e.g. `/confirm-email` calls `upstream.GET` during render); no browser-level handler set, no `tests/handlers/`.
 4. Per-scenario outcomes via **reserved trigger fixtures** in the shared handlers (`mocks/handlers/auth.ts`): e-mails `conflict@example.com` → 409, `badrequest@example.com` → 400; tokens `expired-token` → 401 `TOKEN_EXPIRED`, `invalid-token` → 401 `INVALID_TOKEN`, `badrequest-token` → 400 `VALIDATION_ERROR`; anything else → success. No per-test `server.use()`. Keep the trigger table small.
-5. Playwright runs on the **host** (`npx playwright test`, `http://localhost:3001`); the containerized `next dev` must run with `MSW_ENABLED=true`. No `webServer` in `playwright.config.ts` (dev server is containerized).
+   - **Studio/canal (Fase 04)** — `mocks/handlers/{videos,channels,categories}.ts` leem um store mutável (`mocks/store.ts`, seed em `mocks/factories/videos.ts`) que o handler de `POST /auth/login` reseta (e `mocks/setup.ts` reseta após cada teste do Vitest). Seed: canal `studio_canal` + 22 vídeos (`ready-draft-01` "Aula pronta", `published-01`, `becomes-ready-02` — `processing` nas 2 primeiras leituras de `GET /videos/{id}` e `ready` depois —, `failed-01`, `processing-01`, "Aula 2", "aula 3" e 15 "Video NN" publicados); `PATCH`/`publish`/`unpublish`/`DELETE`/thumbnail atualizam o store.
+   - Triggers de vídeo: `notfound-id` → 404 `VIDEO_NOT_FOUND`; `forbidden-id` → 403 `VIDEO_FORBIDDEN`; `processing-id` → sempre `processing` (fora da listagem); `other-channel-01` → 404 na leitura e 403 na mutação. `POST /videos` sempre cria `new-upload-id` (`part_size` 5 MiB, URLs de parte em `http://localhost:9000`, `processing` por 2 leituras após o `complete`).
+   - Triggers de canal: `PATCH /channels/me` com nickname `taken_nick` → 409 `NICKNAME_TAKEN` (o nickname antigo passa a 404); `tech_mastery` é o canal público fixo (24 vídeos, página de 20); qualquer outro nickname → 404 `CHANNEL_NOT_FOUND`.
+   - Bytes do storage (`PUT` de partes, imagens de thumbnail em `http://localhost:9000/**`) não passam pelo BFF: o spec os atende com `page.route("http://localhost:9000/**")` — nunca `/api/**`.
+5. Playwright runs on the **host** (`npx playwright test`, `http://localhost:3001`); the containerized `next start` (production build) must run with `MSW_ENABLED=true`. No `webServer` in `playwright.config.ts` (the server is containerized); `workers: 1` because the MSW store is shared.
 
 **Hard rules.**
 
@@ -250,8 +260,11 @@ next-frontend/
 │   │                                 #   confirm-email (RSC consumes the token), reset-password, resend-confirmation
 │   ├── (app)/                        # Application routes — layout.tsx renders <AppHeader /> (session-aware, logout)
 │   │   └── page.tsx                  # Home placeholder
-│   └── api/auth/<route>/route.ts     # BFF Route Handlers: signup, login, logout, forgot-password, reset-password, resend-confirmation
-│       └── __tests__/                # Route handler integration tests (*.integration.test.ts)
+│   ├── api/auth/<route>/route.ts     # BFF Route Handlers: signup, login, logout, forgot-password, reset-password, resend-confirmation
+│   │   └── __tests__/                # Route handler integration tests — same layout under api/videos/** and api/channel (*.integration.test.ts)
+│   ├── api/videos/**                 # BFF de vídeo (Fase 04): POST /api/videos; [publicId]: GET (polling), PATCH (encadeia publish → { video, published }), DELETE,
+│   │                                 #   publish, unpublish, thumbnail (PUT multipart / DELETE), upload (GET/DELETE), upload/parts, upload/complete
+│   └── api/channel/route.ts          # PATCH → /channels/me; reescreve session.channelSlug quando o nickname muda
 ├── components/
 │   ├── ui/                           # shadcn primitives — ONLY add via shadcn CLI
 │   ├── icons/                        # Custom SVG icon components
@@ -260,15 +273,17 @@ next-frontend/
 │   └── <feature>/__tests__/          # Component unit/integration tests (*.test.ts | *.integration.test.ts)
 ├── hooks/                            # Client hooks (use-session) + __tests__/
 ├── lib/
-│   ├── api/                          # upstream.ts (typed openapi-fetch client), contracts.ts (aliases), types.gen.ts (generated)
+│   ├── api/                          # upstream.ts (typed openapi-fetch client), contracts.ts (aliases), types.gen.ts (generated),
+│   │                                 #   bff.ts (withSession: Bearer da sessão + refresh single-flight + pass-through do upstream)
 │   ├── auth/                         # Session helpers + error mapping (upstream envelope → form errors)
 │   ├── env.ts                        # Validated server env (API_URL, SESSION_PASSWORD)
 │   ├── utils.ts                      # `cn(...)` helper (clsx + extended tailwind-merge)
 │   └── __tests__/                    # Utils tests (*.test.ts)
-├── mocks/                            # MSW handlers + server (msw/node) — loaded by Vitest setupFiles AND instrumentation.ts
+├── mocks/                            # MSW handlers + factories + store + server (msw/node) — loaded by Vitest setupFiles AND instrumentation.ts
 ├── specs/                            # *.plan.md test specs emitted by /plan-test-specs (one per E2E file in tests/)
 ├── tests/                            # Playwright e2e (*.e2e-spec.ts) — real /api/** run; upstream NestJS faked server-side
 ├── instrumentation.ts                # Boots server-side MSW when MSW_ENABLED=true (E2E only)
+├── proxy.ts                          # Next 16 Proxy — optimistic session check for /studio/** (redirect with returnTo)
 ├── openapi.json                      # Committed copy of the backend spec (refreshed by scripts/sync-openapi.sh)
 ├── .env.example                      # Canonical env keys (copy to .env.local)
 └── components.json                   # shadcn config (do not edit by hand)

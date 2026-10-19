@@ -71,8 +71,10 @@ docker compose exec next-frontend npm test -- path/to/file.test.ts      # single
 docker compose exec next-frontend npx tsc --noEmit
 docker compose exec next-frontend npm run lint
 
-# Frontend E2E — Playwright runs on the HOST against the containerized dev server with MSW enabled
-docker compose exec -d next-frontend sh -c "MSW_ENABLED=true npm run dev"
+# Frontend E2E — Playwright runs on the HOST against a containerized production build with MSW enabled
+# (next dev is unreliable for deep route handlers on this bind mount — see next-frontend/CLAUDE.md)
+docker compose restart next-frontend && docker compose exec next-frontend npm run build
+docker compose exec -d next-frontend sh -c "MSW_ENABLED=true npm run start"
 curl --retry 15 --retry-delay 2 --retry-connrefused -I http://localhost:3001
 npx playwright test                                    # or: npx playwright test tests/<file>.e2e-spec.ts
 ```
