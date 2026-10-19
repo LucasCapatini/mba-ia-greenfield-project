@@ -310,27 +310,30 @@ describe('videos-playback', () => {
 
   // ### 3. Autorização nas rotas de leitura
 
+  // Phase 04 (SI-04.3, TD-07): reads are public with optional auth, so a draft answers 404 to
+  // anyone but its owner (it was 401 anonymous / 403 non-owner in Phase 03).
   test('3.1 non-owner-anonymous-and-unknown-ids-are-rejected', async () => {
     const ownerToken = await authenticate('owner-authz@example.com');
     const intruderToken = await authenticate('intruder-play@example.com');
     const publicId = await seedVideo(ownerToken, 'ready');
 
     // Sequencial: requisições concorrentes contra o servidor do supertest resetam a conexão.
-    await api.video(publicId).expect(401);
-    await api.playback(publicId).expect(401);
+    const anonymousVideo = await api.video(publicId).expect(404);
+    expect(errorBody(anonymousVideo).error).toBe('VIDEO_NOT_FOUND');
+    const anonymousPlayback = await api.playback(publicId).expect(404);
+    expect(errorBody(anonymousPlayback).error).toBe('VIDEO_NOT_FOUND');
 
-    const forbiddenVideo = await api.video(publicId, intruderToken).expect(403);
-    expect(errorBody(forbiddenVideo).error).toBe('VIDEO_FORBIDDEN');
-    const forbiddenPlayback = await api
+    const hiddenVideo = await api.video(publicId, intruderToken).expect(404);
+    expect(errorBody(hiddenVideo).error).toBe('VIDEO_NOT_FOUND');
+    const hiddenPlayback = await api
       .playback(publicId, intruderToken)
-      .expect(403);
-    expect(errorBody(forbiddenPlayback).error).toBe('VIDEO_FORBIDDEN');
-    expect(JSON.stringify(forbiddenVideo.body)).not.toContain(
+      .expect(404);
+    expect(errorBody(hiddenPlayback).error).toBe('VIDEO_NOT_FOUND');
+    expect(JSON.stringify(hiddenVideo.body)).not.toContain('X-Amz-Signature');
+    expect(JSON.stringify(hiddenPlayback.body)).not.toContain(
       'X-Amz-Signature',
     );
-    expect(JSON.stringify(forbiddenPlayback.body)).not.toContain(
-      'X-Amz-Signature',
-    );
+    await api.video(publicId, ownerToken).expect(200);
 
     const unknownVideo = await api.video(UNKNOWN_ID, ownerToken).expect(404);
     expect(errorBody(unknownVideo).error).toBe('VIDEO_NOT_FOUND');
@@ -338,5 +341,104 @@ describe('videos-playback', () => {
       .playback(UNKNOWN_ID, ownerToken)
       .expect(404);
     expect(errorBody(unknownPlayback).error).toBe('VIDEO_NOT_FOUND');
+  });
+
+  // ### 4. Leitura pública com auth opcional (Phase 04 — SI-04.3 acceptance)
+
+  async function publish(
+    publicId: string,
+    visibility: 'public' | 'unlisted' = 'public',
+  ): Promise<void> {
+    await videoRepository.update(
+      { public_id: publicId },
+      { status: 'published', visibility, published_at: new Date() },
+    );
+  }
+
+  test('4.1 published-video-is-readable-without-token', async () => {
+    const ownerToken = await authenticate('owner-public@example.com');
+    const intruderToken = await authenticate('reader-public@example.com');
+    const publicId = await seedVideo(ownerToken, 'ready');
+    await publish(publicId);
+
+    const anonymous = await api.video(publicId).expect(200);
+    const body = anonymous.body as { public_id: string; status: string };
+    expect(body.public_id).toBe(publicId);
+    expect(body.status).toBe('published');
+    await api.video(publicId, intruderToken).expect(200);
+  });
+
+  // Phase 04 (SI-04.5, TD-10): thumbnails are served by a stable public URL, not a presigned one.
+  test('4.6 thumbnail-url-is-stable-and-anonymously-readable', async () => {
+    const ownerToken = await authenticate('owner-thumb@example.com');
+    const publicId = await seedVideo(ownerToken, 'ready');
+
+    const res = await api.video(publicId, ownerToken).expect(200);
+    const thumbnailUrl = (res.body as { thumbnail_url: string }).thumbnail_url;
+    expect(thumbnailUrl).not.toContain('X-Amz-');
+    expect(thumbnailUrl).toMatch(
+      new RegExp(`/thumbnails/${publicId}/auto\\.jpg\\?v=\\d+$`),
+    );
+
+    const again = await api.video(publicId, ownerToken).expect(200);
+    expect((again.body as { thumbnail_url: string }).thumbnail_url).toBe(
+      thumbnailUrl,
+    );
+
+    const anonymous = await fetch(thumbnailUrl);
+    expect(anonymous.status).toBe(200);
+    expect(anonymous.headers.get('content-type')).toBe('image/jpeg');
+    await anonymous.arrayBuffer();
+
+    const playback = await api.playback(publicId, ownerToken).expect(200);
+    expect((playback.body as { thumbnail_url: string }).thumbnail_url).toBe(
+      thumbnailUrl,
+    );
+  });
+
+  test('4.2 published-unlisted-video-is-readable-by-link', async () => {
+    const ownerToken = await authenticate('owner-unlisted@example.com');
+    const publicId = await seedVideo(ownerToken, 'ready');
+    await publish(publicId, 'unlisted');
+
+    const anonymous = await api.video(publicId).expect(200);
+    expect((anonymous.body as { visibility: string }).visibility).toBe(
+      'unlisted',
+    );
+  });
+
+  test('4.3 invalid-token-is-rejected-even-for-a-published-video', async () => {
+    const ownerToken = await authenticate('owner-badtoken@example.com');
+    const publicId = await seedVideo(ownerToken, 'ready');
+    await publish(publicId);
+
+    await api.video(publicId, 'invalido').expect(401);
+    await api.playback(publicId, 'invalido').expect(401);
+  });
+
+  test('4.4 published-ready-playback-works-without-token', async () => {
+    const ownerToken = await authenticate('owner-anonplay@example.com');
+    const publicId = await seedVideo(ownerToken, 'ready');
+    await publish(publicId);
+
+    const res = await api.playback(publicId).expect(200);
+    const { stream_url: streamUrl } = res.body as { stream_url: string };
+    expect(streamUrl).toContain(`videos/${publicId}/source`);
+    expect(streamUrl).toContain('X-Amz-Signature');
+
+    const ranged = await fetch(streamUrl, {
+      headers: { Range: 'bytes=0-1023' },
+    });
+    expect(ranged.status).toBe(206);
+    await ranged.arrayBuffer();
+  });
+
+  test('4.5 published-but-not-ready-playback-is-409', async () => {
+    const ownerToken = await authenticate('owner-notready@example.com');
+    const publicId = await seedVideo(ownerToken, 'processing');
+    await publish(publicId);
+
+    const res = await api.playback(publicId).expect(409);
+    expect(errorBody(res).error).toBe('VIDEO_NOT_READY');
   });
 });
