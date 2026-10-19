@@ -33,6 +33,10 @@
   --input: #7e7e7e;
   --ring: #1976d2;
   --link: #1976d2;
+  /* Channel banner placeholder gradient (Figma 154:1487); decorative, same in both themes */
+  --banner-from: #261440;
+  --banner-via: #141f4d;
+  --banner-to: #0d3347;
   --warning-text: #b45309;
   --overlay: #00000080;
   --success-text: #15803d;
@@ -249,6 +253,26 @@
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-text: var(--success-text);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-text: var(--warning-text);
+  --color-overlay: var(--overlay);
+  --color-banner-from: var(--banner-from);
+  --color-banner-via: var(--banner-via);
+  --color-banner-to: var(--banner-to);
+  --animate-progress-indeterminate: progress-indeterminate 1.5s ease-in-out infinite;
+
+  @keyframes progress-indeterminate {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(300%);
+    }
+  }
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted: var(--muted);
