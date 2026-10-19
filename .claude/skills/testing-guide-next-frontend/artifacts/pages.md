@@ -22,7 +22,7 @@ There is no integration layer for pages — the BFF seam is tested separately (`
 
 ## Setup pattern
 
-E2E spec under `tests/` (Playwright, host-run). Drives the containerized real app; upstream NestJS is faked server-side by the `mocks/` MSW (`instrumentation.ts`, `MSW_ENABLED=true`). Per-scenario outcomes come from **reserved trigger fixtures** in the shared handlers — never `page.route()`, never per-test `server.use()`.
+E2E spec under `tests/` (Playwright, host-run). Drives the containerized production build (`npm run build` + `MSW_ENABLED=true npm run start`); upstream NestJS is faked server-side by the `mocks/` MSW (`instrumentation.ts`, `MSW_ENABLED=true`). Per-scenario outcomes come from **reserved trigger fixtures** in the shared handlers — never `page.route()`, never per-test `server.use()`.
 
 ```ts
 // tests/auth-login.e2e-spec.ts

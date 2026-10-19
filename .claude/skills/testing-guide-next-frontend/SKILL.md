@@ -20,7 +20,7 @@ The contract is fixed by `next-frontend/CLAUDE.md` § "Testing" and the four `.c
 - **Playwright** runs end-to-end tests (`*.e2e-spec.ts` under `tests/`) — see §6 and `references/gotchas.md` for the containerized architecture.
 - **MSW (`msw/node`)** is the **only** fake for the NestJS upstream API. **No** Vitest test may open a real network connection to the upstream host (`.claude/rules/next-frontend-testing.md`).
 
-> **Tooling status (2026-05):** Vitest + MSW are fully wired — `vitest.config.ts`, `mocks/setup.ts`, `mocks/server.ts`, the per-domain handler barrel, and the `npm test` script all exist and run. **Playwright is not yet installed** (no `@playwright/test`, no `playwright.config.ts`, no `test:e2e` script). E2E recipes below are the binding contract for browser flows; the first phase that needs a browser test triggers the Playwright install — no rule below changes when it lands.
+> **Tooling status (2026-10):** Vitest + MSW are fully wired — `vitest.config.ts`, `mocks/setup.ts`, `mocks/server.ts`, the per-domain handler barrel, and the `npm test` script all exist and run. **Playwright is installed and in use** — `@playwright/test`, `playwright.config.ts` (`workers: 1`, `retries` only in CI, no `webServer`) and the specs under `tests/`. E2E runs on the host against the **containerized production build** (`npm run build` + `MSW_ENABLED=true npm run start`), never against `next dev` — see `references/file-conventions.md` and `references/gotchas.md`.
 
 ## 1. Testability Foundations
 
@@ -72,7 +72,7 @@ When implementing a feature, walk this checklist. For each artifact created or m
 | **Route handler** (`app/api/**/route.ts`) — proxy or with branching | `*.integration.test.ts` with MSW (+ `*.test.ts` for extracted pure logic) | `artifacts/route-handlers.md` |
 | **Server action / middleware / error-loading-not-found / metadata** | See guide — depends on type | `artifacts/future-types.md` |
 
-**How to use:** after implementing, walk every row. If a row doesn't apply (you didn't create that artifact type), skip it. Before declaring done, run the gates in `references/file-conventions.md` (Vitest suite, Playwright suite once installed, `tsc --noEmit`, `lint`) — see global `CLAUDE.md` → "Definition of Done (Technical)".
+**How to use:** after implementing, walk every row. If a row doesn't apply (you didn't create that artifact type), skip it. Before declaring done, run the gates in `references/file-conventions.md` (Vitest suite, Playwright suite against the production build, `tsc --noEmit`, `lint`) — see global `CLAUDE.md` → "Definition of Done (Technical)".
 
 ## 4. Artifact Type Testing Guide
 
@@ -102,7 +102,7 @@ When creating or modifying an artifact, read the corresponding guide for the com
 - ❌ **Unit-test icon components** — static SVG is a mirror test (`artifacts/icons.md`).
 - ❌ **Render a JSX/TSX test without the `// @vitest-environment jsdom` docblock** — default env is `node`; the render silently has no DOM (`references/gotchas.md`).
 - ❌ **Skip the `next/navigation` mock when unit-testing a client component that uses `useRouter`/`usePathname`/`useSearchParams`** — the hook throws outside the Next runtime (`references/gotchas.md`).
-- ❌ **Add `webServer` to `playwright.config.ts` or run Playwright against a production build** — the e2e contract is host Playwright → the **containerized `next dev`** with `MSW_ENABLED=true`; the dev server is not Playwright-managed (`references/file-conventions.md`, `references/gotchas.md`).
+- ❌ **Add `webServer` to `playwright.config.ts` or run the E2E suite against `next dev`** — the e2e contract is host Playwright → the **containerized production build** (`npm run build` + `MSW_ENABLED=true npm run start`), managed out-of-band, with `workers: 1` (`references/file-conventions.md`, `references/gotchas.md`).
 - ❌ **`page.route()` / browser-level interception of `/api/**` in an e2e spec** — it short-circuits the real Route Handlers; upstream is faked server-side via `instrumentation.ts` only (`artifacts/pages.md`, `references/external-systems.md`).
 - ❌ **Copy `onUnhandledRequest: "error"` into `instrumentation.ts`** — it must be `"bypass"` there, `"error"` only in Vitest's `mocks/setup.ts` (`references/external-systems.md`).
 - ❌ **Hand-write a DTO or hardcode the upstream base URL in a test/handler** — derive shapes from `paths`, compose URLs as `${env.API_URL}/...` (`references/external-systems.md`).
@@ -110,7 +110,7 @@ When creating or modifying an artifact, read the corresponding guide for the com
 
 ## 6. E2E Terminology Note
 
-This guide uses **E2E** to mean *full browser flow via Playwright* — a real browser driving the running Next.js app (navigation, forms, assertions on rendered DOM). Architecture (per `next-frontend/CLAUDE.md`): real browser → containerized real Next.js (RSC, layouts, real `/api/**` Route Handlers server-side) → **upstream NestJS faked at the server** by the `mocks/` MSW that `instrumentation.ts` boots when `MSW_ENABLED=true`. This is stricter than the "HTTP integration" sense in the universal fundamentals: this project has **no supertest-style HTTP layer** for the Next app — route handlers are tested *as functions* in the `*.integration.test.ts` lane, not over HTTP. When external sources say "Next.js E2E", expect this Playwright meaning.
+This guide uses **E2E** to mean *full browser flow via Playwright* — a real browser driving the running Next.js app (navigation, forms, assertions on rendered DOM). Architecture (per `next-frontend/CLAUDE.md`): real browser → containerized real Next.js production build (`next start`; RSC, layouts, real `/api/**` Route Handlers server-side) → **upstream NestJS faked at the server** by the `mocks/` MSW that `instrumentation.ts` boots when `MSW_ENABLED=true`. This is stricter than the "HTTP integration" sense in the universal fundamentals: this project has **no supertest-style HTTP layer** for the Next app — route handlers are tested *as functions* in the `*.integration.test.ts` lane, not over HTTP. When external sources say "Next.js E2E", expect this Playwright meaning.
 
 ## 7. References
 
@@ -134,4 +134,4 @@ When working on a feature:
 1. Use §3 (Feature Implementation Checklist) to identify which artifacts need tests.
 2. Read the corresponding `artifacts/*.md` for each — that file carries the setup template to copy.
 3. Consult `references/` for cross-cutting topics (MSW, mocking, naming, gotchas).
-4. Before declaring done: run the full Vitest suite, the Playwright suite (once installed), `npx tsc --noEmit`, and `npm run lint` inside the container (`references/file-conventions.md`).
+4. Before declaring done: run the full Vitest suite, the Playwright suite (host, against the production build), `npx tsc --noEmit`, and `npm run lint` inside the container (`references/file-conventions.md`).
