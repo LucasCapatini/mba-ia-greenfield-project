@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { CategoriesModule } from './categories/categories.module';
 import {
   configModuleOptions,
   typeOrmModuleAsyncOptions,
@@ -15,6 +16,7 @@ import { VideosModule } from './videos/videos.module';
     ConfigModule.forRoot(configModuleOptions),
     TypeOrmModule.forRootAsync(typeOrmModuleAsyncOptions),
     AuthModule,
+    CategoriesModule,
     VideosModule,
   ],
   controllers: [AppController],

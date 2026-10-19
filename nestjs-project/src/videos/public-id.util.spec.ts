@@ -41,10 +41,11 @@ describe('isValidPublicId', () => {
 });
 
 describe('storageKeys', () => {
-  it('should derive the source and thumbnail keys from the public id', () => {
+  it('should derive the source, automatic and custom thumbnail keys from the public id', () => {
     expect(storageKeys('dQw4w9WgXcQ')).toEqual({
       source: 'videos/dQw4w9WgXcQ/source',
       thumbnail: 'thumbnails/dQw4w9WgXcQ/auto.jpg',
+      customThumbnail: 'thumbnails/dQw4w9WgXcQ/custom.jpg',
     });
   });
 });

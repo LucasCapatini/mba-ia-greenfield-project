@@ -27,3 +27,9 @@ export const UPLOAD_EXPIRE_WORK_OPTIONS = {
 
 /** Validade da URL interna usada pelo ffprobe/ffmpeg (maior que `expireInSeconds` do job). */
 export const PROCESSING_URL_TTL_SECONDS = 3_600;
+
+/** Exclusão é barata (alguns DeleteObject): lotes de 5 por polling (video-channel-management/TD-09). */
+export const VIDEO_DELETE_WORK_OPTIONS = {
+  batchSize: 5,
+  pollingIntervalSeconds: 2,
+} as const;

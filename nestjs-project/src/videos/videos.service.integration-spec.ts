@@ -1,6 +1,7 @@
 import type { S3Client } from '@aws-sdk/client-s3';
 import { ConfigModule } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
+import sharp from 'sharp';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Channel } from '../channels/entities/channel.entity';
@@ -9,6 +10,7 @@ import databaseConfig from '../config/database.config';
 import queueConfig from '../config/queue.config';
 import storageConfig from '../config/storage.config';
 import uploadConfig from '../config/upload.config';
+import { QueueService } from '../queue/queue.service';
 import { S3_INTERNAL_CLIENT } from '../storage/storage.constants';
 import { StorageService } from '../storage/storage.service';
 import {
@@ -370,5 +372,234 @@ describe('VideosService (integration — DB + RustFS + pg-boss reais)', () => {
       expect(thumb.status).toBe(200);
       expect(thumb.headers.get('content-type')).toBe('image/jpeg');
     }, 60000);
+  });
+  describe('publish / unpublish (Fase 04 — DB real)', () => {
+    async function seedDraft(processingStatus: Video['processing_status']) {
+      const channel = await dataSource
+        .getRepository(Channel)
+        .findOneByOrFail({ user_id: user.id });
+      return videoRepository.save(
+        videoRepository.create({
+          public_id: 'pubTest0001',
+          channel_id: channel.id,
+          title: 'aula',
+          original_filename: 'aula.mp4',
+          content_type: 'video/mp4',
+          size_bytes: MIB,
+          storage_key: 'videos/pubTest0001/source',
+          processing_status: processingStatus,
+        }),
+      );
+    }
+
+    it('should persist status and write published_at only on the first publication', async () => {
+      const video = await seedDraft('ready');
+
+      const first = await service.publish(video);
+      const stored = await videoRepository.findOneByOrFail({ id: video.id });
+      expect(stored.status).toBe('published');
+      expect(stored.published_at).toBeInstanceOf(Date);
+      expect(first.published_at).toBe(stored.published_at!.toISOString());
+
+      await service.unpublish(stored);
+      const unpublished = await videoRepository.findOneByOrFail({
+        id: video.id,
+      });
+      expect(unpublished.status).toBe('draft');
+      expect(unpublished.published_at?.toISOString()).toBe(first.published_at);
+
+      await service.publish(unpublished);
+      const republished = await videoRepository.findOneByOrFail({
+        id: video.id,
+      });
+      expect(republished.status).toBe('published');
+      expect(republished.published_at?.toISOString()).toBe(first.published_at);
+    });
+
+    it('should leave the row untouched when publishing a video still processing', async () => {
+      const video = await seedDraft('processing');
+
+      await expect(service.publish(video)).rejects.toMatchObject({
+        errorCode: 'VIDEO_NOT_PUBLISHABLE',
+      });
+
+      const stored = await videoRepository.findOneByOrFail({ id: video.id });
+      expect(stored.status).toBe('draft');
+      expect(stored.published_at).toBeNull();
+    });
+  });
+  describe('custom thumbnail (Fase 04 — RustFS real)', () => {
+    async function seedReadyVideo(publicId: string): Promise<Video> {
+      const channel = await dataSource
+        .getRepository(Channel)
+        .findOneByOrFail({ user_id: user.id });
+      const thumbnailKey = `thumbnails/${publicId}/auto.jpg`;
+      await storage.putObject(
+        thumbnailKey,
+        await sharp({
+          create: { width: 640, height: 360, channels: 3, background: '#333' },
+        })
+          .jpeg()
+          .toBuffer(),
+        'image/jpeg',
+      );
+      createdKeys.push(`thumbnails/${publicId}/`);
+      return videoRepository.save(
+        videoRepository.create({
+          public_id: publicId,
+          channel_id: channel.id,
+          title: 'aula',
+          original_filename: 'aula.mp4',
+          content_type: 'video/mp4',
+          size_bytes: MIB,
+          storage_key: `videos/${publicId}/source`,
+          processing_status: 'ready',
+          thumbnail_key: thumbnailKey,
+        }),
+      );
+    }
+
+    it('should store a normalized custom.jpg, record the key and switch thumbnail_url back and forth', async () => {
+      const video = await seedReadyVideo('thumbTest01');
+      const png = await sharp({
+        create: { width: 1920, height: 1080, channels: 3, background: '#c00' },
+      })
+        .png()
+        .toBuffer();
+
+      const withCustom = await service.setCustomThumbnail(video, {
+        buffer: png,
+        mimetype: 'image/png',
+      });
+
+      expect(withCustom.has_custom_thumbnail).toBe(true);
+      expect(withCustom.thumbnail_url).toContain(
+        '/thumbnails/thumbTest01/custom.jpg?v=',
+      );
+      const stored = await videoRepository.findOneByOrFail({ id: video.id });
+      expect(stored.custom_thumbnail_key).toBe(
+        'thumbnails/thumbTest01/custom.jpg',
+      );
+      const head = await storage.headObject(
+        'thumbnails/thumbTest01/custom.jpg',
+      );
+      expect(head?.contentType).toBe('image/jpeg');
+      const object = await fetch(withCustom.thumbnail_url!);
+      const metadata = await sharp(
+        Buffer.from(await object.arrayBuffer()),
+      ).metadata();
+      expect([metadata.format, metadata.width, metadata.height]).toEqual([
+        'jpeg',
+        1280,
+        720,
+      ]);
+      await expect(
+        storage.headObject('thumbnails/thumbTest01/auto.jpg'),
+      ).resolves.not.toBeNull();
+
+      await service.removeCustomThumbnail(stored);
+
+      const reverted = await videoRepository.findOneByOrFail({ id: video.id });
+      expect(reverted.custom_thumbnail_key).toBeNull();
+      await expect(
+        storage.headObject('thumbnails/thumbTest01/custom.jpg'),
+      ).resolves.toBeNull();
+      const response = await service.getVideo(reverted);
+      expect(response.has_custom_thumbnail).toBe(false);
+      expect(response.thumbnail_url).toContain(
+        '/thumbnails/thumbTest01/auto.jpg?v=',
+      );
+
+      await expect(
+        service.removeCustomThumbnail(reverted),
+      ).resolves.toBeUndefined();
+    });
+
+    it('should not touch the storage or the row when the image is rejected', async () => {
+      const video = await seedReadyVideo('thumbTest02');
+
+      await expect(
+        service.setCustomThumbnail(video, {
+          buffer: Buffer.from('not an image'),
+          mimetype: 'image/png',
+        }),
+      ).rejects.toMatchObject({ errorCode: 'THUMBNAIL_INVALID' });
+
+      const stored = await videoRepository.findOneByOrFail({ id: video.id });
+      expect(stored.custom_thumbnail_key).toBeNull();
+      await expect(
+        storage.headObject('thumbnails/thumbTest02/custom.jpg'),
+      ).resolves.toBeNull();
+    });
+  });
+  describe('deleteVideo (Fase 04 — DB + pg-boss + RustFS reais)', () => {
+    it('should abort the active multipart, delete the row and its session and enqueue video.delete', async () => {
+      const created = await service.createUpload(user.id, {
+        original_filename: 'apagar.mp4',
+        content_type: 'video/mp4',
+        size_bytes: 6 * MIB,
+      });
+      createdKeys.push(`videos/${created.public_id}/`);
+      const video = await videoRepository.findOneOrFail({
+        where: { public_id: created.public_id },
+        relations: ['upload'],
+      });
+
+      await service.deleteVideo(video);
+
+      await expect(
+        videoRepository.findOneBy({ id: video.id }),
+      ).resolves.toBeNull();
+      await expect(
+        uploadRepository.findOneBy({ video_id: video.id }),
+      ).resolves.toBeNull();
+      await expect(
+        storage.listParts(video.storage_key, created.upload.upload_id),
+      ).resolves.toBeNull();
+      const jobs = await dataSource.query<
+        { singleton_key: string; data: { thumbnailKeys: string[] } }[]
+      >(
+        `SELECT singleton_key, data FROM "${QUEUE_SCHEMA}"."job" WHERE name = 'video.delete' AND data->>'videoId' = $1`,
+        [video.id],
+      );
+      expect(jobs).toHaveLength(1);
+      expect(jobs[0].singleton_key).toBe(`video-delete:${video.id}`);
+      expect(jobs[0].data.thumbnailKeys).toEqual([]);
+    });
+
+    it('should roll the deletion back when enqueueing the job fails', async () => {
+      const created = await service.createUpload(user.id, {
+        original_filename: 'manter.mp4',
+        content_type: 'video/mp4',
+        size_bytes: MIB,
+      });
+      createdKeys.push(`videos/${created.public_id}/`);
+      await videoRepository.update(
+        { public_id: created.public_id },
+        { processing_status: 'ready' },
+      );
+      await uploadRepository.update(
+        { upload_id: created.upload.upload_id },
+        { state: 'completed' },
+      );
+      const video = await videoRepository.findOneOrFail({
+        where: { public_id: created.public_id },
+        relations: ['upload'],
+      });
+      const queue = module.get(QueueService);
+      const send = jest
+        .spyOn(queue, 'send')
+        .mockRejectedValueOnce(new Error('queue down'));
+
+      await expect(service.deleteVideo(video)).rejects.toThrow('queue down');
+
+      send.mockRestore();
+      await expect(
+        videoRepository.findOneBy({ id: video.id }),
+      ).resolves.not.toBeNull();
+      await expect(
+        uploadRepository.findOneBy({ video_id: video.id }),
+      ).resolves.not.toBeNull();
+    });
   });
 });

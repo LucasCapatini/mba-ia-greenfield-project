@@ -1,14 +1,30 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
-import { DataSource, type EntityManager, QueryFailedError } from 'typeorm';
+import {
+  DataSource,
+  type EntityManager,
+  QueryFailedError,
+  type Repository,
+} from 'typeorm';
 import type { QueueDatabase } from '../queue/queue.service';
+import { CategoriesService } from '../categories/categories.service';
+import type { Category } from '../categories/entities/category.entity';
+import {
+  type CategoryResponse,
+  toCategoryResponse,
+} from '../categories/dto/category-response.dto';
 import { ChannelsService } from '../channels/channels.service';
 import uploadConfig from '../config/upload.config';
-import { QUEUE_NAMES, singletonKeys } from '../queue/queue.constants';
+import {
+  QUEUE_NAMES,
+  singletonKeys,
+  type VideoDeletePayload,
+} from '../queue/queue.constants';
 import { QueueService } from '../queue/queue.service';
 import { StorageService } from '../storage/storage.service';
 import type { CompletedPartDto } from './dto/complete-upload.dto';
 import type { CreateVideoDto } from './dto/create-video.dto';
+import type { UpdateVideoDto } from './dto/update-video.dto';
 import type {
   PlaybackResponse,
   PresignedPartsResponse,
@@ -21,11 +37,15 @@ import { attachmentDisposition } from './content-disposition.util';
 import { VideoUpload } from './entities/video-upload.entity';
 import { Video } from './entities/video.entity';
 import { generatePublicId, storageKeys } from './public-id.util';
+import { ThumbnailProcessor } from './thumbnail.processor';
+import { deriveVideoTitle } from './video-title.util';
 import { ALLOWED_VIDEO_MIME_TYPES } from './video-formats';
 import {
+  CategoryNotFoundException,
   UploadIncompleteException,
   UploadNotActiveException,
   UploadPartOutOfRangeException,
+  VideoNotPublishableException,
   VideoNotReadyException,
   VideoTooLargeException,
   VideoUnsupportedMediaTypeException,
@@ -70,8 +90,10 @@ export class VideosService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly channelsService: ChannelsService,
+    private readonly categoriesService: CategoriesService,
     private readonly storage: StorageService,
     private readonly queue: QueueService,
+    private readonly thumbnailProcessor: ThumbnailProcessor,
     @Inject(uploadConfig.KEY)
     private readonly upload: ConfigType<typeof uploadConfig>,
   ) {}
@@ -310,6 +332,37 @@ export class VideosService {
   }
 
   /** Desiste do upload: aborta o multipart no storage e remove o rascunho (a sessão cai em cascata). */
+  /**
+   * Exclusão definitiva (video-channel-management/TD-09). Uma sessão multipart `active` é abortada
+   * no storage antes (falha → 503, nada muda no banco). Depois, numa transação, a linha é apagada
+   * (a `VideoUpload` cai em cascata) e o job `video.delete` é enfileirado na MESMA conexão: o job
+   * só existe se o DELETE confirmar (TD-11 da Fase 03). Os objetos saem pelo worker.
+   */
+  async deleteVideo(video: Video): Promise<void> {
+    const session = video.upload;
+    if (session?.state === 'active') {
+      await this.storage.abortMultipartUpload(
+        video.storage_key,
+        session.upload_id,
+      );
+    }
+    const payload: VideoDeletePayload = {
+      videoId: video.id,
+      publicId: video.public_id,
+      storageKey: video.storage_key,
+      thumbnailKeys: [video.thumbnail_key, video.custom_thumbnail_key].filter(
+        (key): key is string => Boolean(key),
+      ),
+    };
+    await this.dataSource.transaction(async (manager) => {
+      await manager.delete(Video, { id: video.id });
+      await this.queue.send(QUEUE_NAMES.VIDEO_DELETE, payload, {
+        singletonKey: singletonKeys.videoDelete(video.id),
+        db: queueDatabaseFrom(manager),
+      });
+    });
+  }
+
   async abortUpload(video: Video): Promise<void> {
     const session = this.activeSession(video);
     await this.storage.abortMultipartUpload(
@@ -326,13 +379,21 @@ export class VideosService {
     });
   }
 
-  /** Estado e metadados para o dono acompanhar o processamento (polling) — TD-06/TD-07/TD-11. */
+  /**
+   * Estado, metadados e campos editoriais do vídeo (Fase 03 TD-06/TD-07/TD-11; Fase 04 TD-02,
+   * TD-04, TD-05). A categoria vem da relação carregada (`VideosOwnership.loadOwned`); se o
+   * chamador não a carregou, é buscada pelo `category_id`.
+   */
   async getVideo(video: Video): Promise<VideoResponse> {
     return {
       public_id: video.public_id,
       status: video.status,
+      visibility: video.visibility,
       processing_status: video.processing_status,
       processing_error: video.processing_error,
+      title: video.title,
+      description: video.description,
+      category: await this.resolveCategory(video),
       original_filename: video.original_filename,
       content_type: video.content_type,
       size_bytes: video.size_bytes,
@@ -342,7 +403,15 @@ export class VideosService {
       container: video.container,
       video_codec: video.video_codec,
       audio_codec: video.audio_codec,
-      thumbnail_url: await this.presignThumbnail(video),
+      thumbnail_url: this.thumbnailUrl(video),
+      has_custom_thumbnail: video.custom_thumbnail_key !== null,
+      view_count: video.view_count,
+      like_count: video.like_count,
+      dislike_count: video.dislike_count,
+      comment_count: video.comment_count,
+      published_at: video.published_at
+        ? video.published_at.toISOString()
+        : null,
       created_at: video.created_at.toISOString(),
       processed_at: video.processed_at
         ? video.processed_at.toISOString()
@@ -351,8 +420,156 @@ export class VideosService {
   }
 
   /**
+   * Edição parcial dos campos editoriais (TD-03): só os campos presentes no DTO mudam e `status`
+   * nunca é tocado. `category_id` precisa existir (400 `CATEGORY_NOT_FOUND`); `null` remove.
+   */
+  async updateVideo(video: Video, dto: UpdateVideoDto): Promise<VideoResponse> {
+    const changes: Partial<
+      Pick<Video, 'title' | 'description' | 'category_id' | 'visibility'>
+    > = {};
+    if (dto.title !== undefined) changes.title = dto.title;
+    if (dto.description !== undefined) changes.description = dto.description;
+    if (dto.visibility !== undefined) changes.visibility = dto.visibility;
+
+    let category: Category | null | undefined;
+    if (dto.category_id !== undefined) {
+      category =
+        dto.category_id === null
+          ? null
+          : await this.categoriesService.findById(dto.category_id);
+      if (dto.category_id !== null && !category) {
+        throw new CategoryNotFoundException(dto.category_id);
+      }
+      changes.category_id = dto.category_id;
+    }
+
+    await this.applyChanges(video, changes);
+    if (category !== undefined) {
+      video.category = category;
+    }
+    return this.getVideo(video);
+  }
+
+  /**
+   * Ação dedicada de publicação (TD-02/TD-03). Exige `processing_status = ready` e título não
+   * vazio; grava `published_at` só na primeira vez. Já publicado → devolve sem alterar.
+   */
+  async publish(video: Video): Promise<VideoResponse> {
+    if (video.status === 'published') {
+      return this.getVideo(video);
+    }
+    if (video.processing_status !== 'ready') {
+      throw new VideoNotPublishableException(
+        `processing_status is ${video.processing_status}`,
+      );
+    }
+    if (video.title.trim().length === 0) {
+      throw new VideoNotPublishableException('title is empty');
+    }
+    const changes: Pick<Video, 'status' | 'published_at'> = {
+      status: 'published',
+      published_at: video.published_at ?? new Date(),
+    };
+    await this.applyChanges(video, changes);
+    return this.getVideo(video);
+  }
+
+  /**
+   * Volta a rascunho preservando `visibility` e `published_at` (TD-02). Já rascunho → devolve
+   * sem alterar.
+   */
+  async unpublish(video: Video): Promise<VideoResponse> {
+    if (video.status !== 'draft') {
+      await this.applyChanges(video, { status: 'draft' });
+    }
+    return this.getVideo(video);
+  }
+
+  /**
+   * Thumbnail customizada (TD-04): valida e normaliza para JPEG 1280×720, grava em
+   * `thumbnails/{public_id}/custom.jpg` (sobrescrevendo uma anterior) e aponta
+   * `custom_thumbnail_key` para ela. A automática do worker fica intacta. O objeto é gravado
+   * antes do banco: se a escrita no banco falhar, sobra só um objeto que o próximo envio sobrescreve.
+   */
+  async setCustomThumbnail(
+    video: Video,
+    file: { buffer: Buffer; mimetype: string },
+  ): Promise<VideoResponse> {
+    const jpeg = await this.thumbnailProcessor.normalize(
+      file.buffer,
+      file.mimetype,
+    );
+    const key = storageKeys(video.public_id).customThumbnail;
+    await this.storage.putObject(key, jpeg, 'image/jpeg');
+    await this.applyChanges(video, { custom_thumbnail_key: key });
+    return this.getVideo(video);
+  }
+
+  /**
+   * Volta à thumbnail automática (TD-04). Idempotente: sem customizada, não faz nada. Remove o
+   * objeto antes de anular a chave — o `DeleteObject` do S3 tolera chave ausente, então repetir
+   * após uma falha parcial é seguro.
+   */
+  async removeCustomThumbnail(video: Video): Promise<void> {
+    if (!video.custom_thumbnail_key) {
+      return;
+    }
+    await this.storage.deleteObject(video.custom_thumbnail_key);
+    await this.applyChanges(video, { custom_thumbnail_key: null });
+  }
+
+  /**
+   * Thumbnail pública e estável (video-channel-management/TD-10): a customizada tem prioridade
+   * sobre a automática; `?v=` (epoch em ms de `updated_at`) muda a URL a cada escrita do vídeo,
+   * invalidando o cache do navegador/CDN quando a imagem é trocada. `null` sem thumbnail.
+   */
+  thumbnailUrl(
+    video: Pick<Video, 'custom_thumbnail_key' | 'thumbnail_key' | 'updated_at'>,
+  ): string | null {
+    const key = video.custom_thumbnail_key ?? video.thumbnail_key;
+    if (!key) {
+      return null;
+    }
+    return `${this.storage.publicUrl(key)}?v=${video.updated_at.getTime()}`;
+  }
+
+  /**
+   * Grava as mudanças, espelha no objeto em memória e relê `updated_at` (gerado pelo banco) para
+   * que a resposta traga o mesmo `?v=` da thumbnail que a próxima leitura trará.
+   */
+  private async applyChanges(
+    video: Video,
+    changes: Partial<Video>,
+  ): Promise<void> {
+    await this.videoRepository.update(video.id, changes);
+    Object.assign(video, changes);
+    const { updated_at } = await this.videoRepository.findOneOrFail({
+      where: { id: video.id },
+      select: { id: true, updated_at: true },
+    });
+    video.updated_at = updated_at;
+  }
+
+  private get videoRepository(): Repository<Video> {
+    return this.dataSource.getRepository(Video);
+  }
+
+  private async resolveCategory(
+    video: Video,
+  ): Promise<CategoryResponse | null> {
+    if (!video.category_id) {
+      return null;
+    }
+    const category =
+      video.category ??
+      (await this.categoriesService.findById(video.category_id));
+    return category ? toCategoryResponse(category) : null;
+  }
+
+  /**
    * URLs GET pré-assinadas com o cliente público (TD-09): o storage atende `Range` e devolve o
-   * `Content-Disposition` pedido na assinatura; nenhum byte passa pela API.
+   * `Content-Disposition` pedido na assinatura; nenhum byte passa pela API. A thumbnail é a URL
+   * pública estável (TD-10), não assinada.
    */
   async getPlayback(video: Video): Promise<PlaybackResponse> {
     if (video.processing_status !== 'ready') {
@@ -360,7 +577,7 @@ export class VideosService {
     }
     const ttl = this.upload.playbackUrlTtlSeconds;
     const expiresAt = new Date(Date.now() + ttl * 1000);
-    const [streamUrl, downloadUrl, thumbnailUrl] = await Promise.all([
+    const [streamUrl, downloadUrl] = await Promise.all([
       this.storage.presignGetObject(video.storage_key, ttl, { public: true }),
       this.storage.presignGetObject(video.storage_key, ttl, {
         public: true,
@@ -369,25 +586,13 @@ export class VideosService {
           video.content_type,
         ),
       }),
-      this.presignThumbnail(video),
     ]);
     return {
       stream_url: streamUrl,
       download_url: downloadUrl,
-      thumbnail_url: thumbnailUrl,
+      thumbnail_url: this.thumbnailUrl(video),
       expires_at: expiresAt.toISOString(),
     };
-  }
-
-  private async presignThumbnail(video: Video): Promise<string | null> {
-    if (!video.thumbnail_key) {
-      return null;
-    }
-    return this.storage.presignGetObject(
-      video.thumbnail_key,
-      this.upload.playbackUrlTtlSeconds,
-      { public: true },
-    );
   }
 
   private activeSession(video: Video): VideoUpload {
@@ -416,6 +621,7 @@ export class VideosService {
             public_id: publicId,
             channel_id: channelId,
             original_filename: dto.original_filename,
+            title: deriveVideoTitle(dto.original_filename),
             content_type: dto.content_type,
             size_bytes: dto.size_bytes,
             storage_key: storageKeys(publicId).source,

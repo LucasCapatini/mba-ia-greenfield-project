@@ -13,7 +13,8 @@ import { cn } from "@/lib/utils"
  * Minimal session-aware header for the application routes (per
  * saneamento-fase-02-e-infra/TD-05). Reads the session the RSC root layout
  * hydrated into the SessionProvider (phase-02-auth-frontend/TD-06) — no
- * round-trip. The full navbar of Phase 07 grows from here.
+ * round-trip. The full navbar of Phase 07 grows from here. Authenticated users
+ * get the studio entry points (Phase 04, OQ-3 — per video-channel-management/TD-12).
  */
 function AppHeader({ className, ...props }: React.ComponentProps<"header">) {
   const session = React.useContext(SessionContext)
@@ -56,6 +57,12 @@ function AppHeader({ className, ...props }: React.ComponentProps<"header">) {
             >
               {session.email}
             </span>
+            <Button asChild size="sm" variant="ghost">
+              <Link href="/studio/videos">Meus vídeos</Link>
+            </Button>
+            <Button asChild size="sm" variant="ghost">
+              <Link href="/studio/channel">Meu canal</Link>
+            </Button>
             <Button
               type="button"
               size="sm"

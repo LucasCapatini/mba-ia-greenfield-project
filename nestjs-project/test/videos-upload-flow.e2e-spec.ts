@@ -350,9 +350,11 @@ describe('videos-upload-flow', () => {
       [],
     );
 
-    const res = await api.video(publicId, intruderToken).expect(403);
+    // Phase 04 (TD-07): reads are public with optional auth; a draft is hidden from
+    // non-owners with 404 instead of 403, so its existence is not revealed.
+    const res = await api.video(publicId, intruderToken).expect(404);
 
-    expect(errorBody(res).error).toBe('VIDEO_FORBIDDEN');
+    expect(errorBody(res).error).toBe('VIDEO_NOT_FOUND');
     await api.video(publicId, ownerToken).expect(200);
   });
 

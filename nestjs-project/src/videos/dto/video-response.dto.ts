@@ -1,14 +1,17 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { CategoryResponse } from '../../categories/dto/category-response.dto';
 import { VIDEO_CONTAINERS, type VideoContainer } from '../video-formats';
 import {
   VIDEO_PROCESSING_ERRORS,
   VIDEO_PROCESSING_STATUSES,
   VIDEO_STATUSES,
   VIDEO_UPLOAD_STATES,
+  VIDEO_VISIBILITIES,
   type VideoProcessingError,
   type VideoProcessingStatus,
   type VideoStatus,
   type VideoUploadState,
+  type VideoVisibility,
 } from '../videos.constants';
 
 // Shapes de resposta da API de vídeos (`### API Contracts`). Anotados para o Swagger porque o
@@ -143,6 +146,13 @@ export class VideoResponse {
   @ApiProperty({ enum: VIDEO_STATUSES, example: 'draft' })
   status: VideoStatus;
 
+  @ApiProperty({
+    enum: VIDEO_VISIBILITIES,
+    example: 'public',
+    description: 'Só tem efeito quando `status = published`.',
+  })
+  visibility: VideoVisibility;
+
   @ApiProperty({ enum: VIDEO_PROCESSING_STATUSES })
   processing_status: VideoProcessingStatus;
 
@@ -152,6 +162,20 @@ export class VideoResponse {
     description: 'Código quando `failed`.',
   })
   processing_error: VideoProcessingError | null;
+
+  @ApiProperty({
+    maxLength: 100,
+    description:
+      'Nasce como `original_filename` sem extensão; publicar exige não vazio.',
+    example: 'Minha aula.final',
+  })
+  title: string;
+
+  @ApiProperty({ type: String, nullable: true, maxLength: 5000 })
+  description: string | null;
+
+  @ApiProperty({ type: CategoryResponse, nullable: true })
+  category: CategoryResponse | null;
 
   @ApiProperty()
   original_filename: string;
@@ -183,15 +207,125 @@ export class VideoResponse {
   @ApiProperty({
     nullable: true,
     description:
-      'URL GET pré-assinada da thumbnail (cliente público) quando existe.',
+      'URL pública e estável da thumbnail (customizada ou automática), sem assinatura, com `?v=` para cache-busting (TD-10); null enquanto não existe.',
   })
   thumbnail_url: string | null;
+
+  @ApiProperty({
+    description:
+      'Verdadeiro quando o dono enviou uma thumbnail customizada (substitui a automática).',
+  })
+  has_custom_thumbnail: boolean;
+
+  @ApiProperty({ type: 'integer', example: 0 })
+  view_count: number;
+
+  @ApiProperty({ type: 'integer', example: 0 })
+  like_count: number;
+
+  @ApiProperty({ type: 'integer', example: 0 })
+  dislike_count: number;
+
+  @ApiProperty({ type: 'integer', example: 0 })
+  comment_count: number;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'ISO-8601 da primeira publicação; não é anulado ao despublicar.',
+  })
+  published_at: string | null;
 
   @ApiProperty({ description: 'ISO-8601' })
   created_at: string;
 
   @ApiProperty({ nullable: true, description: 'ISO-8601' })
   processed_at: string | null;
+}
+
+/** Linha do painel do dono (`GET /channels/me/videos`). */
+export class VideoListItem {
+  @ApiProperty({ example: 'dQw4w9WgXcQ' })
+  public_id: string;
+
+  @ApiProperty({ example: 'Minha aula.final' })
+  title: string;
+
+  @ApiProperty({ enum: VIDEO_STATUSES })
+  status: VideoStatus;
+
+  @ApiProperty({ enum: VIDEO_VISIBILITIES })
+  visibility: VideoVisibility;
+
+  @ApiProperty({ enum: VIDEO_PROCESSING_STATUSES })
+  processing_status: VideoProcessingStatus;
+
+  @ApiProperty({ enum: VIDEO_PROCESSING_ERRORS, nullable: true })
+  processing_error: VideoProcessingError | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'URL pública e estável da thumbnail (customizada ou automática), sem assinatura, com `?v=` para cache-busting (TD-10); null enquanto não existe.',
+  })
+  thumbnail_url: string | null;
+
+  @ApiProperty({ type: 'number', nullable: true })
+  duration_seconds: number | null;
+
+  @ApiProperty({ type: 'integer' })
+  view_count: number;
+
+  @ApiProperty({ type: 'integer' })
+  like_count: number;
+
+  @ApiProperty({ type: 'integer' })
+  comment_count: number;
+
+  @ApiProperty({ type: String, nullable: true, description: 'ISO-8601' })
+  published_at: string | null;
+
+  @ApiProperty({ description: 'ISO-8601' })
+  created_at: string;
+}
+
+export class VideoCardChannel {
+  @ApiProperty({ example: 'tech_mastery' })
+  nickname: string;
+
+  @ApiProperty({ example: 'Tech Mastery Plus' })
+  name: string;
+}
+
+/** Card das listagens públicas (`GET /channels/{nickname}/videos`, Fases 05/07). */
+export class VideoCardItem {
+  @ApiProperty({ example: 'dQw4w9WgXcQ' })
+  public_id: string;
+
+  @ApiProperty()
+  title: string;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'URL pública e estável da thumbnail (customizada ou automática), sem assinatura, com `?v=` para cache-busting (TD-10); null enquanto não existe.',
+  })
+  thumbnail_url: string | null;
+
+  @ApiProperty({ type: 'number', nullable: true })
+  duration_seconds: number | null;
+
+  @ApiProperty({ type: 'integer' })
+  view_count: number;
+
+  @ApiProperty({ type: String, nullable: true, description: 'ISO-8601' })
+  published_at: string | null;
+
+  @ApiProperty({ type: VideoCardChannel })
+  channel: VideoCardChannel;
 }
 
 export class PlaybackResponse {
@@ -206,7 +340,12 @@ export class PlaybackResponse {
   })
   download_url: string;
 
-  @ApiProperty({ nullable: true })
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'URL pública e estável da thumbnail (customizada ou automática), sem assinatura, com `?v=` para cache-busting (TD-10); null enquanto não existe.',
+  })
   thumbnail_url: string | null;
 
   @ApiProperty({

@@ -176,6 +176,39 @@ describe('videos-create', () => {
     ).resolves.toEqual([]);
   });
 
+  // Phase 04 (SI-04.2 acceptance): the draft exposes the editorial defaults on GET /videos/{id}.
+  test('phase-04 new-draft-exposes-title-and-editorial-defaults', async () => {
+    const token = await authenticate('owner-defaults@example.com');
+
+    const created = await post(token)
+      .send({
+        original_filename: 'Minha aula.final.mp4',
+        content_type: 'video/mp4',
+        size_bytes: 15728640,
+      })
+      .expect(201);
+
+    const { public_id: publicId } = created.body as { public_id: string };
+    const res = await request(app.getHttpServer())
+      .get(`/videos/${publicId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(res.body).toMatchObject({
+      title: 'Minha aula.final',
+      description: null,
+      status: 'draft',
+      visibility: 'public',
+      category: null,
+      view_count: 0,
+      like_count: 0,
+      dislike_count: 0,
+      comment_count: 0,
+      published_at: null,
+      has_custom_thumbnail: false,
+    });
+  });
+
   test('1.2 unsupported-media-type-is-rejected-before-storage', async () => {
     const token = await authenticate('owner-mkv@example.com');
 

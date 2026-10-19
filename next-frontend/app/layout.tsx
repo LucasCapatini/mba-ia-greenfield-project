@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 
 import { SessionProvider } from "@/components/auth/session-provider";
+import { Toaster } from "@/components/ui/sonner";
 import { getSession } from "@/lib/auth/session";
 import { cn } from "@/lib/utils";
 import "./globals.css";
@@ -45,6 +46,7 @@ export default async function RootLayout({
         >
           {children}
         </SessionProvider>
+        <Toaster position="bottom-right" closeButton />
       </body>
     </html>
   );

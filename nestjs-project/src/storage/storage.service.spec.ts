@@ -206,6 +206,23 @@ describe('StorageService', () => {
     });
   });
 
+  describe('publicUrl (TD-10)', () => {
+    it('should compose the PUBLIC endpoint, the bucket and the key without any signature', () => {
+      const url = service.publicUrl('thumbnails/abc/custom.jpg');
+
+      expect(url).toBe(
+        `${PUBLIC_ENDPOINT}/${BUCKET}/thumbnails/abc/custom.jpg`,
+      );
+      expect(url).not.toContain('X-Amz');
+    });
+
+    it('should percent-encode each path segment but keep the slashes', () => {
+      expect(service.publicUrl('thumbnails/a b/auto.jpg')).toBe(
+        `${PUBLIC_ENDPOINT}/${BUCKET}/thumbnails/a%20b/auto.jpg`,
+      );
+    });
+  });
+
   // getSignedUrl passa pelo middleware stack via send(): precisa do S3Client REAL (sem rede).
   // Roda por último, depois de restaurar o stub de classe usado pelo describe de comandos.
   describe('presigned URLs (no network)', () => {

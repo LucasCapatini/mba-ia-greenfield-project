@@ -46,10 +46,59 @@ describe('JwtAuthGuard', () => {
     mockReflector.getAllAndOverride.mockReturnValue(false);
   });
 
-  it('bypasses guard on @Public() routes', async () => {
-    mockReflector.getAllAndOverride.mockReturnValue(true);
-    const ctx = makeContext({ headers: {} });
-    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+  describe('@Public() routes (optional auth — TD-07)', () => {
+    beforeEach(() => {
+      mockReflector.getAllAndOverride.mockReturnValue(true);
+    });
+
+    it('lets an anonymous request through without a user', async () => {
+      const request: Record<string, unknown> = { headers: {} };
+
+      await expect(guard.canActivate(makeContext(request))).resolves.toBe(true);
+      expect(request.user).toBeUndefined();
+    });
+
+    it('populates request.user when a valid Bearer token is sent', async () => {
+      const token = jwtService.sign({ sub: 'user-9', email: 'p@example.com' });
+      const request: Record<string, unknown> = {
+        headers: { authorization: `Bearer ${token}` },
+      };
+
+      await expect(guard.canActivate(makeContext(request))).resolves.toBe(true);
+      expect((request.user as Record<string, unknown>)?.sub).toBe('user-9');
+    });
+
+    it('throws UnauthorizedException for an invalid token even on a public route', async () => {
+      const ctx = makeContext({
+        headers: { authorization: 'Bearer invalido' },
+      });
+
+      await expect(guard.canActivate(ctx)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('throws UnauthorizedException for an expired token even on a public route', async () => {
+      const expiredToken = jwtService.sign(
+        { sub: 'user-9', email: 'p@example.com' },
+        { expiresIn: -60 },
+      );
+      const ctx = makeContext({
+        headers: { authorization: `Bearer ${expiredToken}` },
+      });
+
+      await expect(guard.canActivate(ctx)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('throws UnauthorizedException for a non-Bearer Authorization header', async () => {
+      const ctx = makeContext({ headers: { authorization: 'Basic abc' } });
+
+      await expect(guard.canActivate(ctx)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
   });
 
   it('passes with a valid JWT and attaches payload to request.user', async () => {
@@ -68,6 +117,11 @@ describe('JwtAuthGuard', () => {
 
   it('throws UnauthorizedException when Authorization header is missing', async () => {
     const ctx = makeContext({ headers: {} });
+    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('throws UnauthorizedException when the scheme is not Bearer on a protected route', async () => {
+    const ctx = makeContext({ headers: { authorization: 'Basic abc' } });
     await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
   });
 

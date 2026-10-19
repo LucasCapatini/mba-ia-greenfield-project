@@ -17,7 +17,8 @@ import { StorageService } from './storage.service';
 const FIVE_MIB = 5 * 1024 * 1024;
 
 // Smoke test do storage real do compose (RustFS) — valida o que TD-01/TD-03/TD-09 assumem:
-// presigned multipart, Range (206), response-content-disposition e abort.
+// presigned multipart, Range (206), response-content-disposition e abort — e a bucket policy de
+// thumbnails públicas da Fase 04 (TD-10), aplicada pelo serviço storage-init do compose.
 describe('StorageService (integration — RustFS real)', () => {
   let module: TestingModule;
   let service: StorageService;
@@ -137,5 +138,49 @@ describe('StorageService (integration — RustFS real)', () => {
     await service.deleteObject(key);
 
     await expect(service.headObject(key)).resolves.toBeNull();
+  });
+  describe('bucket policy (video-channel-management/TD-10)', () => {
+    // The policy targets the real prefixes, so these keys live outside the suite prefix and
+    // are removed explicitly.
+    const id = `policy-${Date.now()}`;
+    const thumbnailKey = `thumbnails/${id}/auto.jpg`;
+    const videoKey = `videos/${id}/source`;
+
+    afterAll(async () => {
+      await service.deleteObject(thumbnailKey);
+      await service.deleteObject(videoKey);
+    });
+
+    it('should serve thumbnails/* anonymously through the stable public URL', async () => {
+      await service.putObject(
+        thumbnailKey,
+        deterministicBuffer(256),
+        'image/jpeg',
+      );
+
+      const response = await fetch(service.publicUrl(thumbnailKey));
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toBe('image/jpeg');
+      expect((await response.arrayBuffer()).byteLength).toBe(256);
+    });
+
+    it('should answer 404 (not 403) for a missing thumbnail', async () => {
+      const response = await fetch(
+        service.publicUrl(`thumbnails/${id}/missing.jpg`),
+      );
+
+      expect(response.status).toBe(404);
+      await response.arrayBuffer();
+    });
+
+    it('should keep videos/* private to anonymous requests', async () => {
+      await service.putObject(videoKey, deterministicBuffer(256), 'video/mp4');
+
+      const response = await fetch(service.publicUrl(videoKey));
+
+      expect(response.status).toBe(403);
+      await response.arrayBuffer();
+    });
   });
 });

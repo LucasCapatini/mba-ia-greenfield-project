@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import type { JwtPayload } from '../auth/auth.types';
 import { ChannelsService } from '../channels/channels.service';
 import { Video } from './entities/video.entity';
 import {
@@ -19,19 +20,47 @@ export class VideosOwnership {
     private readonly channelsService: ChannelsService,
   ) {}
 
-  /** Carrega o vídeo (com a sessão de upload) e garante que `userId` é o dono. */
+  /** Carrega o vídeo (com a sessão de upload e a categoria) e garante que `userId` é o dono. */
   async loadOwned(userId: string, publicId: string): Promise<Video> {
+    const video = await this.findByPublicId(publicId);
+    if (!(await this.isOwner(userId, video))) {
+      throw new VideoForbiddenException();
+    }
+    return video;
+  }
+
+  /**
+   * Regra de leitura das rotas públicas com auth opcional (video-channel-management/TD-07, TD-02):
+   * vídeo `published` (public ou unlisted — a leitura é por `public_id`) é visível a todos; outro
+   * status só ao dono. Rascunho alheio responde 404 como se não existisse, nunca 403.
+   */
+  async loadReadable(
+    user: JwtPayload | undefined,
+    publicId: string,
+  ): Promise<Video> {
+    const video = await this.findByPublicId(publicId);
+    if (video.status === 'published') {
+      return video;
+    }
+    if (user && (await this.isOwner(user.sub, video))) {
+      return video;
+    }
+    throw new VideoNotFoundException();
+  }
+
+  private async findByPublicId(publicId: string): Promise<Video> {
     const video = await this.videoRepository.findOne({
       where: { public_id: publicId },
-      relations: ['upload'],
+      relations: ['upload', 'category'],
     });
     if (!video) {
       throw new VideoNotFoundException();
     }
-    const channel = await this.channelsService.findByUserId(userId);
-    if (!channel || channel.id !== video.channel_id) {
-      throw new VideoForbiddenException();
-    }
     return video;
+  }
+
+  private async isOwner(userId: string, video: Video): Promise<boolean> {
+    const channel = await this.channelsService.findByUserId(userId);
+    return channel !== null && channel.id === video.channel_id;
   }
 }

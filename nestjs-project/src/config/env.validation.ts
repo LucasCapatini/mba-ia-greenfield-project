@@ -48,6 +48,12 @@ export const envValidationSchema = Joi.object({
   UPLOAD_URL_TTL: Joi.number().integer().min(60).default(3600),
   UPLOAD_TTL: Joi.number().integer().min(60).default(86400),
   PLAYBACK_URL_TTL: Joi.number().integer().min(60).default(43200),
+  // Thumbnail customizada enviada pela API (video-channel-management/TD-04) — bytes
+  THUMBNAIL_MAX_BYTES: Joi.number()
+    .integer()
+    .min(1)
+    .max(50 * 1024 * 1024)
+    .default(5 * 1024 * 1024),
   // Fila pg-boss (TD-04)
   QUEUE_SCHEMA: Joi.string().default('pgboss'),
   QUEUE_SUPERVISE: Joi.string().valid('true', 'false').default('true'),

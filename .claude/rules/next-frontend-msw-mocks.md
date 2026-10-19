@@ -59,7 +59,7 @@ export const buildUser = (overrides: Partial<User> = {}): User => ({
 });
 ```
 
-**Current state:** the auth domain keeps its small fixtures inline in `mocks/handlers/auth.ts` (token pair, error envelopes, trigger constants) and `mocks/factories/` is still empty. Create `mocks/factories/<domain>.ts` the first time a response shape is needed by more than one handler or test — do not pre-create empty factory files.
+**Current state:** the auth domain keeps its small fixtures inline in `mocks/handlers/auth.ts` (token pair, error envelopes, trigger constants); the Studio/channel domains (Phase 04) share `mocks/factories/videos.ts` and a mutable `mocks/store.ts` (reset by the login handler and after each Vitest test). Create `mocks/factories/<domain>.ts` the first time a response shape is needed by more than one handler or test — do not pre-create empty factory files.
 
 `@faker-js/faker` is **opt-in** and scoped to bulk-collection builders only (e.g., `buildVideoList(n, seed)`). When used, call `faker.seed(N)` **immediately before** generating the collection so determinism is local to that builder and does not interact with the global cursor. Faker is not installed at foundation — the first phase that authors a `buildXList` triggers the install.
 

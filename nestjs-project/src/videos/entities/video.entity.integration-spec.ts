@@ -1,4 +1,5 @@
 import { DataSource, Repository } from 'typeorm';
+import { Category } from '../../categories/entities/category.entity';
 import { Channel } from '../../channels/entities/channel.entity';
 import {
   ALL_ENTITIES,
@@ -135,5 +136,93 @@ describe('Video entity (integration)', () => {
     expect(
       found?.videos.every((video) => video.channel_id === channel.id),
     ).toBe(true);
+  });
+  describe('publishing columns (Fase 04)', () => {
+    let categoryRepository: Repository<Category>;
+
+    beforeAll(() => {
+      categoryRepository = dataSource.getRepository(Category);
+    });
+
+    afterEach(async () => {
+      await dataSource.query(
+        `DELETE FROM "categories" WHERE "slug" LIKE 'test-%'`,
+      );
+    });
+
+    it('should default status, visibility, counters and the editorial fields', async () => {
+      const channel = await createChannel();
+
+      const saved = await videoRepository.save(draft(channel));
+      const found = await videoRepository.findOneByOrFail({ id: saved.id });
+
+      expect(found.status).toBe('draft');
+      expect(found.visibility).toBe('public');
+      expect(found.title).toBe('');
+      expect(found.description).toBeNull();
+      expect(found.category_id).toBeNull();
+      expect(found.published_at).toBeNull();
+      expect(found.custom_thumbnail_key).toBeNull();
+      expect(found.view_count).toBe(0);
+      expect(found.like_count).toBe(0);
+      expect(found.dislike_count).toBe(0);
+      expect(found.comment_count).toBe(0);
+    });
+
+    it('should reject a title longer than 100 characters', async () => {
+      const channel = await createChannel();
+      const video = draft(channel);
+      video.title = 't'.repeat(101);
+
+      await expect(videoRepository.save(video)).rejects.toThrow();
+    });
+
+    it('should load the category relation', async () => {
+      const channel = await createChannel();
+      const category = await categoryRepository.save(
+        categoryRepository.create({
+          slug: 'test-docs',
+          name: 'Docs',
+          sort_order: 90,
+        }),
+      );
+      const video = draft(channel);
+      video.category_id = category.id;
+      const saved = await videoRepository.save(video);
+
+      const found = await videoRepository.findOneOrFail({
+        where: { id: saved.id },
+        relations: ['category'],
+      });
+
+      expect(found.category?.slug).toBe('test-docs');
+    });
+
+    it('should set category_id to NULL when the category is deleted', async () => {
+      const channel = await createChannel();
+      const category = await categoryRepository.save(
+        categoryRepository.create({
+          slug: 'test-gone',
+          name: 'Gone',
+          sort_order: 91,
+        }),
+      );
+      const video = draft(channel);
+      video.category_id = category.id;
+      const saved = await videoRepository.save(video);
+
+      await categoryRepository.delete({ id: category.id });
+
+      const found = await videoRepository.findOneByOrFail({ id: saved.id });
+      expect(found.category_id).toBeNull();
+    });
+
+    it('should reject an unknown category_id', async () => {
+      const channel = await createChannel();
+      const video = draft(channel);
+      video.category_id = '00000000-0000-4000-8000-000000000000';
+
+      await expect(videoRepository.save(video)).rejects.toThrow(/foreign key/i);
+    });
   });
 });

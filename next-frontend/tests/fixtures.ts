@@ -1,4 +1,4 @@
-import { test as base, expect } from "@playwright/test";
+import { test as base, expect, type Page } from "@playwright/test";
 
 type NetworkFixtures = {
   network: void;
@@ -14,5 +14,18 @@ type NetworkFixtures = {
 export const test = base.extend<NetworkFixtures>({
   network: [async ({}, use) => { await use(); }, { auto: true }],
 });
+
+/**
+ * Waits until React has hydrated the element matching `selector` (it attaches `__reactFiber…`
+ * keys to DOM nodes when hydrating). Interacting with SSR markup before that races with
+ * hydration — e.g. a `fill()` merged with the restored default value. `networkidle` is not a
+ * substitute: pages with polling or a <video> preview never go idle.
+ */
+export async function waitForHydration(page: Page, selector = "main"): Promise<void> {
+  await page.waitForFunction((target) => {
+    const element = document.querySelector(target);
+    return element !== null && Object.keys(element).some((key) => key.startsWith("__reactFiber"));
+  }, selector);
+}
 
 export { expect };
