@@ -7,10 +7,10 @@ C4Container
     Container_Boundary(c1, "StreamTube") {
         Container(frontend, "Frontend", "Next.js", "Platform interface")
         Container(api, "API", "Nest.js", "Business rules, authentication and upload orchestration (presigned multipart)")
-        Container(worker, "Video Worker", "Nest.js + FFmpeg", "Second entrypoint of nestjs-project (src/worker.ts): probes, validates and thumbnails videos in background")
+        Container(worker, "Video Worker", "Nest.js + FFmpeg", "Second entrypoint of nestjs-project (src/worker.ts): probes, validates and thumbnails videos, and deletes the objects of removed videos, in background")
         ContainerDb(db, "Database", "PostgreSQL", "Users, channels, videos, comments, likes")
         ContainerDb(storage, "Object Storage", "S3-compatible (RustFS in dev)", "Video files and thumbnails; presigned multipart upload and Range playback")
-        ContainerQueue(queue, "Message Queue", "pg-boss (PostgreSQL schema pgboss)", "video.process and upload.expire jobs")
+        ContainerQueue(queue, "Message Queue", "pg-boss (PostgreSQL schema pgboss)", "video.process, upload.expire and video.delete jobs")
     }
 
     System_Ext(email, "Email Service", "Account confirmation and password recovery")
@@ -18,15 +18,15 @@ C4Container
     Rel(anonUser, frontend, "Uses", "HTTPS")
     Rel(authUser, frontend, "Uses", "HTTPS")
     Rel(frontend, api, "Proxies server-side (BFF Route Handlers/RSC)", "REST, rede Docker streamtube")
-    Rel(frontend, storage, "Uploads parts / streams via presigned URLs", "HTTPS")
+    Rel(frontend, storage, "Uploads parts / streams via presigned URLs; loads public thumbnails", "HTTPS")
 
     Rel(api, db, "Reads/Writes")
-    Rel(api, storage, "Presigns URLs, completes/aborts multipart")
+    Rel(api, storage, "Presigns URLs, completes/aborts multipart, saves custom thumbnails")
     Rel(api, queue, "Publishes job")
     Rel(api, email, "Sends email", "SMTP")
 
     Rel(queue, worker, "Delivers job")
-    Rel(worker, storage, "Reads via signed URL / saves thumbnail")
+    Rel(worker, storage, "Reads via signed URL / saves thumbnail / deletes objects")
     Rel(worker, db, "Updates")
 
     UpdateElementStyle(anonUser, $bgColor="#37474F", $fontColor="#ECEFF1", $borderColor="#78909C")
