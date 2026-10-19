@@ -15373,11 +15373,6 @@ Vou verificar como as sessões anteriores foram arquivadas e o que ainda existe 
     rl.on('close',()=>{console.log('lines',n,'from',firstTs,'to',lastTs);console.log(types);console.log(samples);});
     " "$F"
   ⎿ [Bash → resultado]
-      7  C--Users-lucas-source-repos-Mobi2buy-Cobranca-ANova-ETL
-      1  C--Users-lucas-source-repos-Mobi2buy-Cobranca-ANova-Localiza-Website
-      8  C--Users-lucas-source-repos-Mobi2buy-Cobranca-ANova-Tenda-ETL
-      8  C--Users-lucas-source-repos-Mobi2buy-Cobranca-Cobcom-Bot
-      1  C--Users-lucas-source-repos-Mobi2buy-Retencao-Tim-Portabilidade-Arandu-ETL
       1  C--Users-lucas-source-repos-mba-ia-desafio-ingestao-busca
       2  C--Users-lucas-source-repos-mba-ia-greenfield-project
       1  C--Users-lucas-source-repos-mba-ia-pull-evaluation-prompt
