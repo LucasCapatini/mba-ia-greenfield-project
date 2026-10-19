@@ -34,6 +34,31 @@ function makeRequest(body: Record<string, unknown>) {
 }
 
 describe("POST /api/auth/login", () => {
+  it("writes nothing to the server console on success or on an upstream error (tokens never logged)", async () => {
+    const spies = (["log", "info", "debug"] as const).map((method) =>
+      vi.spyOn(console, method).mockImplementation(() => {})
+    );
+
+    const ok = await POST(makeRequest({ email: "alice@example.com", password: "pw" }));
+    expect(ok.status).toBe(200);
+
+    server.use(
+      http.post(`${env.API_URL}/auth/login`, () =>
+        HttpResponse.json(
+          { statusCode: 401, error: "INVALID_CREDENTIALS", message: "Invalid email or password" },
+          { status: 401 }
+        )
+      )
+    );
+    const failed = await POST(makeRequest({ email: "bad@example.com", password: "wrong" }));
+    expect(failed.status).toBe(401);
+
+    for (const spy of spies) {
+      expect(spy).not.toHaveBeenCalled()
+      spy.mockRestore()
+    }
+  });
+
   it("returns 400 VALIDATION_ERROR without calling the upstream when the body is not valid JSON", async () => {
     const upstreamCalls: string[] = [];
     const onRequest = ({ request }: { request: Request }) => {

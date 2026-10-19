@@ -12,7 +12,6 @@ export async function POST(request: Request) {
   const { data, error, response } = await upstream.POST("/auth/login", {
     body,
   });
-  console.log(error, data, response);
   if (error) {
     return NextResponse.json<ApiErrorEnvelope>(error, {
       status: response.status,

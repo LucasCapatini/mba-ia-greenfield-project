@@ -105,7 +105,7 @@ Edição das informações do vídeo, fluxo de rascunho e publicação, painel d
 
 **Entregáveis:** edição completa de vídeos, rascunho/publicação, painel de gerenciamento, edição de canal, página pública do canal.
 
-_Status (2026-10-19): concluída (backend + frontend) — `docs/phases/phase-04-video-channel-management/` (categorias por migration, `status` + `visibility` + `published_at` com ações dedicadas de publicar/despublicar, thumbnail customizada validada e normalizada com `sharp`, exclusão por hard delete + job `video.delete`, listagens por cursor, leitura pública com auth opcional, contadores denormalizados zerados até as Fases 05/06; no frontend, estúdio com upload multipart do navegador, painel, edição de vídeo e de canal, e a página pública do canal). Pendências para tarefa separada: dívida de lint do backend (specs/e2e das Fases 02/03), validação de nicknames reservados/curtos no cadastro e reauditoria do frame Figma 154:1724._
+_Status (2026-10-19): concluída (backend + frontend) — `docs/phases/phase-04-video-channel-management/` (categorias por migration, `status` + `visibility` + `published_at` com ações dedicadas de publicar/despublicar, thumbnail customizada validada e normalizada com `sharp`, exclusão por hard delete + job `video.delete`, listagens por cursor, leitura pública com auth opcional, contadores denormalizados zerados até as Fases 05/06; no frontend, estúdio com upload multipart do navegador, painel, edição de vídeo e de canal, e a página pública do canal). A dívida de lint do backend (specs/e2e das Fases 02/03) e a validação de nicknames reservados/curtos no cadastro foram saneadas em `docs/tasks/task-saneamento-fase-04/`. Pendência: reauditoria do frame Figma 154:1724 (e do valor escuro de `--progress-track`)._
 
 ---
 

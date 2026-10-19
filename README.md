@@ -148,13 +148,26 @@ npx playwright test                                   # ou: npx playwright test 
 
 Sufixos: `*.test.ts(x)` (unitário), `*.integration.test.ts(x)` (Route Handlers com MSW), `*.e2e-spec.ts` (Playwright). MSW intercepta as chamadas à API NestJS — os testes nunca batem no backend real.
 
+### Lint
+
+```bash
+cd nestjs-project
+docker compose exec nestjs-api npm run lint                               # corrige o que der (--fix) e falha com qualquer erro ou warning
+docker compose exec nestjs-api npx eslint "{src,apps,libs,test}/**/*.ts"  # só checa, sem reescrever arquivos
+
+cd next-frontend
+docker compose exec next-frontend npm run lint
+```
+
+Política: lint limpo nos dois subprojetos. No backend o script roda com `--max-warnings 0` — 0 erros e 0 warnings, inclusive em specs (`*.spec.ts`, `*.integration-spec.ts`) e e2e (`test/`); como `npm run lint` aplica `--fix`, use o `npx eslint` acima quando quiser apenas verificar. No frontend, `npm run lint` precisa terminar com 0 problemas.
+
 ## ✅ Funcionalidades implementadas
 
 As Fases **01 — Configuração base**, **02 — Autenticação**, **03 — Upload e processamento** e **04 — Gerenciamento de vídeos e canal** estão concluídas. A Fase 03 entregou o backend (API + worker); as telas de upload chegaram com o estúdio da Fase 04.
 
 ### Autenticação (Fase 02)
 
-Fluxo completo de **cadastro → confirmação por e-mail → login → recuperação de senha**, com canal criado automaticamente para cada usuário (a partir do prefixo do e-mail).
+Fluxo completo de **cadastro → confirmação por e-mail → login → recuperação de senha**, com canal criado automaticamente para cada usuário. O nickname do canal vem do prefixo do e-mail; um prefixo reservado ou com menos de 3 caracteres recebe um sufixo aleatório — a mesma regra de nickname do `PATCH /channels/me`.
 
 Endpoints da API (`nestjs-project`):
 
@@ -335,7 +348,7 @@ git push -u origin feature/<slug>     # abra o PR para dev
 | **06** | Interações Sociais (Likes, Comentários, Inscrições) | ⏳ Planejada |
 | **07** | Página Inicial, Busca e Finalização | ⏳ Planejada |
 
-Detalhes completos em `docs/project-plan.md`. Pendências da Fase 02 (telas de confirmação/reset, logout, rede Docker compartilhada, CI do contrato OpenAPI) foram saneadas em `docs/tasks/task-saneamento-fase-02-e-infra/`. A Fase 03 entregou o backend (`docs/phases/phase-03-upload-processing/`) e a Fase 04 entregou o estúdio — upload, painel de vídeos, edição, configurações do canal — e a página pública do canal (`docs/phases/phase-04-video-channel-management/`). Pendências conhecidas da Fase 04, a tratar em tarefa separada: dívida de lint do backend em specs/e2e das Fases 02/03, validação de nicknames reservados ou curtos no cadastro (`createChannel`) e a reauditoria de um frame do Figma (154:1724) quando a cota do MCP do Figma voltar.
+Detalhes completos em `docs/project-plan.md`. Pendências da Fase 02 (telas de confirmação/reset, logout, rede Docker compartilhada, CI do contrato OpenAPI) foram saneadas em `docs/tasks/task-saneamento-fase-02-e-infra/`. A Fase 03 entregou o backend (`docs/phases/phase-03-upload-processing/`) e a Fase 04 entregou o estúdio — upload, painel de vídeos, edição, configurações do canal — e a página pública do canal (`docs/phases/phase-04-video-channel-management/`). A dívida de lint do backend em specs/e2e das Fases 02/03 e a validação de nicknames reservados ou curtos no cadastro (`createChannel`) foram saneadas em `docs/tasks/task-saneamento-fase-04/`. Pendência conhecida da Fase 04: a reauditoria de um frame do Figma (154:1724) e do valor escuro do token `--progress-track`, quando a cota do MCP do Figma voltar.
 
 ## 🤖 Processo com IA
 
@@ -344,7 +357,7 @@ O objetivo central do desafio é mostrar **como** a aplicação foi construída 
 - [`CLAUDE.md`](./CLAUDE.md) § *Planning & Implementation Workflow* — o pipeline de skills customizadas (`/research → /plan-context → /plan-validate ⇄ /plan-resolve → /plan-build → /plan-test-specs → /implement`, com `/decide` e `/screen-inventory` como entradas laterais), definido em `.claude/skills/` e ilustrado em `docs/diagrams/skills-workflow.mermaid`.
 - `docs/decisions/` — cada decisão técnica (TD) com opções, prós/contras, recomendação e a decisão tomada; revisões posteriores ficam em blocos `Revisions`.
 - `docs/phases/` e `docs/tasks/` — por fase ou task: `context.md`, `validation.md`, o plano dividido em SIs e o `progress.md` da execução. Os `specs/*.plan.md` de cada subprojeto derivam os testes e2e desses planos.
-- `_claude-sessions/` — transcrições das sessões, numeradas `NN-slug.txt` e commitadas junto do trabalho que produziram. As sessões 01–15 são o `/export` do terminal (após uma compactação de contexto, o `/export` só traz o que ficou na tela — por isso 14 e 15 começam em "Conversation compacted"). A partir da 16, a transcrição é gerada do histórico JSONL do Claude Code com `node scripts/export-claude-session.mjs <session-id> _claude-sessions/NN-slug.txt`, que cobre a sessão inteira (inclusive o que precede as compactações), omite o raciocínio interno e trunca resultados de ferramenta. Lacuna conhecida: as sessões de tipagem OpenAPI, fundação MSW e frontend da Fase 02 não foram arquivadas e não existem mais no histórico local; seus artefatos (`docs/tasks/task-next-frontend-*`, `docs/phases/phase-02-auth-frontend/`) são o registro que restou.
+- `_claude-sessions/` — transcrições das sessões, numeradas `NN-slug.txt` e commitadas junto do trabalho que produziram. As sessões 01–15 são o `/export` do terminal (após uma compactação de contexto, o `/export` só traz o que ficou na tela — por isso 14 e 15 começam em "Conversation compacted"). A partir da 16, a transcrição é gerada do histórico JSONL do Claude Code com `node scripts/export-claude-session.mjs <session-id> _claude-sessions/NN-slug.txt`, que cobre a sessão inteira (inclusive o que precede as compactações), omite o raciocínio interno e trunca resultados de ferramenta. Lacuna conhecida: as sessões de tipagem OpenAPI, fundação MSW e frontend da Fase 02 não foram arquivadas e não existem mais no histórico local; seus artefatos (`docs/tasks/task-next-frontend-*`, `docs/phases/phase-02-auth-frontend/`) são o registro que restou. Toda transcrição é verificada e sanitizada antes do commit: dados externos ao projeto (de outros projetos, empresas ou clientes) não entram no repositório — regra *Confidentiality* do [`CLAUDE.md`](./CLAUDE.md).
 
 ## 📖 Stack Tecnológica
 
