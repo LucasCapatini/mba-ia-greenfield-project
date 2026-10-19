@@ -143,6 +143,14 @@ A change is only considered complete when **all** of the following pass, inside 
 
 If any of these fails, the task is not done — fix the underlying issue before declaring completion.
 
+## Confidentiality (public repository)
+
+This repository is public. It is **inadmissible** to cite, search, list or copy into it any data that does not belong to this project — in particular data from the author's employer or other work: names or directories of other repositories on the machine (anything under `~/source/repos/` outside this monorepo, other projects' folders under `~/.claude/projects/`), client names, corporate e-mail addresses or domains, and personal identifiers.
+
+- Never list or read other projects' directories; keep searches scoped to this repository and to this project's own session folder.
+- When checking for or removing such data, report only file paths and counts — never echo the matching lines.
+- Session transcripts in `_claude-sessions/` must be checked and sanitized before they are committed.
+
 ## Git Conventions
 
 - **Main branch:** `main` — never commit directly to it
