@@ -1,6 +1,16 @@
-function FieldError({ message }: { message?: string }) {
+import { cn } from "@/lib/utils"
+
+function FieldError({
+  message,
+  className,
+  ...props
+}: Omit<React.ComponentProps<"p">, "children"> & { message?: string }) {
   if (!message) return null
-  return <p className="text-caption text-destructive">{message}</p>
+  return (
+    <p className={cn("text-caption text-destructive", className)} {...props}>
+      {message}
+    </p>
+  )
 }
 
 export { FieldError }

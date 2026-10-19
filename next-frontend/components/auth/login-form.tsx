@@ -25,7 +25,12 @@ const loginSchema = z.object({
 
 type LoginValues = z.infer<typeof loginSchema>
 
-function LoginForm({ className, ...props }: React.ComponentProps<"form">) {
+type LoginFormProps = React.ComponentProps<"form"> & {
+  /** Same-site path to land on after login (already sanitized by `safeReturnTo`). */
+  returnTo?: string
+}
+
+function LoginForm({ className, returnTo = "/", ...props }: LoginFormProps) {
   const router = useRouter()
   const {
     register,
@@ -52,9 +57,11 @@ function LoginForm({ className, ...props }: React.ComponentProps<"form">) {
 
     // On 200 the BFF has already sealed the iron-session cookie (tokens never
     // cross to the browser, per TD-02). Land on the home so the authenticated
-    // header is the first screen after login (saneamento-fase-02-e-infra/TD-05),
-    // and refresh so server chrome reflects the session (phase-02-auth-frontend/TD-06).
-    router.push("/")
+    // header is the first screen after login (saneamento-fase-02-e-infra/TD-05)
+    // — or back on the protected page that sent the user here (`?returnTo=`,
+    // Phase 04 studio guard) — and refresh so server chrome reflects the
+    // session (phase-02-auth-frontend/TD-06).
+    router.push(returnTo)
     router.refresh()
   }
 

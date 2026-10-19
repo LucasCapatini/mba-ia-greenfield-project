@@ -10,6 +10,8 @@ import type {
 } from "@/lib/api/contracts";
 import { env } from "@/lib/env";
 
+import { resetStudioStore } from "../store";
+
 // Reserved trigger table (shared with E2E — trigger values must not collide across test suites).
 const CONFLICT_EMAIL = "conflict@example.com";
 const BAD_REQUEST_EMAIL = "badrequest@example.com";
@@ -75,6 +77,8 @@ export const handlers = [
         { status: 403 }
       );
     }
+    // Cada E2E do Studio começa logando: o login devolve o store de vídeos/canal ao seed.
+    resetStudioStore();
     return HttpResponse.json<LoginTokenPair>(
       { access_token: "fixture-access-token", refresh_token: "fixture-refresh-token" },
       { status: 200 }

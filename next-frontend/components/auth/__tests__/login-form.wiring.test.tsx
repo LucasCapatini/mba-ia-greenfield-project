@@ -57,6 +57,18 @@ describe("<LoginForm /> wiring", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
 
+  it("lands on the returnTo path after login when one is given", async () => {
+    const user = userEvent.setup()
+    server.use(http.post("/api/auth/login", () => HttpResponse.json({}, { status: 200 })))
+
+    render(<LoginForm returnTo="/studio/upload" />)
+    await fillValid(user)
+    await user.click(screen.getByRole("button", { name: "Sign in" }))
+
+    await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1))
+    expect(pushMock).toHaveBeenCalledWith("/studio/upload")
+  })
+
   it("maps a 401 to a form-level invalid-credentials alert", async () => {
     const user = userEvent.setup()
     server.use(
