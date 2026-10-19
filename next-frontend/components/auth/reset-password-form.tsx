@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
+import { useForm, useWatch } from "react-hook-form"
 import { z } from "zod"
 
 import { FieldError } from "@/components/auth/field-error"
@@ -45,7 +45,7 @@ function ResetPasswordForm({ token, className, ...props }: ResetPasswordFormProp
     register,
     handleSubmit,
     setError,
-    watch,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<ResetPasswordValues>({
     resolver: zodResolver(resetPasswordSchema),
@@ -60,7 +60,7 @@ function ResetPasswordForm({ token, className, ...props }: ResetPasswordFormProp
   )
   const [done, setDone] = React.useState(false)
 
-  const passwordValue = watch("new_password")
+  const passwordValue = useWatch({ control, name: "new_password" })
 
   async function onSubmit(values: ResetPasswordValues) {
     const res = await fetch("/api/auth/reset-password", {

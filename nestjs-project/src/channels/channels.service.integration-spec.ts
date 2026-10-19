@@ -6,6 +6,7 @@ import {
 } from '../test/create-test-data-source';
 import { User } from '../users/entities/user.entity';
 import { Video } from '../videos/entities/video.entity';
+import { NICKNAME_PATTERN, RESERVED_NICKNAMES } from './channels.constants';
 import { ChannelsService } from './channels.service';
 import { Channel } from './entities/channel.entity';
 
@@ -87,6 +88,46 @@ describe('ChannelsService (integration)', () => {
       expect(channels).toHaveLength(2);
     });
   });
+  describe('createChannel — reserved or short e-mail prefixes', () => {
+    it.each(['admin', 'me', 'ab'])(
+      'persists a valid, non-reserved nickname for the prefix "%s"',
+      async (prefix) => {
+        const user = await createUser();
+
+        const channel = await channelsService.createChannel(
+          user.id,
+          `${prefix}@example.com`,
+        );
+
+        expect(channel.nickname).toMatch(new RegExp(`^${prefix}_[0-9a-f]{3}$`));
+        expect(channel.nickname).toMatch(NICKNAME_PATTERN);
+        expect(RESERVED_NICKNAMES).not.toContain(channel.nickname);
+        const persisted = await channelRepository.findOneByOrFail({
+          user_id: user.id,
+        });
+        expect(persisted.nickname).toBe(channel.nickname);
+      },
+    );
+
+    it('gives distinct nicknames to two sign-ups whose prefix is "admin"', async () => {
+      const user1 = await createUser();
+      const user2 = await createUser();
+
+      const first = await channelsService.createChannel(
+        user1.id,
+        'admin@example.com',
+      );
+      const second = await channelsService.createChannel(
+        user2.id,
+        'admin@other.example.com',
+      );
+
+      expect(first.nickname).toMatch(/^admin_[0-9a-f]{3}$/);
+      expect(second.nickname).toMatch(/^admin_[0-9a-f]{3}$/);
+      expect(second.nickname).not.toBe(first.nickname);
+    });
+  });
+
   describe('updateChannel / countPublicVideos (Fase 04)', () => {
     it('should free the old nickname immediately when the nickname changes', async () => {
       const userA = await createUser();
