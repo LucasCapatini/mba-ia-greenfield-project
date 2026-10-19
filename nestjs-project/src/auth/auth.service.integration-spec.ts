@@ -21,6 +21,7 @@ import { Channel } from '../channels/entities/channel.entity';
 import { User } from '../users/entities/user.entity';
 import { UsersModule } from '../users/users.module';
 import {
+  ALL_ENTITIES,
   cleanAllTables,
   createTestDataSource,
 } from '../test/create-test-data-source';
@@ -31,8 +32,6 @@ import {
   VerificationToken,
   VerificationTokenType,
 } from './entities/verification-token.entity';
-
-const ALL_ENTITIES = [User, Channel, RefreshToken, VerificationToken];
 
 async function createAuthTestModule(): Promise<TestingModule> {
   const ds = createTestDataSource(ALL_ENTITIES);
@@ -249,6 +248,30 @@ describe('AuthService — confirm (integration)', () => {
     await expect(authService.confirm(capturedToken)).rejects.toThrow(
       TokenExpiredException,
     );
+  });
+
+  it('is idempotent: confirming twice with the same token resolves and leaves used_at untouched', async () => {
+    const capturePromise = captureConfirmationToken(authService);
+    const { id: userId } = await authService.register({
+      email: 'confirm-twice@example.com',
+      password: 'password123',
+    });
+    const capturedToken = await capturePromise;
+
+    await authService.confirm(capturedToken);
+    const firstUsedAt = (await verificationTokenRepository.findOneBy({
+      user_id: userId,
+    }))!.used_at;
+    expect(firstUsedAt).toBeInstanceOf(Date);
+
+    await expect(authService.confirm(capturedToken)).resolves.toBeUndefined();
+
+    const token = await verificationTokenRepository.findOneBy({
+      user_id: userId,
+    });
+    expect(token!.used_at!.getTime()).toBe(firstUsedAt!.getTime());
+    const user = await userRepository.findOneBy({ id: userId });
+    expect(user!.is_confirmed).toBe(true);
   });
 });
 

@@ -6,13 +6,15 @@ import { MAIL_SUBJECTS, MAIL_TEMPLATES } from './mail.constants';
 
 @Injectable()
 export class MailService {
-  private readonly appUrl: string;
+  private readonly frontendUrl: string;
 
   constructor(
     private readonly mailerService: MailerService,
     @Inject(appConfig.KEY) app: ConfigType<typeof appConfig>,
   ) {
-    this.appUrl = app.url;
+    // Os links de e-mail apontam para as rotas do frontend (Next.js), que são
+    // donas do token no primeiro paint — nunca para a própria API.
+    this.frontendUrl = app.frontendUrl;
   }
 
   async sendConfirmationEmail(
@@ -20,7 +22,7 @@ export class MailService {
     name: string,
     token: string,
   ): Promise<void> {
-    const confirmationUrl = `${this.appUrl}/auth/confirm-email?token=${token}`;
+    const confirmationUrl = `${this.frontendUrl}/confirm-email?token=${token}`;
     await this.mailerService.sendMail({
       to: email,
       subject: MAIL_SUBJECTS.CONFIRMATION,
@@ -34,7 +36,7 @@ export class MailService {
     name: string,
     token: string,
   ): Promise<void> {
-    const resetUrl = `${this.appUrl}/auth/reset-password?token=${token}`;
+    const resetUrl = `${this.frontendUrl}/reset-password?token=${token}`;
     await this.mailerService.sendMail({
       to: email,
       subject: MAIL_SUBJECTS.PASSWORD_RESET,

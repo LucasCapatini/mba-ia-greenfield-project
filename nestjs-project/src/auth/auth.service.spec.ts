@@ -14,6 +14,7 @@ import {
   TokenReuseDetectedException,
 } from '../common/exceptions/domain.exception';
 import { MailService } from '../mail/mail.service';
+import { User } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
 import { RefreshToken } from './entities/refresh-token.entity';
@@ -323,6 +324,57 @@ describe('AuthService — confirm', () => {
     await expect(authService.confirm(rawToken)).rejects.toThrow(
       TokenExpiredException,
     );
+  });
+
+  it('is idempotent: an already-used token for an already-confirmed user resolves without writes', async () => {
+    const rawToken = 'c'.repeat(64);
+    const usedAt = new Date(Date.now() - 60_000);
+    const user = { id: 'u1', is_confirmed: true } as unknown as User;
+    const record = {
+      token_hash: crypto.createHash('sha256').update(rawToken).digest('hex'),
+      type: VerificationTokenType.EMAIL_CONFIRMATION,
+      used_at: usedAt,
+      expires_at: new Date(Date.now() + 60_000),
+      user,
+    } as unknown as VerificationToken;
+
+    verificationTokenRepository.findOne.mockResolvedValue(record);
+
+    await expect(authService.confirm(rawToken)).resolves.toBeUndefined();
+
+    expect(record.used_at).toBe(usedAt);
+    expect(verificationTokenRepository.save.mock.calls).toHaveLength(0);
+    expect(usersService.save.mock.calls).toHaveLength(0);
+  });
+
+  it('throws InvalidTokenException when the token was used but the user is not confirmed', async () => {
+    const rawToken = 'd'.repeat(64);
+    const record = {
+      token_hash: crypto.createHash('sha256').update(rawToken).digest('hex'),
+      type: VerificationTokenType.EMAIL_CONFIRMATION,
+      used_at: new Date(Date.now() - 60_000),
+      expires_at: new Date(Date.now() + 60_000),
+      user: { id: 'u1', is_confirmed: false },
+    } as unknown as VerificationToken;
+
+    verificationTokenRepository.findOne.mockResolvedValue(record);
+
+    await expect(authService.confirm(rawToken)).rejects.toThrow(
+      InvalidTokenException,
+    );
+    expect(verificationTokenRepository.save.mock.calls).toHaveLength(0);
+  });
+
+  it('looks the token up without filtering on used_at (so a consumed token can still be recognised)', async () => {
+    verificationTokenRepository.findOne.mockResolvedValue(null);
+
+    await expect(authService.confirm('e'.repeat(64))).rejects.toThrow(
+      InvalidTokenException,
+    );
+
+    const [options] = verificationTokenRepository.findOne.mock.calls[0];
+    expect(options.where).toBeDefined();
+    expect(options.where).not.toHaveProperty('used_at');
   });
 });
 

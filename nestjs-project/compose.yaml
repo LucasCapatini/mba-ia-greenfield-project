@@ -1,17 +1,52 @@
 services:
   nestjs-api:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile.dev
     ports:
       - 3000:3000
     volumes:
       - .:/home/node/app
+      # Volume nomeado sobrepõe o node_modules do bind mount (9p, lento no Windows/Docker Desktop):
+      # compilação fria do Nest caía de ~6 min e cada suíte Jest pagava o I/O do bind mount.
+      # O volume nasce vazio — rode `docker compose exec nestjs-api npm install` após o primeiro `up`
+      # e sempre que package.json/package-lock.json mudarem. `docker compose down -v` o apaga.
+      - node_modules:/home/node/app/node_modules
+    networks:
+      - streamtube
     depends_on:
       db:
         condition: service_healthy
       mailpit:
         condition: service_started
+      storage-init:
+        condition: service_completed_successfully
+
+  # Worker de vídeo (phase-03-upload-processing/TD-05): mesma imagem e mesmos volumes da API,
+  # processo separado (segundo entrypoint `src/worker.ts`). Consome as filas do pg-boss e roda
+  # ffmpeg/ffprobe; não expõe HTTP. O comando definitivo (`npm run start:worker`) entra no SI-03.7.
+  video-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    # Segundo entrypoint do mesmo código (src/worker.ts): sem porta HTTP; watch mode em dev.
+    # Node é chamado direto (sem npm/sh na frente): o dash não repassa SIGTERM e o worker morreria
+    # sem app.close(). `node --watch` espera o filho encerrar antes de sair.
+    command: ["node", "--watch", "--enable-source-maps", "-r", "ts-node/register/transpile-only", "src/worker.ts"]
+    init: true
+    restart: unless-stopped
+    # Encerramento gracioso: SIGTERM → app.close() → boss.stop() + DataSource.destroy().
+    stop_grace_period: 15s
+    volumes:
+      - .:/home/node/app
+      - node_modules:/home/node/app/node_modules
+    networks:
+      - streamtube
+    depends_on:
+      db:
+        condition: service_healthy
+      storage-init:
+        condition: service_completed_successfully
 
   db:
     image: postgres:17
@@ -21,6 +56,8 @@ services:
       - POSTGRES_USER=streamtube
       - POSTGRES_PASSWORD=streamtube
       - POSTGRES_DB=streamtube
+    networks:
+      - streamtube
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U streamtube"]
       interval: 5s
@@ -32,5 +69,88 @@ services:
     ports:
       - "1025:1025"
       - "8025:8025"
+    networks:
+      - streamtube
 
+  # Object storage S3-compatível para dev (phase-03-upload-processing/TD-01): RustFS 1.0.x com tag
+  # pinada. API S3 em 9000 (interno `http://rustfs:9000`, navegador `http://localhost:9000`),
+  # console web em http://localhost:9001. Credenciais vêm do .env (S3_ACCESS_KEY/S3_SECRET_KEY).
+  rustfs:
+    image: rustfs/rustfs:1.0.3
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - RUSTFS_ACCESS_KEY=${S3_ACCESS_KEY}
+      - RUSTFS_SECRET_KEY=${S3_SECRET_KEY}
+      - RUSTFS_VOLUMES=/data
+      - RUSTFS_ADDRESS=:9000
+      - RUSTFS_CONSOLE_ADDRESS=:9001
+      - RUSTFS_CONSOLE_ENABLE=true
+      - RUSTFS_OBS_LOGGER_LEVEL=error
+    volumes:
+      # Volume nomeado: o container roda como uid 10001 e um bind mount do Windows exigiria chown.
+      - rustfs_data:/data
+    networks:
+      - streamtube
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
+  # Bootstrap idempotente do bucket (TD-10): cria o bucket, aplica CORS para o navegador fazer PUT
+  # direto nas URLs pré-assinadas (TD-03) e a regra de lifecycle que aborta multiparts incompletos
+  # como rede de segurança do job upload.expire (TD-12). One-shot: termina com código 0 e sai;
+  # nestjs-api e video-worker só sobem depois dele.
+  storage-init:
+    image: amazon/aws-cli:2.38.1
+    entrypoint: ["/bin/sh", "-c"]
+    environment:
+      - AWS_ACCESS_KEY_ID=${S3_ACCESS_KEY}
+      - AWS_SECRET_ACCESS_KEY=${S3_SECRET_KEY}
+      - AWS_DEFAULT_REGION=${S3_REGION:-us-east-1}
+      - AWS_EC2_METADATA_DISABLED=true
+      # aws-cli ≥ 2.23 envia checksums CRC32 por padrão; servidores S3-compatíveis podem recusar (TD-02)
+      - AWS_REQUEST_CHECKSUM_CALCULATION=when_required
+      - AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
+      - S3_ENDPOINT=${S3_ENDPOINT:-http://rustfs:9000}
+      - S3_BUCKET=${S3_BUCKET:-streamtube-videos}
+      - CORS_ORIGIN=${FRONTEND_URL:-http://localhost:3001}
+    command:
+      - |
+        set -eu
+        S3="aws --endpoint-url $$S3_ENDPOINT s3api"
+        if $$S3 head-bucket --bucket "$$S3_BUCKET" >/dev/null 2>&1; then
+          echo "storage-init: bucket $$S3_BUCKET já existe"
+        else
+          $$S3 create-bucket --bucket "$$S3_BUCKET"
+          echo "storage-init: bucket $$S3_BUCKET criado"
+        fi
+        $$S3 put-bucket-cors --bucket "$$S3_BUCKET" --cors-configuration "{\"CORSRules\":[{\"AllowedOrigins\":[\"$$CORS_ORIGIN\"],\"AllowedMethods\":[\"GET\",\"PUT\",\"HEAD\"],\"AllowedHeaders\":[\"*\"],\"ExposeHeaders\":[\"ETag\",\"Content-Length\",\"Content-Range\",\"Accept-Ranges\"],\"MaxAgeSeconds\":3000}]}"
+        echo "storage-init: CORS aplicado para $$CORS_ORIGIN"
+        if $$S3 put-bucket-lifecycle-configuration --bucket "$$S3_BUCKET" --lifecycle-configuration '{"Rules":[{"ID":"abort-incomplete-multipart","Status":"Enabled","Filter":{"Prefix":""},"AbortIncompleteMultipartUpload":{"DaysAfterInitiation":2}}]}'; then
+          echo "storage-init: lifecycle AbortIncompleteMultipartUpload (2 dias) aplicado"
+        else
+          echo "storage-init: lifecycle não suportado pelo storage — rede de segurança opcional (TD-12) ignorada"
+        fi
+        # Thumbnails são públicas por prefixo (video-channel-management/TD-10): GET anônimo só em
+        # thumbnails/*; videos/* continua privado (só URLs pré-assinadas). put-bucket-policy substitui
+        # a policy inteira, então reaplicar é idempotente.
+        $$S3 put-bucket-policy --bucket "$$S3_BUCKET" --policy "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"PublicReadThumbnails\",\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":[\"s3:GetObject\"],\"Resource\":[\"arn:aws:s3:::$$S3_BUCKET/thumbnails/*\"]}]}"
+        echo "storage-init: policy pública de thumbnails aplicada"
+    networks:
+      - streamtube
+    depends_on:
+      rustfs:
+        condition: service_healthy
+
+# Rede nomeada compartilhada com a stack do frontend (next-frontend/compose.yaml a declara como external).
+# Suba esta stack primeiro: ela cria a rede; o frontend apenas se anexa a ela.
+networks:
+  streamtube:
+    name: streamtube
+
+volumes:
+  node_modules: {}
+  rustfs_data: {}

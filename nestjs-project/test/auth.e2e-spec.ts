@@ -165,7 +165,7 @@ describe('Auth (e2e)', () => {
         .expect(204);
     });
 
-    it('returns 401 with INVALID_TOKEN on an already-used token', async () => {
+    it('returns 204 again on an already-used token (idempotent — e-mail link prefetch safe)', async () => {
       const token = await captureConfirmationToken('usedtoken@example.com');
 
       await request(app.getHttpServer())
@@ -173,12 +173,12 @@ describe('Auth (e2e)', () => {
         .query({ token })
         .expect(204);
 
-      const res = await request(app.getHttpServer())
+      // Full matrix (used_at untouched, expired-vs-used, reset stays single-use)
+      // lives in test/auth-confirm-email.e2e-spec.ts (specs/auth-confirm-email.plan.md).
+      await request(app.getHttpServer())
         .get('/auth/confirm-email')
         .query({ token })
-        .expect(401);
-
-      expect(res.body.error).toBe('INVALID_TOKEN');
+        .expect(204);
     });
 
     it('returns 401 with TOKEN_EXPIRED on an expired token', async () => {

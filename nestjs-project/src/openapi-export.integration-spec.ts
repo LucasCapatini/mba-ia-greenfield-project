@@ -128,4 +128,163 @@ describe('exportSpec (integration)', () => {
       }
     }
   });
+
+  describe('explicit contract for the account-confirmation / reset flows (SI-6)', () => {
+    type Schema = { required?: string[]; properties?: Record<string, unknown> };
+    type Param = { name: string; in: string; required?: boolean };
+
+    const schemas = () =>
+      (document.components as { schemas: Record<string, Schema> }).schemas;
+    const paths = () =>
+      document.paths as Record<
+        string,
+        Record<string, { parameters?: Param[] }>
+      >;
+
+    it('GET /auth/confirm-email declares the required `token` query parameter', () => {
+      const params = paths()['/auth/confirm-email'].get.parameters ?? [];
+      const token = params.find((p) => p.name === 'token');
+
+      expect(token).toBeDefined();
+      expect(token?.in).toBe('query');
+      expect(token?.required).toBe(true);
+    });
+
+    it('ResetPasswordDto declares token and new_password (8..128) as required', () => {
+      const dto = schemas().ResetPasswordDto;
+
+      expect(dto.required).toEqual(
+        expect.arrayContaining(['token', 'new_password']),
+      );
+      expect(dto.properties).toMatchObject({
+        token: { type: 'string' },
+        new_password: { type: 'string', minLength: 8, maxLength: 128 },
+      });
+    });
+
+    it('ResendConfirmationDto declares a required e-mail', () => {
+      const dto = schemas().ResendConfirmationDto;
+
+      expect(dto.required).toEqual(['email']);
+      expect(dto.properties).toMatchObject({
+        email: { type: 'string', format: 'email' },
+      });
+    });
+  });
+  describe('video upload/processing/playback contract (phase 03)', () => {
+    type Operation = {
+      summary?: string;
+      security?: Array<Record<string, unknown>>;
+      responses: Record<string, unknown>;
+    };
+    const paths = () =>
+      document.paths as Record<string, Record<string, Operation>>;
+    const schemas = () =>
+      (
+        document.components as {
+          schemas: Record<string, { properties?: Record<string, unknown> }>;
+        }
+      ).schemas;
+
+    // Phase 04 (SI-04.3, TD-07): the two reads became public with optional auth — no security
+    // requirement, an optional Authorization header, and no 403 (a hidden draft answers 404).
+    it.each([
+      ['/videos/{publicId}', ['200', '401', '404', '503']],
+      ['/videos/{publicId}/playback', ['200', '401', '404', '409', '503']],
+    ])(
+      '%s get is a public read with an optional Authorization header',
+      (path, statuses) => {
+        const operation = paths()[path]?.get as Operation & {
+          parameters?: Array<{ name: string; in: string; required?: boolean }>;
+        };
+
+        expect(operation).toBeDefined();
+        expect(Object.keys(operation.responses).sort()).toEqual(
+          [...statuses].sort(),
+        );
+        expect(operation.security ?? []).toEqual([]);
+        const header = operation.parameters?.find(
+          (param) => param.in === 'header' && param.name === 'Authorization',
+        );
+        expect(header?.required).toBe(false);
+        expect((operation.summary ?? '').length).toBeGreaterThan(0);
+      },
+    );
+
+    it.each([
+      ['/videos', 'post', ['201', '400', '401', '413', '503']],
+      [
+        '/videos/{publicId}/upload/parts',
+        'post',
+        ['200', '400', '401', '403', '404', '409', '503'],
+      ],
+      [
+        '/videos/{publicId}/upload',
+        'get',
+        ['200', '401', '403', '404', '409', '503'],
+      ],
+      [
+        '/videos/{publicId}/upload/complete',
+        'post',
+        ['202', '400', '401', '403', '404', '409', '413', '422', '503'],
+      ],
+      [
+        '/videos/{publicId}/upload',
+        'delete',
+        ['204', '401', '403', '404', '409', '503'],
+      ],
+    ])(
+      '%s %s documents the status codes of the API contract and requires the access token',
+      (path, method, statuses) => {
+        const operation = paths()[path]?.[method];
+
+        expect(operation).toBeDefined();
+        expect(Object.keys(operation.responses).sort()).toEqual(
+          [...statuses].sort(),
+        );
+        expect(operation.security?.some((req) => 'access-token' in req)).toBe(
+          true,
+        );
+        expect((operation.summary ?? '').length).toBeGreaterThan(0);
+      },
+    );
+
+    it('exposes processing_status, processing_error, upload state and content_type as enums', () => {
+      expect(schemas().VideoResponse.properties).toMatchObject({
+        processing_status: {
+          enum: ['uploading', 'processing', 'ready', 'failed'],
+        },
+        processing_error: {
+          enum: [
+            'UNSUPPORTED_FORMAT',
+            'PROBE_FAILED',
+            'THUMBNAIL_FAILED',
+            'OBJECT_MISSING',
+          ],
+          nullable: true,
+        },
+      });
+      expect(schemas().UploadStateResponse.properties).toMatchObject({
+        state: { enum: ['active', 'completed', 'aborted', 'expired'] },
+      });
+      expect(schemas().CreateVideoDto.properties).toMatchObject({
+        content_type: { enum: ['video/mp4', 'video/webm'] },
+      });
+    });
+
+    it('declares the playback and upload response shapes consumed by the frontend', () => {
+      expect(Object.keys(schemas().PlaybackResponse.properties ?? {})).toEqual([
+        'stream_url',
+        'download_url',
+        'thumbnail_url',
+        'expires_at',
+      ]);
+      expect(
+        Object.keys(schemas().VideoCreatedResponse.properties ?? {}),
+      ).toEqual(['public_id', 'status', 'processing_status', 'upload']);
+      expect(
+        Object.keys(schemas().UploadCompletedResponse.properties ?? {}),
+      ).toEqual(['public_id', 'status', 'processing_status', 'size_bytes']);
+    });
+  });
 });

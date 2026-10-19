@@ -71,7 +71,7 @@ export class AuthController {
   @ApiOperation({
     summary: 'Confirm email address',
     description:
-      "Validates the confirmation token and marks the user's email as confirmed.",
+      "Validates the confirmation token and marks the user's email as confirmed. Idempotent: calling it again with a token already consumed by a confirmed account returns 204 (protects against e-mail-client link prefetch).",
   })
   @ApiResponse({ status: 204, description: 'Email confirmed successfully' })
   @ApiResponse({

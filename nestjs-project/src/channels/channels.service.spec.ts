@@ -1,4 +1,8 @@
-import { QueryFailedError } from 'typeorm';
+import { DataSource, QueryFailedError } from 'typeorm';
+import {
+  ChannelNotFoundException,
+  NicknameTakenException,
+} from './channels.exceptions';
 import { ChannelsService } from './channels.service';
 import { Channel } from './entities/channel.entity';
 
@@ -130,6 +134,109 @@ describe('ChannelsService', () => {
         service.createChannel('user-id', 'carol@example.com'),
       ).rejects.toThrow('Connection lost');
       expect(manager.save).toHaveBeenCalledTimes(1);
+    });
+  });
+  describe('updateChannel', () => {
+    function setup(owned: Channel, holder: Channel | null = null) {
+      const channelRepo = {
+        findOne: jest.fn((options: { where: Record<string, string> }) =>
+          Promise.resolve(
+            options.where.user_id
+              ? owned
+              : options.where.nickname
+                ? holder
+                : null,
+          ),
+        ),
+        update: jest.fn().mockResolvedValue({ affected: 1 }),
+        findOneByOrFail: jest.fn(() => Promise.resolve(owned)),
+      };
+      const videoRepo = { count: jest.fn().mockResolvedValue(3) };
+      const dataSource = {
+        getRepository: jest.fn((entity: unknown) =>
+          entity === Channel ? channelRepo : videoRepo,
+        ),
+      };
+      return {
+        service: new ChannelsService(dataSource as unknown as DataSource),
+        channelRepo,
+        videoRepo,
+      };
+    }
+
+    it('should update only the fields sent and return the channel with its public video count', async () => {
+      const owned = makeChannel('canal_a');
+      const { service, channelRepo, videoRepo } = setup(owned);
+
+      const result = await service.updateChannel('user-id', {
+        name: 'Canal Novo',
+      });
+
+      expect(channelRepo.update).toHaveBeenCalledWith('uuid', {
+        name: 'Canal Novo',
+      });
+      expect(videoRepo.count).toHaveBeenCalledWith({
+        where: {
+          channel_id: 'uuid',
+          status: 'published',
+          visibility: 'public',
+        },
+      });
+      expect(result.video_count).toBe(3);
+    });
+
+    it('should reject a nickname held by another channel with NICKNAME_TAKEN before writing', async () => {
+      const owned = makeChannel('canal_a');
+      const other = makeChannel('canal_b');
+      other.id = 'other-uuid';
+      const { service, channelRepo } = setup(owned, other);
+
+      const promise = service.updateChannel('user-id', { nickname: 'canal_b' });
+
+      await expect(promise).rejects.toBeInstanceOf(NicknameTakenException);
+      await expect(promise).rejects.toMatchObject({
+        httpStatus: 409,
+        errorCode: 'NICKNAME_TAKEN',
+      });
+      expect(channelRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('should map a unique violation raced after the pre-check to NICKNAME_TAKEN', async () => {
+      const { service, channelRepo } = setup(makeChannel('canal_a'));
+      channelRepo.update.mockRejectedValueOnce(makeUniqueError());
+
+      await expect(
+        service.updateChannel('user-id', { nickname: 'disputado' }),
+      ).rejects.toBeInstanceOf(NicknameTakenException);
+    });
+
+    it('should re-throw any other database error', async () => {
+      const { service, channelRepo } = setup(makeChannel('canal_a'));
+      channelRepo.update.mockRejectedValueOnce(new Error('Connection lost'));
+
+      await expect(
+        service.updateChannel('user-id', { name: 'x' }),
+      ).rejects.toThrow('Connection lost');
+    });
+
+    it('should skip the write when the nickname sent is the current one', async () => {
+      const { service, channelRepo } = setup(makeChannel('canal_a'));
+
+      await service.updateChannel('user-id', { nickname: 'canal_a' });
+
+      expect(channelRepo.findOne).not.toHaveBeenCalledWith({
+        where: { nickname: 'canal_a' },
+      });
+      expect(channelRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('should answer CHANNEL_NOT_FOUND when the user has no channel', async () => {
+      const { service, channelRepo } = setup(makeChannel('canal_a'));
+      channelRepo.findOne.mockResolvedValueOnce(null);
+
+      await expect(
+        service.updateChannel('user-id', { name: 'x' }),
+      ).rejects.toBeInstanceOf(ChannelNotFoundException);
     });
   });
 });

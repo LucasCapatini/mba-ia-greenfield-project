@@ -1,15 +1,13 @@
 import { DataSource, Repository } from 'typeorm';
-import { RefreshToken } from '../auth/entities/refresh-token.entity';
-import { VerificationToken } from '../auth/entities/verification-token.entity';
 import {
+  ALL_ENTITIES,
   cleanAllTables,
   createTestDataSource,
 } from '../test/create-test-data-source';
 import { User } from '../users/entities/user.entity';
+import { Video } from '../videos/entities/video.entity';
 import { ChannelsService } from './channels.service';
 import { Channel } from './entities/channel.entity';
-
-const ALL_ENTITIES = [User, Channel, RefreshToken, VerificationToken];
 
 describe('ChannelsService (integration)', () => {
   let dataSource: DataSource;
@@ -87,6 +85,87 @@ describe('ChannelsService (integration)', () => {
 
       const channels = await channelRepository.find();
       expect(channels).toHaveLength(2);
+    });
+  });
+  describe('updateChannel / countPublicVideos (Fase 04)', () => {
+    it('should free the old nickname immediately when the nickname changes', async () => {
+      const userA = await createUser();
+      const userB = await createUser();
+      await channelsService.createChannel(userA.id, 'canal_a@example.com');
+      await channelsService.createChannel(userB.id, 'canal_b@example.com');
+
+      const updated = await channelsService.updateChannel(userA.id, {
+        nickname: 'novo_nick',
+        description: 'Sobre o canal',
+      });
+
+      expect(updated.nickname).toBe('novo_nick');
+      expect(updated.description).toBe('Sobre o canal');
+      await expect(
+        channelsService.findByNickname('canal_a'),
+      ).resolves.toBeNull();
+
+      const claimed = await channelsService.updateChannel(userB.id, {
+        nickname: 'canal_a',
+      });
+      expect(claimed.nickname).toBe('canal_a');
+    });
+
+    it('should refuse a nickname that belongs to another channel', async () => {
+      const userA = await createUser();
+      const userB = await createUser();
+      await channelsService.createChannel(userA.id, 'canal_a@example.com');
+      await channelsService.createChannel(userB.id, 'canal_b@example.com');
+
+      await expect(
+        channelsService.updateChannel(userA.id, { nickname: 'canal_b' }),
+      ).rejects.toMatchObject({ errorCode: 'NICKNAME_TAKEN' });
+      await expect(
+        channelsService.findByNickname('canal_a'),
+      ).resolves.not.toBeNull();
+    });
+
+    it('should count only published + public videos', async () => {
+      const user = await createUser();
+      const channel = await channelsService.createChannel(
+        user.id,
+        'contador@example.com',
+      );
+      const videoRepository = dataSource.getRepository(Video);
+      const seeds: Array<[Video['status'], Video['visibility']]> = [
+        ['published', 'public'],
+        ['published', 'public'],
+        ['published', 'unlisted'],
+        ['draft', 'public'],
+      ];
+      for (const [index, [status, visibility]] of seeds.entries()) {
+        await videoRepository.save(
+          videoRepository.create({
+            public_id: `countVid00${index}`,
+            channel_id: channel.id,
+            original_filename: 'a.mp4',
+            content_type: 'video/mp4',
+            storage_key: `videos/countVid00${index}/source`,
+            status,
+            visibility,
+          }),
+        );
+      }
+
+      await expect(channelsService.countPublicVideos(channel.id)).resolves.toBe(
+        2,
+      );
+      const own = await channelsService.getOwnChannel(user.id);
+      expect(own.video_count).toBe(2);
+      const publicView = await channelsService.getPublicChannel('contador');
+      expect(publicView.video_count).toBe(2);
+      expect(Object.keys(publicView).sort()).toEqual([
+        'created_at',
+        'description',
+        'name',
+        'nickname',
+        'video_count',
+      ]);
     });
   });
 });

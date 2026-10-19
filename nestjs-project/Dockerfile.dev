@@ -1,8 +1,16 @@
 FROM node:25.6.0-slim
 
-RUN apt update && apt install -y procps curl
+# ffmpeg/ffprobe: usados pelo worker de vídeo (phase-03-upload-processing/TD-06).
+# A imagem é Debian bookworm → ffmpeg 5.1.x; a mesma imagem serve nestjs-api e video-worker (TD-05, TD-10).
+RUN apt update && apt install -y --no-install-recommends procps curl ffmpeg \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /home/node/app
+
+# Ponto de montagem do volume nomeado de node_modules (compose.yaml), criado já com dono `node`:
+# um volume novo copia conteúdo e propriedade deste caminho da imagem na primeira montagem,
+# então o `npm install` rodando como `node` não falha com EACCES.
+RUN mkdir -p /home/node/app/node_modules && chown -R node:node /home/node/app
 
 USER node
 

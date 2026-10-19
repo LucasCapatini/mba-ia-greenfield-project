@@ -7,13 +7,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { server } from "@/mocks/server"
 import { LoginForm } from "../login-form"
 
-const { refreshMock } = vi.hoisted(() => ({ refreshMock: vi.fn() }))
+const { pushMock, refreshMock } = vi.hoisted(() => ({
+  pushMock: vi.fn(),
+  refreshMock: vi.fn(),
+}))
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: refreshMock }),
+  useRouter: () => ({ push: pushMock, refresh: refreshMock }),
 }))
 
 beforeEach(() => {
+  pushMock.mockClear()
   refreshMock.mockClear()
 })
 
@@ -43,6 +47,7 @@ describe("<LoginForm /> wiring", () => {
     await user.click(screen.getByRole("button", { name: "Sign in" }))
 
     await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1))
+    expect(pushMock).toHaveBeenCalledWith("/")
     expect(received).toHaveLength(1)
     expect(received[0]).toEqual({
       email: "alice@example.com",
@@ -50,6 +55,18 @@ describe("<LoginForm /> wiring", () => {
     })
     expect(JSON.stringify(received[0])).not.toMatch(/access_token|refresh_token/)
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+  })
+
+  it("lands on the returnTo path after login when one is given", async () => {
+    const user = userEvent.setup()
+    server.use(http.post("/api/auth/login", () => HttpResponse.json({}, { status: 200 })))
+
+    render(<LoginForm returnTo="/studio/upload" />)
+    await fillValid(user)
+    await user.click(screen.getByRole("button", { name: "Sign in" }))
+
+    await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1))
+    expect(pushMock).toHaveBeenCalledWith("/studio/upload")
   })
 
   it("maps a 401 to a form-level invalid-credentials alert", async () => {

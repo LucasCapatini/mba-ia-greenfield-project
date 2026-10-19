@@ -62,6 +62,8 @@ Fluxo completo de criação de conta, confirmação por e-mail, login, logout e 
 
 **Entregáveis:** fluxo completo de cadastro → confirmação → login → recuperação de senha funcionando. Canal criado automaticamente para cada usuário.
 
+_Status (2026-10-18): concluída em três fatias — `docs/phases/phase-02-auth/` (backend), `docs/phases/phase-02-auth-frontend/` (telas de signup/login/forgot-password + BFF) e `docs/tasks/task-saneamento-fase-02-e-infra/` (telas de confirmação de conta, redefinição e reenvio, logout no header, links de e-mail via `FRONTEND_URL`, rede Docker compartilhada e gate de OpenAPI em CI)._
+
 ---
 
 ### Fase 03 — Upload e Processamento de Vídeos
@@ -82,6 +84,8 @@ Upload de arquivos grandes sem travar o sistema, processamento automático do v�
 
 **Entregáveis:** upload de até 10GB funcional, processamento automático do vídeo, streaming funcionando, URLs únicas geradas.
 
+_Status (2026-10-18): concluída no backend — `docs/phases/phase-03-upload-processing/` (RustFS + multipart pré-assinado, pg-boss, worker como segundo entrypoint com ffprobe/ffmpeg, endpoints de upload/estado/playback, contrato OpenAPI sincronizado). Sem telas nesta fase: a UI de upload entrou na Fase 04 com o estúdio do canal._
+
 ---
 
 ### Fase 04 — Gerenciamento de Vídeos e Canal
@@ -100,6 +104,8 @@ Edição das informações do vídeo, fluxo de rascunho e publicação, painel d
 - Página pública do canal com informações e listagem de vídeos
 
 **Entregáveis:** edição completa de vídeos, rascunho/publicação, painel de gerenciamento, edição de canal, página pública do canal.
+
+_Status (2026-10-19): concluída (backend + frontend) — `docs/phases/phase-04-video-channel-management/` (categorias por migration, `status` + `visibility` + `published_at` com ações dedicadas de publicar/despublicar, thumbnail customizada validada e normalizada com `sharp`, exclusão por hard delete + job `video.delete`, listagens por cursor, leitura pública com auth opcional, contadores denormalizados zerados até as Fases 05/06; no frontend, estúdio com upload multipart do navegador, painel, edição de vídeo e de canal, e a página pública do canal). Pendências para tarefa separada: dívida de lint do backend (specs/e2e das Fases 02/03), validação de nicknames reservados/curtos no cadastro e reauditoria do frame Figma 154:1724._
 
 ---
 
