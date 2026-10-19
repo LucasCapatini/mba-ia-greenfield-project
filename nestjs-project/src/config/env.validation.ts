@@ -22,4 +22,33 @@ export const envValidationSchema = Joi.object({
   MAIL_PORT: Joi.number().default(1025),
   MAIL_FROM: Joi.string().default('"StreamTube" <noreply@streamtube.com>'),
   SWAGGER_ENABLED: Joi.string().valid('true', 'false').default('false'),
+  // Object storage S3-compatível (phase-03-upload-processing/TD-01, TD-02)
+  // Somente http/https: o SDK S3 exige esquema explícito (`rustfs:9000` seria um URI válido para o Joi).
+  S3_ENDPOINT: Joi.string()
+    .uri({ scheme: ['http', 'https'] })
+    .required(),
+  S3_PUBLIC_ENDPOINT: Joi.string()
+    .uri({ scheme: ['http', 'https'] })
+    .required(),
+  S3_REGION: Joi.string().default('us-east-1'),
+  S3_ACCESS_KEY: Joi.string().required(),
+  S3_SECRET_KEY: Joi.string().required(),
+  S3_BUCKET: Joi.string().required(),
+  S3_FORCE_PATH_STYLE: Joi.string().valid('true', 'false').default('true'),
+  // Upload / playback (TD-03, TD-09, TD-12) — bytes e segundos
+  UPLOAD_PART_SIZE: Joi.number()
+    .integer()
+    .min(5 * 1024 * 1024)
+    .max(5 * 1024 * 1024 * 1024)
+    .default(64 * 1024 * 1024),
+  UPLOAD_MAX_BYTES: Joi.number()
+    .integer()
+    .min(1)
+    .default(10 * 1024 * 1024 * 1024),
+  UPLOAD_URL_TTL: Joi.number().integer().min(60).default(3600),
+  UPLOAD_TTL: Joi.number().integer().min(60).default(86400),
+  PLAYBACK_URL_TTL: Joi.number().integer().min(60).default(43200),
+  // Fila pg-boss (TD-04)
+  QUEUE_SCHEMA: Joi.string().default('pgboss'),
+  QUEUE_SUPERVISE: Joi.string().valid('true', 'false').default('true'),
 });

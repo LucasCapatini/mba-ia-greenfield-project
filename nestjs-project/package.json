@@ -12,6 +12,8 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
+    "start:worker": "node --watch --enable-source-maps -r ts-node/register/transpile-only src/worker.ts",
+    "start:worker:prod": "node dist/worker",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest --forceExit",
     "test:watch": "jest --watch",
@@ -28,6 +30,8 @@
     "openapi:export": "ts-node -r tsconfig-paths/register src/openapi-export.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1152.0",
+    "@aws-sdk/s3-request-presigner": "^3.1152.0",
     "@nestjs-modules/mailer": "^2.3.4",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.3",
@@ -43,6 +47,7 @@
     "handlebars": "^4.7.9",
     "joi": "^18.1.2",
     "pg": "^8.20.0",
+    "pg-boss": "^12.38.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "typeorm": "^0.3.28"
@@ -57,6 +62,8 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",
     "@types/supertest": "^6.0.2",
+    "aws-sdk-client-mock": "^4.1.0",
+    "aws-sdk-client-mock-jest": "^4.1.0",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
@@ -75,6 +82,7 @@
   "jest": {
     "moduleFileExtensions": [
       "js",
+      "cjs",
       "json",
       "ts"
     ],
@@ -89,8 +97,12 @@
     "coverageDirectory": "../coverage",
     "testEnvironment": "node",
     "setupFiles": [
-      "dotenv/config"
+      "dotenv/config",
+      "<rootDir>/test/jest-env.cjs"
     ],
-    "testTimeout": 30000
+    "testTimeout": 30000,
+    "moduleNameMapper": {
+      "^pg-boss$": "<rootDir>/test/pg-boss.cjs"
+    }
   }
 }

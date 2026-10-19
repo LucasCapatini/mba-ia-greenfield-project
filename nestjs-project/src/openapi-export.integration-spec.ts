@@ -171,4 +171,101 @@ describe('exportSpec (integration)', () => {
       });
     });
   });
+  describe('video upload/processing/playback contract (phase 03)', () => {
+    type Operation = {
+      summary?: string;
+      security?: Array<Record<string, unknown>>;
+      responses: Record<string, unknown>;
+    };
+    const paths = () =>
+      document.paths as Record<string, Record<string, Operation>>;
+    const schemas = () =>
+      (
+        document.components as {
+          schemas: Record<string, { properties?: Record<string, unknown> }>;
+        }
+      ).schemas;
+
+    it.each([
+      ['/videos', 'post', ['201', '400', '401', '413', '503']],
+      ['/videos/{publicId}', 'get', ['200', '401', '403', '404', '503']],
+      [
+        '/videos/{publicId}/playback',
+        'get',
+        ['200', '401', '403', '404', '409', '503'],
+      ],
+      [
+        '/videos/{publicId}/upload/parts',
+        'post',
+        ['200', '400', '401', '403', '404', '409', '503'],
+      ],
+      [
+        '/videos/{publicId}/upload',
+        'get',
+        ['200', '401', '403', '404', '409', '503'],
+      ],
+      [
+        '/videos/{publicId}/upload/complete',
+        'post',
+        ['202', '400', '401', '403', '404', '409', '413', '422', '503'],
+      ],
+      [
+        '/videos/{publicId}/upload',
+        'delete',
+        ['204', '401', '403', '404', '409', '503'],
+      ],
+    ])(
+      '%s %s documents the status codes of the API contract and requires the access token',
+      (path, method, statuses) => {
+        const operation = paths()[path]?.[method];
+
+        expect(operation).toBeDefined();
+        expect(Object.keys(operation.responses).sort()).toEqual(
+          [...statuses].sort(),
+        );
+        expect(operation.security?.some((req) => 'access-token' in req)).toBe(
+          true,
+        );
+        expect((operation.summary ?? '').length).toBeGreaterThan(0);
+      },
+    );
+
+    it('exposes processing_status, processing_error, upload state and content_type as enums', () => {
+      expect(schemas().VideoResponse.properties).toMatchObject({
+        processing_status: {
+          enum: ['uploading', 'processing', 'ready', 'failed'],
+        },
+        processing_error: {
+          enum: [
+            'UNSUPPORTED_FORMAT',
+            'PROBE_FAILED',
+            'THUMBNAIL_FAILED',
+            'OBJECT_MISSING',
+          ],
+          nullable: true,
+        },
+      });
+      expect(schemas().UploadStateResponse.properties).toMatchObject({
+        state: { enum: ['active', 'completed', 'aborted', 'expired'] },
+      });
+      expect(schemas().CreateVideoDto.properties).toMatchObject({
+        content_type: { enum: ['video/mp4', 'video/webm'] },
+      });
+    });
+
+    it('declares the playback and upload response shapes consumed by the frontend', () => {
+      expect(Object.keys(schemas().PlaybackResponse.properties ?? {})).toEqual([
+        'stream_url',
+        'download_url',
+        'thumbnail_url',
+        'expires_at',
+      ]);
+      expect(
+        Object.keys(schemas().VideoCreatedResponse.properties ?? {}),
+      ).toEqual(['public_id', 'status', 'processing_status', 'upload']);
+      expect(
+        Object.keys(schemas().UploadCompletedResponse.properties ?? {}),
+      ).toEqual(['public_id', 'status', 'processing_status', 'size_bytes']);
+    });
+  });
 });
