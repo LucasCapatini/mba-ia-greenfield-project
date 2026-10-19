@@ -12,4 +12,9 @@ export default registerAs('upload', () => ({
   urlTtlSeconds: parseInt(process.env.UPLOAD_URL_TTL || '3600', 10),
   sessionTtlSeconds: parseInt(process.env.UPLOAD_TTL || '86400', 10),
   playbackUrlTtlSeconds: parseInt(process.env.PLAYBACK_URL_TTL || '43200', 10),
+  /** Teto da thumbnail customizada (video-channel-management/TD-04). */
+  thumbnailMaxBytes: parseInt(
+    process.env.THUMBNAIL_MAX_BYTES || String(5 * MIB),
+    10,
+  ),
 }));

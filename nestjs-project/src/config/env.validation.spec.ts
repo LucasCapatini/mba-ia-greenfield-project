@@ -108,9 +108,16 @@ describe('envValidationSchema — upload policy (UPLOAD_*, PLAYBACK_URL_TTL)', (
       UPLOAD_URL_TTL: 3600,
       UPLOAD_TTL: 86400,
       PLAYBACK_URL_TTL: 43200,
+      THUMBNAIL_MAX_BYTES: 5 * 1024 * 1024,
       QUEUE_SCHEMA: 'pgboss',
       QUEUE_SUPERVISE: 'true',
     });
+  });
+
+  it('rejects a non-positive THUMBNAIL_MAX_BYTES', () => {
+    const { error } = validate({ ...validEnv, THUMBNAIL_MAX_BYTES: '0' });
+
+    expect(error?.details[0].path).toEqual(['THUMBNAIL_MAX_BYTES']);
   });
 
   it('rejects UPLOAD_PART_SIZE below the 5 MiB S3 minimum', () => {
