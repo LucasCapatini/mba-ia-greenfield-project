@@ -73,6 +73,26 @@ describe("<AppHeader />", () => {
     )
   })
 
+  it("authenticated: links to the studio (Meus vídeos, Meu canal) before Sair", () => {
+    renderHeader(authenticated)
+
+    const videos = screen.getByRole("link", { name: "Meus vídeos" })
+    const channel = screen.getByRole("link", { name: "Meu canal" })
+    const logout = screen.getByRole("button", { name: "Sair" })
+    expect(videos).toHaveAttribute("href", "/studio/videos")
+    expect(channel).toHaveAttribute("href", "/studio/channel")
+    expect(videos.compareDocumentPosition(logout) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(channel.compareDocumentPosition(logout) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it("anonymous: renders no studio links", () => {
+    renderHeader(anonymous)
+
+    expect(screen.queryByRole("link", { name: "Meus vídeos" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Meu canal" })).not.toBeInTheDocument()
+    expect(document.querySelector("a[href^='/studio']")).toBeNull()
+  })
+
   it("Sair posts to /api/auth/logout, then pushes to / and refreshes the RSC tree", async () => {
     const user = userEvent.setup()
     let calls = 0
