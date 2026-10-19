@@ -147,9 +147,12 @@ test.describe("studio-videos", () => {
 
       const badge = row(page, "becomes-ready-02").locator("[data-slot='video-status']")
       await expect(badge).toHaveText("Processing")
-      await expect.poll(() => polls.length, { timeout: 10_000 }).toBeGreaterThan(0)
+      // The mock answers `processing` for READS_UNTIL_READY (2) reads of GET /videos/becomes-ready-02
+      // and `ready` on the next one (mocks/store.ts): wait for that 3rd poll instead of racing a clock.
+      await expect.poll(() => polls.length, { timeout: 20_000 }).toBeGreaterThanOrEqual(3)
 
-      await expect(badge).toHaveText("Draft", { timeout: 15_000 })
+      // The settling poll triggers router.refresh(); the RSC list re-renders with the new status.
+      await expect(badge).toHaveText("Draft", { timeout: 10_000 })
       const settled = polls.length
       await page.waitForTimeout(6_500)
       expect(polls.length).toBe(settled)

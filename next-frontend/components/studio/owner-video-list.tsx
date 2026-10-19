@@ -81,7 +81,12 @@ function OwnerVideoList({ items, cursor, nextCursor, resetKey }: OwnerVideoListP
   const inFlight = rows
     .filter((row) => row.processing_status === "uploading" || row.processing_status === "processing")
     .map((row) => row.public_id)
-  useProcessingPoll(inFlight)
+  // The poll's video patches the row at once: the refresh below it may be dropped by the router.
+  useProcessingPoll(inFlight, (video) => {
+    setRows((current) =>
+      current.map((row) => (row.public_id === video.public_id ? patchFrom(row, video) : row))
+    )
+  })
 
   const mutate = React.useCallback(
     async function mutate(publicId: string, kind: Mutation): Promise<void> {

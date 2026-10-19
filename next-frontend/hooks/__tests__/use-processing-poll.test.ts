@@ -3,6 +3,7 @@ import { act, renderHook } from "@testing-library/react"
 import { http, HttpResponse } from "msw"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import type { Video } from "@/lib/api/contracts"
 import { server } from "@/mocks/server"
 
 import { useProcessingPoll } from "../use-processing-poll"
@@ -103,5 +104,53 @@ describe("useProcessingPoll", () => {
     await act(() => vi.advanceTimersByTimeAsync(9_000))
 
     expect(reads).toEqual(["a"])
+  })
+
+  it("hands the settled video to onSettled once, before the refresh", async () => {
+    mockStatuses({ a: ["processing", "ready"] })
+    const order: string[] = []
+    refreshMock.mockImplementationOnce(() => order.push("refresh"))
+    const onSettled = vi.fn((video: Video) => {
+      order.push(`settled:${video.public_id}:${video.processing_status}`)
+    })
+    renderHook(() => useProcessingPoll(["a"], onSettled))
+
+    await act(() => vi.advanceTimersByTimeAsync(3_000))
+    expect(onSettled).not.toHaveBeenCalled()
+
+    await act(() => vi.advanceTimersByTimeAsync(3_000))
+    expect(order).toEqual(["settled:a:ready", "refresh"])
+
+    await act(() => vi.advanceTimersByTimeAsync(9_000))
+    expect(onSettled).toHaveBeenCalledTimes(1)
+  })
+
+  it("hands a failed video to onSettled too", async () => {
+    mockStatuses({ a: ["failed"] })
+    const onSettled = vi.fn((video: Video) => video.processing_status)
+    renderHook(() => useProcessingPoll(["a"], onSettled))
+
+    await act(() => vi.advanceTimersByTimeAsync(3_000))
+
+    expect(onSettled).toHaveBeenCalledTimes(1)
+    expect(onSettled.mock.results[0]?.value).toBe("failed")
+  })
+
+  it("does not restart the timer when onSettled changes identity, and calls the latest one", async () => {
+    const reads = mockStatuses({ a: ["processing", "ready"] })
+    const first = vi.fn()
+    const second = vi.fn()
+    const { rerender } = renderHook(({ onSettled }) => useProcessingPoll(["a"], onSettled), {
+      initialProps: { onSettled: first },
+    })
+
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    rerender({ onSettled: second })
+    await act(() => vi.advanceTimersByTimeAsync(1_000))
+    expect(reads).toEqual(["a"])
+
+    await act(() => vi.advanceTimersByTimeAsync(3_000))
+    expect(second).toHaveBeenCalledTimes(1)
+    expect(first).not.toHaveBeenCalled()
   })
 })
