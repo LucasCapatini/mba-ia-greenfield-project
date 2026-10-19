@@ -263,6 +263,7 @@
   --color-banner-from: var(--banner-from);
   --color-banner-via: var(--banner-via);
   --color-banner-to: var(--banner-to);
+  --color-progress-track: var(--progress-track);
   --animate-progress-indeterminate: progress-indeterminate 1.5s ease-in-out infinite;
 
   @keyframes progress-indeterminate {
@@ -326,7 +327,8 @@
     --chart-3: #ff2a2a;
     --chart-4: #ff0000;
     --chart-5: #d90000;
-    --progress-track: #ffffff;
+    /* Inferido da escala neutra escura (= --muted/--border); confirmar na reauditoria do Figma (saneamento-fase-04/TD-03). */
+    --progress-track: #3d3d3d;
   }
 }
 
