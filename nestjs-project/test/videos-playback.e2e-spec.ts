@@ -15,6 +15,11 @@ import { MailService } from '../src/mail/mail.service';
 import { S3_INTERNAL_CLIENT } from '../src/storage/storage.constants';
 import { StorageService } from '../src/storage/storage.service';
 import { cleanAllTables } from '../src/test/create-test-data-source';
+import type {
+  PlaybackResponse,
+  VideoCreatedResponse,
+  VideoResponse,
+} from '../src/videos/dto/video-response.dto';
 import { abortAllMultipart, cleanPrefix } from '../src/test/storage';
 import { videoFixture } from '../src/test/video-fixtures';
 import { Video } from '../src/videos/entities/video.entity';
@@ -33,6 +38,18 @@ type ErrorBody = {
 
 function errorBody(res: request.Response): ErrorBody {
   return res.body as ErrorBody;
+}
+
+function createdBody(res: request.Response): VideoCreatedResponse {
+  return res.body as VideoCreatedResponse;
+}
+
+function playbackBody(res: request.Response): PlaybackResponse {
+  return res.body as PlaybackResponse;
+}
+
+function videoBody(res: request.Response): VideoResponse {
+  return res.body as VideoResponse;
 }
 
 describe('videos-playback', () => {
@@ -158,7 +175,7 @@ describe('videos-playback', () => {
         size_bytes: fixture.buffer.length,
       })
       .expect(201);
-    const publicId = res.body.public_id as string;
+    const publicId = createdBody(res).public_id;
     const video = await videoRepository.findOneByOrFail({
       public_id: publicId,
     });
@@ -213,8 +230,8 @@ describe('videos-playback', () => {
       thumbnail_url: null,
       processed_at: null,
     });
-    expect(new Date(uploading.body.created_at).toISOString()).toBe(
-      uploading.body.created_at,
+    expect(new Date(videoBody(uploading).created_at).toISOString()).toBe(
+      videoBody(uploading).created_at,
     );
 
     const readyId = await seedVideo(token, 'ready');
@@ -228,9 +245,11 @@ describe('videos-playback', () => {
       video_codec: 'h264',
       audio_codec: 'aac',
     });
-    expect(ready.body.processed_at).not.toBeNull();
-    expect(ready.body.thumbnail_url.startsWith(publicEndpoint)).toBe(true);
-    const thumb = await fetch(ready.body.thumbnail_url);
+    expect(videoBody(ready).processed_at).not.toBeNull();
+    expect(videoBody(ready).thumbnail_url!.startsWith(publicEndpoint)).toBe(
+      true,
+    );
+    const thumb = await fetch(videoBody(ready).thumbnail_url!);
     expect(thumb.status).toBe(200);
     expect(thumb.headers.get('content-type')).toBe('image/jpeg');
     await thumb.arrayBuffer();
@@ -252,23 +271,25 @@ describe('videos-playback', () => {
     const before = Date.now();
     const res = await api.playback(publicId, token).expect(200);
 
-    expect(res.body.stream_url.startsWith(publicEndpoint)).toBe(true);
-    expect(res.body.download_url.startsWith(publicEndpoint)).toBe(true);
-    expect(res.body.thumbnail_url).not.toBeNull();
-    const expiresAt = new Date(res.body.expires_at).getTime();
+    expect(playbackBody(res).stream_url.startsWith(publicEndpoint)).toBe(true);
+    expect(playbackBody(res).download_url.startsWith(publicEndpoint)).toBe(
+      true,
+    );
+    expect(playbackBody(res).thumbnail_url).not.toBeNull();
+    const expiresAt = new Date(playbackBody(res).expires_at).getTime();
     expect(expiresAt).toBeGreaterThan(Date.now());
     expect(expiresAt).toBeLessThanOrEqual(
       before + (PLAYBACK_URL_TTL + 2) * 1000,
     );
 
-    const ranged = await fetch(res.body.stream_url, {
+    const ranged = await fetch(playbackBody(res).stream_url, {
       headers: { Range: 'bytes=0-1023' },
     });
     expect(ranged.status).toBe(206);
     expect(ranged.headers.get('content-range')).toMatch(/^bytes 0-1023\//);
     expect((await ranged.arrayBuffer()).byteLength).toBe(1024);
 
-    const download = await fetch(res.body.download_url);
+    const download = await fetch(playbackBody(res).download_url);
     expect(download.status).toBe(200);
     expect(download.headers.get('content-disposition')).toBe(
       'attachment; filename="meu video.mp4"',
@@ -283,7 +304,7 @@ describe('videos-playback', () => {
       const publicId = await seedVideo(token, state);
       const res = await api.playback(publicId, token).expect(409);
       expect(errorBody(res).error).toBe('VIDEO_NOT_READY');
-      expect(res.body.stream_url).toBeUndefined();
+      expect(playbackBody(res).stream_url).toBeUndefined();
     }
   });
 
@@ -295,16 +316,18 @@ describe('videos-playback', () => {
     await new Promise((resolve) =>
       setTimeout(resolve, (PLAYBACK_URL_TTL + 1) * 1000),
     );
-    const expired = await fetch(first.body.stream_url, {
+    const expired = await fetch(playbackBody(first).stream_url, {
       headers: { Range: 'bytes=0-1023' },
     });
     expect(expired.status).toBe(403);
     await expired.arrayBuffer();
 
     const second = await api.playback(publicId, token).expect(200);
-    expect(second.body.stream_url).not.toBe(first.body.stream_url);
-    expect(new Date(second.body.expires_at).getTime()).toBeGreaterThan(
-      new Date(first.body.expires_at).getTime(),
+    expect(playbackBody(second).stream_url).not.toBe(
+      playbackBody(first).stream_url,
+    );
+    expect(new Date(playbackBody(second).expires_at).getTime()).toBeGreaterThan(
+      new Date(playbackBody(first).expires_at).getTime(),
     );
   }, 30000);
 

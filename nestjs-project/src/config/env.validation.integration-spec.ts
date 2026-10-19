@@ -1,5 +1,6 @@
 import { ConfigModule, type ConfigType } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
+import type { ValidationResult } from 'joi';
 import { envValidationSchema } from './env.validation';
 import queueConfig from './queue.config';
 import storageConfig from './storage.config';
@@ -19,7 +20,9 @@ const requiredEnv = {
   S3_BUCKET: 'streamtube-videos',
 };
 
-const validate = (env: Record<string, string>) =>
+const validate = (
+  env: Record<string, string>,
+): ValidationResult<Record<string, unknown>> =>
   envValidationSchema.validate(
     { ...requiredEnv, ...env },
     { allowUnknown: true, abortEarly: false },
@@ -43,8 +46,9 @@ describe('envValidationSchema — SWAGGER_ENABLED', () => {
   });
 
   it('should apply default false when SWAGGER_ENABLED is not set', () => {
-    const { value, error } = validate({});
-    expect(error).toBeUndefined();
+    const result = validate({});
+    expect(result.error).toBeUndefined();
+    const value = result.value as Record<string, unknown>;
     expect(value.SWAGGER_ENABLED).toBe('false');
   });
 });

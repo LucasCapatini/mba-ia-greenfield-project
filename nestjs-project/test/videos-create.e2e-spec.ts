@@ -14,6 +14,7 @@ import { MailService } from '../src/mail/mail.service';
 import { S3_INTERNAL_CLIENT } from '../src/storage/storage.constants';
 import { StorageService } from '../src/storage/storage.service';
 import { cleanAllTables } from '../src/test/create-test-data-source';
+import type { VideoCreatedResponse } from '../src/videos/dto/video-response.dto';
 import { abortAllMultipart, listMultipartUploads } from '../src/test/storage';
 import { Channel } from '../src/channels/entities/channel.entity';
 import { User } from '../src/users/entities/user.entity';
@@ -34,6 +35,10 @@ type ErrorBody = {
 
 function errorBody(res: request.Response): ErrorBody {
   return res.body as ErrorBody;
+}
+
+function createdBody(res: request.Response): VideoCreatedResponse {
+  return res.body as VideoCreatedResponse;
 }
 
 describe('videos-create', () => {
@@ -138,16 +143,16 @@ describe('videos-create', () => {
       })
       .expect(201);
 
-    expect(res.body.public_id).toMatch(/^[A-Za-z0-9_-]{11}$/);
-    expect(res.body.status).toBe('draft');
-    expect(res.body.processing_status).toBe('uploading');
-    expect(res.body.upload.upload_id).toEqual(expect.any(String));
-    expect(res.body.upload.upload_id).not.toBe('');
-    expect(res.body.upload.part_size).toBe(PART_SIZE);
-    expect(res.body.upload.part_count).toBe(3);
-    expect(new Date(res.body.upload.expires_at).getTime()).toBeGreaterThan(
-      Date.now(),
-    );
+    expect(createdBody(res).public_id).toMatch(/^[A-Za-z0-9_-]{11}$/);
+    expect(createdBody(res).status).toBe('draft');
+    expect(createdBody(res).processing_status).toBe('uploading');
+    expect(createdBody(res).upload.upload_id).toEqual(expect.any(String));
+    expect(createdBody(res).upload.upload_id).not.toBe('');
+    expect(createdBody(res).upload.part_size).toBe(PART_SIZE);
+    expect(createdBody(res).upload.part_count).toBe(3);
+    expect(
+      new Date(createdBody(res).upload.expires_at).getTime(),
+    ).toBeGreaterThan(Date.now());
 
     const user = await dataSource
       .getRepository(User)
@@ -156,10 +161,12 @@ describe('videos-create', () => {
       .getRepository(Channel)
       .findOneByOrFail({ user_id: user.id });
     const video = await videoRepository.findOneByOrFail({
-      public_id: res.body.public_id,
+      public_id: createdBody(res).public_id,
     });
     expect(video.channel_id).toBe(channel.id);
-    expect(video.storage_key).toBe(`videos/${res.body.public_id}/source`);
+    expect(video.storage_key).toBe(
+      `videos/${createdBody(res).public_id}/source`,
+    );
     expect(video.content_type).toBe('video/mp4');
     expect(video.size_bytes).toBe(15728640);
 
@@ -167,7 +174,7 @@ describe('videos-create', () => {
       video_id: video.id,
     });
     expect(session.state).toBe('active');
-    expect(session.upload_id).toBe(res.body.upload.upload_id);
+    expect(session.upload_id).toBe(createdBody(res).upload.upload_id);
     expect(session.part_count).toBe(3);
     expect(session.expected_bytes).toBe(15728640);
 
@@ -288,7 +295,7 @@ describe('videos-create', () => {
       .expect(201);
 
     const video = await videoRepository.findOneByOrFail({
-      public_id: res.body.public_id,
+      public_id: createdBody(res).public_id,
     });
     const jobs = await dataSource.query<
       { state: string; singleton_key: string; start_after: Date }[]
@@ -300,7 +307,7 @@ describe('videos-create', () => {
     expect(jobs).toHaveLength(1);
     expect(jobs[0].state).toBe('created');
     expect(jobs[0].singleton_key).toBe(`upload:${video.id}`);
-    const expiresAt = new Date(res.body.upload.expires_at).getTime();
+    const expiresAt = new Date(createdBody(res).upload.expires_at).getTime();
     expect(
       Math.abs(new Date(jobs[0].start_after).getTime() - expiresAt),
     ).toBeLessThan(1000);
@@ -323,14 +330,18 @@ describe('videos-create', () => {
     const first = await post(token).send(payload).expect(201);
     const second = await post(token).send(payload).expect(201);
 
-    expect(first.body.public_id).not.toBe(second.body.public_id);
-    expect(first.body.upload.upload_id).not.toBe(second.body.upload.upload_id);
+    expect(createdBody(first).public_id).not.toBe(
+      createdBody(second).public_id,
+    );
+    expect(createdBody(first).upload.upload_id).not.toBe(
+      createdBody(second).upload.upload_id,
+    );
 
     const videos = await videoRepository.find({ order: { created_at: 'ASC' } });
     expect(videos.map((video) => video.storage_key).sort()).toEqual(
       [
-        `videos/${first.body.public_id}/source`,
-        `videos/${second.body.public_id}/source`,
+        `videos/${createdBody(first).public_id}/source`,
+        `videos/${createdBody(second).public_id}/source`,
       ].sort(),
     );
     await expect(uploadRepository.count()).resolves.toBe(2);

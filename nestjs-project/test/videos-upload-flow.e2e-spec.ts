@@ -20,6 +20,13 @@ import { ValidationExceptionFilter } from '../src/common/filters/validation-exce
 import { MailService } from '../src/mail/mail.service';
 import { S3_INTERNAL_CLIENT } from '../src/storage/storage.constants';
 import { cleanAllTables } from '../src/test/create-test-data-source';
+import type {
+  PlaybackResponse,
+  PresignedPartsResponse,
+  UploadStateResponse,
+  VideoCreatedResponse,
+  VideoResponse,
+} from '../src/videos/dto/video-response.dto';
 import { abortAllMultipart, cleanPrefix, putPart } from '../src/test/storage';
 import {
   videoFixture,
@@ -35,7 +42,6 @@ const MAX_BYTES = 10 * 1024 * MIB;
 const MAX_API_REQUEST_BYTES = 16 * 1024;
 const READY_TIMEOUT_MS = 60_000;
 
-type PresignedPart = { part_number: number; url: string };
 type ErrorBody = {
   statusCode: number;
   error: string;
@@ -44,6 +50,26 @@ type ErrorBody = {
 
 function errorBody(res: request.Response): ErrorBody {
   return res.body as ErrorBody;
+}
+
+function createdBody(res: request.Response): VideoCreatedResponse {
+  return res.body as VideoCreatedResponse;
+}
+
+function playbackBody(res: request.Response): PlaybackResponse {
+  return res.body as PlaybackResponse;
+}
+
+function presignedBody(res: request.Response): PresignedPartsResponse {
+  return res.body as PresignedPartsResponse;
+}
+
+function stateBody(res: request.Response): UploadStateResponse {
+  return res.body as UploadStateResponse;
+}
+
+function videoBody(res: request.Response): VideoResponse {
+  return res.body as VideoResponse;
 }
 
 function chunks(buffer: Buffer): Buffer[] {
@@ -193,8 +219,8 @@ describe('videos-upload-flow', () => {
         size_bytes: fixture.buffer.length,
       })
       .expect(201);
-    const publicId = created.body.public_id as string;
-    expect(created.body.upload.part_count).toBe(parts.length);
+    const publicId = createdBody(created).public_id;
+    expect(createdBody(created).upload.part_count).toBe(parts.length);
 
     const partNumbers = parts.map((_, i) => i + 1);
     const presigned = await api
@@ -202,10 +228,7 @@ describe('videos-upload-flow', () => {
       .send({ part_numbers: partNumbers })
       .expect(200);
     const urls = new Map(
-      (presigned.body.parts as PresignedPart[]).map((p) => [
-        p.part_number,
-        p.url,
-      ]),
+      presignedBody(presigned).parts.map((p) => [p.part_number, p.url]),
     );
     for (const url of urls.values()) {
       expect(url.startsWith(publicEndpoint)).toBe(true);
@@ -220,10 +243,10 @@ describe('videos-upload-flow', () => {
 
   async function waitUntilProcessed(publicId: string, token: string) {
     const deadline = Date.now() + READY_TIMEOUT_MS;
-    let body = (await api.video(publicId, token).expect(200)).body;
+    let body = videoBody(await api.video(publicId, token).expect(200));
     while (body.processing_status === 'processing' && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      body = (await api.video(publicId, token).expect(200)).body;
+      body = videoBody(await api.video(publicId, token).expect(200));
     }
     return body;
   }
@@ -237,12 +260,12 @@ describe('videos-upload-flow', () => {
     // retomada: o storage já tem as 3 partes
     const state = await api.state(publicId, token).expect(200);
     expect(
-      state.body.uploaded_parts.map(
+      stateBody(state).uploaded_parts.map(
         (p: { part_number: number }) => p.part_number,
       ),
     ).toEqual(partNumbers);
     expect(
-      state.body.uploaded_parts.map((p: { etag: string }) => p.etag),
+      stateBody(state).uploaded_parts.map((p: { etag: string }) => p.etag),
     ).toEqual(partNumbers.map((n) => etags.get(n)));
 
     const completed = await api
@@ -271,14 +294,14 @@ describe('videos-upload-flow', () => {
       audio_codec: 'aac',
       size_bytes: fixture.buffer.length,
     });
-    const thumb = await fetch(ready.thumbnail_url);
+    const thumb = await fetch(ready.thumbnail_url!);
     expect(thumb.status).toBe(200);
     expect(thumb.headers.get('content-type')).toBe('image/jpeg');
     expect((await thumb.arrayBuffer()).byteLength).toBeGreaterThan(1024);
 
     // playback por URLs assinadas: Range e download atendidos pelo storage
     const playback = await api.playback(publicId, token).expect(200);
-    const ranged = await fetch(playback.body.stream_url, {
+    const ranged = await fetch(playbackBody(playback).stream_url, {
       headers: { Range: 'bytes=0-1023' },
     });
     expect(ranged.status).toBe(206);
@@ -288,7 +311,7 @@ describe('videos-upload-flow', () => {
     const head = Buffer.from(await ranged.arrayBuffer());
     expect(head.byteLength).toBe(1024);
     expect(head.equals(fixture.buffer.subarray(0, 1024))).toBe(true);
-    const download = await fetch(playback.body.download_url);
+    const download = await fetch(playbackBody(playback).download_url);
     expect(download.status).toBe(200);
     expect(download.headers.get('content-disposition')).toBe(
       'attachment; filename="meu video.mp4"',
@@ -335,9 +358,9 @@ describe('videos-upload-flow', () => {
 
     expect(errorBody(res).error).toBe('UPLOAD_INCOMPLETE');
     const video = await api.video(publicId, token).expect(200);
-    expect(video.body.processing_status).toBe('uploading');
+    expect(videoBody(video).processing_status).toBe('uploading');
     const state = await api.state(publicId, token).expect(200);
-    expect(state.body.uploaded_parts).toHaveLength(2);
+    expect(stateBody(state).uploaded_parts).toHaveLength(2);
   });
 
   test('keeps a draft private to its owner', async () => {

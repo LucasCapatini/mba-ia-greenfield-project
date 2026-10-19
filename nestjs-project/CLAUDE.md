@@ -164,7 +164,7 @@ npm run migration:generate -- src/database/migrations/<Name>   # Diff entities �
 npm run openapi:export                   # nest build + node dist/openapi-export.js — the build applies the @nestjs/swagger CLI plugin (ts-node does not, so DTOs came out empty); then sync to the frontend — see root CLAUDE.md
 
 npx tsc --noEmit                         # Type-check (required before declaring a task done)
-npm run lint                             # ESLint with auto-fix
+npm run lint                             # ESLint with auto-fix; fails on any error or warning (--max-warnings 0)
 npm run format                           # Prettier formatting
 ```
 
@@ -267,7 +267,7 @@ NestJS with standard module structure. Source lives in `src/`, compiled output i
 - **TypeScript:** `nodenext` module resolution, `ES2023` target, `strictNullChecks` on, `noImplicitAny` off
 - **Decorators:** `emitDecoratorMetadata` + `experimentalDecorators` enabled — required for NestJS DI
 - **Prettier:** single quotes, trailing commas everywhere
-- **ESLint:** `no-explicit-any` allowed; `no-floating-promises` and `no-unsafe-argument` are warnings
+- **ESLint:** `no-explicit-any` allowed; `no-floating-promises` and `no-unsafe-argument` are configured as warnings, but the `lint` script runs with `--max-warnings 0`, so any warning fails it (policy: 0 errors and 0 warnings across `src/` and `test/`, including specs and e2e — type `res.body` and mocks instead of relying on `any`; per `saneamento-fase-04/TD-01`). To check without rewriting files, run `npx eslint "{src,apps,libs,test}/**/*.ts"` (no `--fix`).
 
 ## REST Conventions
 

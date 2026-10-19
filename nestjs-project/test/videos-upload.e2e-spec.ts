@@ -14,6 +14,11 @@ import { MailService } from '../src/mail/mail.service';
 import { S3_INTERNAL_CLIENT } from '../src/storage/storage.constants';
 import { StorageService } from '../src/storage/storage.service';
 import { cleanAllTables } from '../src/test/create-test-data-source';
+import type {
+  PresignedPartsResponse,
+  UploadStateResponse,
+  VideoCreatedResponse,
+} from '../src/videos/dto/video-response.dto';
 import {
   abortAllMultipart,
   cleanPrefix,
@@ -36,11 +41,22 @@ type ErrorBody = {
   error: string;
   message: string | string[];
 };
-type PresignedPart = { part_number: number; url: string };
 type JobRow = { singleton_key: string; retry_limit: number; state: string };
 
 function errorBody(res: request.Response): ErrorBody {
   return res.body as ErrorBody;
+}
+
+function createdBody(res: request.Response): VideoCreatedResponse {
+  return res.body as VideoCreatedResponse;
+}
+
+function presignedBody(res: request.Response): PresignedPartsResponse {
+  return res.body as PresignedPartsResponse;
+}
+
+function stateBody(res: request.Response): UploadStateResponse {
+  return res.body as UploadStateResponse;
 }
 
 /** Fatias de 5 MiB (a última menor) com bytes determinísticos — "10 GB sem 10 GB" (TD-13). */
@@ -176,8 +192,8 @@ describe('videos-upload', () => {
       })
       .expect(201);
     return {
-      publicId: res.body.public_id as string,
-      uploadId: res.body.upload.upload_id as string,
+      publicId: createdBody(res).public_id,
+      uploadId: createdBody(res).upload.upload_id,
     };
   }
 
@@ -191,9 +207,7 @@ describe('videos-upload', () => {
       .parts(publicId, token)
       .send({ part_numbers: partNumbers })
       .expect(200);
-    return new Map(
-      (res.body.parts as PresignedPart[]).map((p) => [p.part_number, p.url]),
-    );
+    return new Map(presignedBody(res).parts.map((p) => [p.part_number, p.url]));
   }
 
   /** Envia as partes indicadas via fetch nativo; devolve os ETags por número. */
@@ -228,10 +242,12 @@ describe('videos-upload', () => {
       .send({ part_numbers: [1, 2, 3] })
       .expect(200);
 
-    expect(res.body.upload_id).toBe(uploadId);
-    expect(res.body.part_size).toBe(PART_SIZE);
-    expect(new Date(res.body.expires_at).getTime()).toBeGreaterThan(Date.now());
-    const parts = res.body.parts as PresignedPart[];
+    expect(presignedBody(res).upload_id).toBe(uploadId);
+    expect(presignedBody(res).part_size).toBe(PART_SIZE);
+    expect(new Date(presignedBody(res).expires_at).getTime()).toBeGreaterThan(
+      Date.now(),
+    );
+    const parts = presignedBody(res).parts;
     expect(parts.map((p) => p.part_number)).toEqual([1, 2, 3]);
     expect(new Set(parts.map((p) => p.url)).size).toBe(3);
     for (const part of parts) {
@@ -271,7 +287,7 @@ describe('videos-upload', () => {
       part_count: 3,
       expected_bytes: TWELVE_MIB,
     });
-    expect(res.body.uploaded_parts).toEqual([
+    expect(stateBody(res).uploaded_parts).toEqual([
       { part_number: 1, etag: etags.get(1), size: PART_SIZE },
       { part_number: 2, etag: etags.get(2), size: PART_SIZE },
     ]);
