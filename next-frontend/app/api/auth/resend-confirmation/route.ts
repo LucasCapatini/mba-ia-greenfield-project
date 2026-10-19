@@ -4,6 +4,7 @@ import type {
   ApiErrorEnvelope,
   ResendConfirmationDto,
 } from "@/lib/api/contracts";
+import { invalidBody, readJson } from "@/lib/api/bff";
 import { upstream } from "@/lib/api/upstream";
 
 /**
@@ -12,7 +13,8 @@ import { upstream } from "@/lib/api/upstream";
  * anti-enumeration), upstream ApiErrorEnvelope on validation errors. No session side effects.
  */
 export async function POST(request: Request) {
-  const body = (await request.json()) as ResendConfirmationDto;
+  const body = await readJson<ResendConfirmationDto>(request);
+  if (!body) return invalidBody();
 
   const { error, response } = await upstream.POST(
     "/auth/resend-confirmation",
