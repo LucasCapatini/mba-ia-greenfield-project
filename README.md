@@ -218,7 +218,8 @@ mba-ia-greenfield-project/
 │       ├── software-arch.mermaid        # Diagrama de arquitetura (C4)
 │       └── skills-workflow.mermaid      # Pipeline de skills de planejamento/implementação
 ├── scripts/
-│   └── sync-openapi.sh                  # Copia nestjs-project/openapi.json → next-frontend/openapi.json
+│   ├── sync-openapi.sh                  # Copia nestjs-project/openapi.json → next-frontend/openapi.json
+│   └── export-claude-session.mjs        # Gera _claude-sessions/NN-slug.txt a partir do histórico JSONL do Claude Code
 ├── nestjs-project/                      # Backend API (NestJS 11)
 │   ├── src/
 │   │   ├── auth/                        # Cadastro, login, JWT, refresh, confirmação e reset de senha
@@ -298,7 +299,7 @@ O objetivo central do desafio é mostrar **como** a aplicação foi construída 
 - [`CLAUDE.md`](./CLAUDE.md) § *Planning & Implementation Workflow* — o pipeline de skills customizadas (`/research → /plan-context → /plan-validate ⇄ /plan-resolve → /plan-build → /plan-test-specs → /implement`, com `/decide` e `/screen-inventory` como entradas laterais), definido em `.claude/skills/` e ilustrado em `docs/diagrams/skills-workflow.mermaid`.
 - `docs/decisions/` — cada decisão técnica (TD) com opções, prós/contras, recomendação e a decisão tomada; revisões posteriores ficam em blocos `Revisions`.
 - `docs/phases/` e `docs/tasks/` — por fase ou task: `context.md`, `validation.md`, o plano dividido em SIs e o `progress.md` da execução. Os `specs/*.plan.md` de cada subprojeto derivam os testes e2e desses planos.
-- `_claude-sessions/` — transcrições brutas das sessões, numeradas `NN-slug.txt` e commitadas junto do trabalho que produziram. Lacuna conhecida: as sessões de tipagem OpenAPI, fundação MSW e frontend da Fase 02 não foram arquivadas.
+- `_claude-sessions/` — transcrições das sessões, numeradas `NN-slug.txt` e commitadas junto do trabalho que produziram. As sessões 01–15 são o `/export` do terminal (após uma compactação de contexto, o `/export` só traz o que ficou na tela — por isso 14 e 15 começam em "Conversation compacted"). A partir da 16, a transcrição é gerada do histórico JSONL do Claude Code com `node scripts/export-claude-session.mjs <session-id> _claude-sessions/NN-slug.txt`, que cobre a sessão inteira (inclusive o que precede as compactações), omite o raciocínio interno e trunca resultados de ferramenta. Lacuna conhecida: as sessões de tipagem OpenAPI, fundação MSW e frontend da Fase 02 não foram arquivadas e não existem mais no histórico local; seus artefatos (`docs/tasks/task-next-frontend-*`, `docs/phases/phase-02-auth-frontend/`) são o registro que restou.
 
 ## 📖 Stack Tecnológica
 
