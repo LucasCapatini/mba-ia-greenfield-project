@@ -54,6 +54,7 @@ export interface PresignGetOptions {
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
   private readonly bucket: string;
+  private readonly publicEndpoint: string;
 
   constructor(
     @Inject(S3_INTERNAL_CLIENT) private readonly internalClient: S3Client,
@@ -62,6 +63,17 @@ export class StorageService {
     config: ConfigType<typeof storageConfig>,
   ) {
     this.bucket = config.bucket;
+    this.publicEndpoint = config.publicEndpoint.replace(/\/+$/, '');
+  }
+
+  /**
+   * URL pública e estável (sem assinatura) de um objeto legível anonimamente pela bucket policy —
+   * hoje só `thumbnails/*` (video-channel-management/TD-10). Path-style com o endpoint do
+   * navegador (phase-03-upload-processing/TD-02). Para qualquer outro prefixo, use presign.
+   */
+  publicUrl(key: string): string {
+    const path = key.split('/').map(encodeURIComponent).join('/');
+    return `${this.publicEndpoint}/${this.bucket}/${path}`;
   }
 
   /** Abre a sessão multipart; `contentType` fica como metadado do objeto final. */

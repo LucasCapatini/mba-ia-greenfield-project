@@ -76,3 +76,47 @@ export class UploadPartOutOfRangeException extends DomainException {
     );
   }
 }
+
+// Exceções de domínio da Fase 04 (video-channel-management — `### Error Catalog`).
+
+export class CategoryNotFoundException extends DomainException {
+  constructor(categoryId: string) {
+    super(
+      VIDEO_ERROR_CODES.CATEGORY_NOT_FOUND,
+      400,
+      `Category ${categoryId} does not exist`,
+    );
+  }
+}
+
+/** Publicar exige `processing_status = ready` e título não vazio (TD-02). */
+export class VideoNotPublishableException extends DomainException {
+  constructor(reason: string) {
+    super(
+      VIDEO_ERROR_CODES.NOT_PUBLISHABLE,
+      409,
+      `Video cannot be published: ${reason}`,
+    );
+  }
+}
+
+/** Bytes que não decodificam como JPEG/PNG/WebP, tipo declarado fora da lista ou < 640×360 (TD-04). */
+export class ThumbnailInvalidException extends DomainException {
+  constructor(reason: string) {
+    super(
+      VIDEO_ERROR_CODES.THUMBNAIL_INVALID,
+      400,
+      `Invalid thumbnail: ${reason}`,
+    );
+  }
+}
+
+export class ThumbnailTooLargeException extends DomainException {
+  constructor(maxBytes: number) {
+    super(
+      VIDEO_ERROR_CODES.THUMBNAIL_TOO_LARGE,
+      413,
+      `Thumbnail exceeds the limit of ${maxBytes} bytes`,
+    );
+  }
+}

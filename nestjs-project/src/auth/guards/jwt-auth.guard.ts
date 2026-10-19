@@ -10,6 +10,17 @@ import { BEARER_PREFIX } from '../auth.constants';
 import { JwtPayload } from '../auth.types';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
+type AuthRequest = {
+  headers: Record<string, string | undefined>;
+  user?: JwtPayload;
+};
+
+/**
+ * Global JWT guard. Protected routes require a valid `Bearer` token. `@Public()` routes use
+ * optional auth (video-channel-management/TD-07): no `Authorization` header → anonymous; a header
+ * that is present is verified like on a protected route, so an invalid or expired token is a 401
+ * even there, and a valid one populates `request.user` for `@OptionalUser()`.
+ */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(
@@ -22,23 +33,25 @@ export class JwtAuthGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-    if (isPublic) return true;
-
-    const request = context
-      .switchToHttp()
-      .getRequest<{ headers: Record<string, string>; user: unknown }>();
+    const request = context.switchToHttp().getRequest<AuthRequest>();
     const authHeader = request.headers?.authorization;
 
-    if (!authHeader || !authHeader.startsWith(BEARER_PREFIX)) {
+    if (!authHeader) {
+      if (isPublic) return true;
       throw new UnauthorizedException();
     }
 
-    const token = authHeader.slice(BEARER_PREFIX.length);
+    request.user = await this.verify(authHeader);
+    return true;
+  }
 
+  private async verify(authHeader: string): Promise<JwtPayload> {
+    if (!authHeader.startsWith(BEARER_PREFIX)) {
+      throw new UnauthorizedException();
+    }
+    const token = authHeader.slice(BEARER_PREFIX.length);
     try {
-      const payload = await this.jwtService.verifyAsync<JwtPayload>(token);
-      request.user = payload;
-      return true;
+      return await this.jwtService.verifyAsync<JwtPayload>(token);
     } catch {
       throw new UnauthorizedException();
     }

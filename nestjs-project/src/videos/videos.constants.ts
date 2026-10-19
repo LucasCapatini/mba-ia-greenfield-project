@@ -1,9 +1,13 @@
 // Estados e códigos do domínio de vídeo (phase-03-upload-processing/TD-07, TD-11, TD-12, TD-14).
 // Os valores são o contrato exposto pela API (`### Data Model` do plano da fase).
 
-/** Eixo de publicação. Nesta fase todo vídeo é rascunho; `published` e visibilidade chegam na Fase 04. */
-export const VIDEO_STATUSES = ['draft'] as const;
+/** Eixo de publicação (video-channel-management/TD-02): `draft → published` exige `ready` + título. */
+export const VIDEO_STATUSES = ['draft', 'published'] as const;
 export type VideoStatus = (typeof VIDEO_STATUSES)[number];
+
+/** Visibilidade (TD-02): editável a qualquer momento; só tem efeito quando `status = published`. */
+export const VIDEO_VISIBILITIES = ['public', 'unlisted'] as const;
+export type VideoVisibility = (typeof VIDEO_VISIBILITIES)[number];
 
 /** Eixo de processamento: uploading → processing → ready | failed. */
 export const VIDEO_PROCESSING_STATUSES = [
@@ -40,4 +44,11 @@ export const VIDEO_ERROR_CODES = {
   UPLOAD_NOT_ACTIVE: 'UPLOAD_NOT_ACTIVE',
   UPLOAD_INCOMPLETE: 'UPLOAD_INCOMPLETE',
   NOT_READY: 'VIDEO_NOT_READY',
+  CATEGORY_NOT_FOUND: 'CATEGORY_NOT_FOUND',
+  NOT_PUBLISHABLE: 'VIDEO_NOT_PUBLISHABLE',
+  THUMBNAIL_INVALID: 'THUMBNAIL_INVALID',
+  THUMBNAIL_TOO_LARGE: 'THUMBNAIL_TOO_LARGE',
 } as const;
+
+/** Limite do título (`videos.title` varchar(100)). */
+export const VIDEO_TITLE_MAX_LENGTH = 100;

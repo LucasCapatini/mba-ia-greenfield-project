@@ -22,11 +22,14 @@ export interface VideoStorageKeys {
   source: string;
   /** Thumbnail gerada pelo worker a partir de um frame. */
   thumbnail: string;
+  /** Thumbnail customizada enviada pelo dono (video-channel-management/TD-04). */
+  customThumbnail: string;
 }
 
 export function storageKeys(publicId: string): VideoStorageKeys {
   return {
     source: `videos/${publicId}/source`,
     thumbnail: `thumbnails/${publicId}/auto.jpg`,
+    customThumbnail: `thumbnails/${publicId}/custom.jpg`,
   };
 }

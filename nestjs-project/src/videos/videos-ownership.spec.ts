@@ -36,14 +36,14 @@ describe('VideosOwnership', () => {
     ownership = module.get(VideosOwnership);
   });
 
-  it('should return the video with its upload session when the user owns the channel', async () => {
+  it('should return the video with its upload session and category when the user owns the channel', async () => {
     await expect(ownership.loadOwned('user-1', 'abcdefghijk')).resolves.toBe(
       video,
     );
 
     expect(videoRepository.findOne).toHaveBeenCalledWith({
       where: { public_id: 'abcdefghijk' },
-      relations: ['upload'],
+      relations: ['upload', 'category'],
     });
     expect(channels.findByUserId).toHaveBeenCalledWith('user-1');
   });
@@ -79,5 +79,79 @@ describe('VideosOwnership', () => {
     await expect(
       ownership.loadOwned('ghost', 'abcdefghijk'),
     ).rejects.toBeInstanceOf(VideoForbiddenException);
+  });
+
+  describe('loadReadable (public read rule — TD-07)', () => {
+    const owner = { sub: 'user-1', email: 'owner@example.com' };
+    const stranger = { sub: 'user-2', email: 'stranger@example.com' };
+
+    function withVideo(overrides: Record<string, unknown>) {
+      const readable = { ...video, ...overrides };
+      videoRepository.findOne.mockResolvedValueOnce(readable);
+      return readable;
+    }
+
+    it('should let the owner read a draft', async () => {
+      const draft = withVideo({ status: 'draft' });
+
+      await expect(ownership.loadReadable(owner, 'abcdefghijk')).resolves.toBe(
+        draft,
+      );
+      expect(channels.findByUserId).toHaveBeenCalledWith('user-1');
+    });
+
+    it('should let an anonymous request read a published video without looking up channels', async () => {
+      const published = withVideo({
+        status: 'published',
+        visibility: 'public',
+      });
+
+      await expect(
+        ownership.loadReadable(undefined, 'abcdefghijk'),
+      ).resolves.toBe(published);
+      expect(channels.findByUserId).not.toHaveBeenCalled();
+    });
+
+    it('should let an authenticated non-owner read a published unlisted video', async () => {
+      const unlisted = withVideo({
+        status: 'published',
+        visibility: 'unlisted',
+      });
+      channels.findByUserId.mockResolvedValueOnce({ id: 'channel-other' });
+
+      await expect(
+        ownership.loadReadable(stranger, 'abcdefghijk'),
+      ).resolves.toBe(unlisted);
+    });
+
+    it('should answer 404 VIDEO_NOT_FOUND to an anonymous request for a draft', async () => {
+      withVideo({ status: 'draft' });
+
+      const promise = ownership.loadReadable(undefined, 'abcdefghijk');
+
+      await expect(promise).rejects.toBeInstanceOf(VideoNotFoundException);
+      await expect(promise).rejects.toMatchObject({
+        httpStatus: 404,
+        errorCode: 'VIDEO_NOT_FOUND',
+      });
+      expect(channels.findByUserId).not.toHaveBeenCalled();
+    });
+
+    it('should answer 404 (never 403) to an authenticated non-owner for a draft', async () => {
+      withVideo({ status: 'draft' });
+      channels.findByUserId.mockResolvedValueOnce({ id: 'channel-other' });
+
+      await expect(
+        ownership.loadReadable(stranger, 'abcdefghijk'),
+      ).rejects.toBeInstanceOf(VideoNotFoundException);
+    });
+
+    it('should answer 404 when the public_id does not exist', async () => {
+      videoRepository.findOne.mockResolvedValueOnce(null);
+
+      await expect(
+        ownership.loadReadable(owner, 'AAAAAAAAAAA'),
+      ).rejects.toBeInstanceOf(VideoNotFoundException);
+    });
   });
 });

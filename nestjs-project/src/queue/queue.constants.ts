@@ -1,4 +1,5 @@
-// Filas da fase (phase-03-upload-processing/TD-04, TD-11, TD-12) e seus defaults de envio.
+// Filas (phase-03-upload-processing/TD-04, TD-11, TD-12; video-channel-management/TD-09) e seus
+// defaults de envio.
 // Produtor: API (VideosService). Consumidor: processo video-worker (TD-05).
 
 export const QUEUE_NAMES = {
@@ -6,6 +7,8 @@ export const QUEUE_NAMES = {
   VIDEO_PROCESS: 'video.process',
   /** Expiração da sessão multipart não concluída dentro de UPLOAD_TTL — TD-12. */
   UPLOAD_EXPIRE: 'upload.expire',
+  /** Remoção dos objetos de um vídeo excluído (hard delete) — video-channel-management/TD-09. */
+  VIDEO_DELETE: 'video.delete',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -26,15 +29,28 @@ export interface UploadExpirePayload {
   videoId: string;
 }
 
+/**
+ * As chaves vão no payload porque a linha de `videos` já foi apagada quando o job roda (TD-09);
+ * `thumbnailKeys` lista só as chaves não nulas no momento da exclusão.
+ */
+export interface VideoDeletePayload {
+  videoId: string;
+  publicId: string;
+  storageKey: string;
+  thumbnailKeys: string[];
+}
+
 export interface QueuePayloads {
   [QUEUE_NAMES.VIDEO_PROCESS]: VideoProcessPayload;
   [QUEUE_NAMES.UPLOAD_EXPIRE]: UploadExpirePayload;
+  [QUEUE_NAMES.VIDEO_DELETE]: VideoDeletePayload;
 }
 
 /** Chaves singleton: um job ativo por vídeo em cada fila (idempotência, TD-11/TD-12). */
 export const singletonKeys = {
   videoProcess: (videoId: string) => `video:${videoId}`,
   uploadExpire: (videoId: string) => `upload:${videoId}`,
+  videoDelete: (videoId: string) => `video-delete:${videoId}`,
 } as const;
 
 export interface QueueSendDefaults {
@@ -58,6 +74,12 @@ export const QUEUE_SEND_DEFAULTS: Readonly<
   [QUEUE_NAMES.UPLOAD_EXPIRE]: {
     retryLimit: 3,
     retryDelay: 60,
+    retryBackoff: true,
+    expireInSeconds: 300,
+  },
+  [QUEUE_NAMES.VIDEO_DELETE]: {
+    retryLimit: 3,
+    retryDelay: 30,
     retryBackoff: true,
     expireInSeconds: 300,
   },
