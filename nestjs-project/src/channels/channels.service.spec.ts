@@ -6,7 +6,13 @@ import {
 import { ChannelsService } from './channels.service';
 import { Channel } from './entities/channel.entity';
 
-function makeManager(overrides: Record<string, jest.Mock> = {}): any {
+type ManagerMock = {
+  findOne: jest.Mock;
+  create: jest.Mock;
+  save: jest.Mock;
+};
+
+function makeManager(overrides: Partial<ManagerMock> = {}): ManagerMock {
   return {
     findOne: jest.fn(),
     create: jest.fn(),
@@ -28,16 +34,25 @@ function makeChannel(nickname: string): Channel {
 }
 
 function makeUniqueError(): QueryFailedError {
-  const err = new QueryFailedError('INSERT', [], new Error()) as any;
+  const err = new QueryFailedError(
+    'INSERT',
+    [],
+    new Error(),
+  ) as QueryFailedError & {
+    code: string;
+    detail: string;
+  };
   err.code = '23505';
   err.detail = 'Key (nickname)=(abc) already exists.';
   return err;
 }
 
-function makeDataSource(manager: any): any {
+function makeDataSource(manager: ManagerMock): DataSource {
   return {
-    transaction: jest.fn((cb: (manager: any) => Promise<any>) => cb(manager)),
-  };
+    transaction: jest.fn((cb: (m: ManagerMock) => Promise<unknown>) =>
+      cb(manager),
+    ),
+  } as unknown as DataSource;
 }
 
 describe('ChannelsService', () => {
@@ -135,6 +150,31 @@ describe('ChannelsService', () => {
       ).rejects.toThrow('Connection lost');
       expect(manager.save).toHaveBeenCalledTimes(1);
     });
+
+    it.each(['admin', 'me', 'ab'])(
+      'starts from a suffixed nickname when the prefix "%s" is reserved or shorter than 3 chars',
+      async (prefix) => {
+        const manager = makeManager({
+          findOne: jest.fn().mockResolvedValue(null),
+          create: jest.fn((_entity: unknown, data: Partial<Channel>) => data),
+          save: jest.fn((data: Partial<Channel>) => Promise.resolve(data)),
+        });
+        const service = new ChannelsService(makeDataSource(manager));
+
+        const result = await service.createChannel(
+          'user-id',
+          `${prefix}@example.com`,
+        );
+
+        const suffixed = new RegExp(`^${prefix}_[0-9a-f]{3}$`);
+        expect(result.nickname).toMatch(suffixed);
+        expect(result.name).toBe(prefix);
+        expect(manager.findOne).toHaveBeenCalledTimes(1);
+        expect(manager.findOne).toHaveBeenCalledWith(Channel, {
+          where: { nickname: expect.stringMatching(suffixed) as string },
+        });
+      },
+    );
   });
   describe('updateChannel', () => {
     function setup(owned: Channel, holder: Channel | null = null) {

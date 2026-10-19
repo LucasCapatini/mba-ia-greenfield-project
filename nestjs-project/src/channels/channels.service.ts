@@ -10,7 +10,11 @@ import type {
   ChannelResponse,
 } from './dto/channel-response.dto';
 import type { UpdateChannelDto } from './dto/update-channel.dto';
-import { appendRandomSuffix, sanitizeNickname } from './nickname.util';
+import {
+  appendRandomSuffix,
+  isUsableNickname,
+  sanitizeNickname,
+} from './nickname.util';
 import { Channel } from './entities/channel.entity';
 
 const PG_UNIQUE_VIOLATION = '23505';
@@ -142,7 +146,10 @@ export class ChannelsService {
     const baseNickname = sanitizeNickname(email.split('@')[0]);
 
     return this.dataSource.transaction(async (manager) => {
-      let nickname = baseNickname;
+      // Prefixo reservado ou com menos de 3 caracteres: o primeiro candidato já leva sufixo.
+      let nickname = isUsableNickname(baseNickname)
+        ? baseNickname
+        : appendRandomSuffix(baseNickname);
 
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         const existing = await manager.findOne(Channel, {
