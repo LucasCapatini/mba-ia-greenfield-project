@@ -45,12 +45,14 @@ export default async function EditVideoPage({ params }: EditVideoPageProps) {
   }
 
   let streamUrl: string | null = null
+  let streamExpiresAt: string | null = null
   if (video.processing_status === "ready") {
     const playback = await upstream.GET("/videos/{publicId}/playback", {
       params: { path: { publicId } },
       headers: auth,
     })
     streamUrl = playback.data?.stream_url ?? null
+    streamExpiresAt = playback.data?.expires_at ?? null
   }
 
   return (
@@ -63,6 +65,7 @@ export default async function EditVideoPage({ params }: EditVideoPageProps) {
           categories={categoriesResult.data ?? []}
           origin={origin}
           streamUrl={streamUrl}
+          streamExpiresAt={streamExpiresAt}
         />
       </Card>
     </main>
