@@ -36,6 +36,10 @@ export function createTestDataSource(
  * (schema `QUEUE_SCHEMA`, criado pelo próprio pg-boss — fora do TypeORM) quando existirem.
  */
 export async function cleanAllTables(dataSource: DataSource): Promise<void> {
+  await dataSource.query('DELETE FROM "comment_reactions"');
+  await dataSource.query('DELETE FROM "comments"');
+  await dataSource.query('DELETE FROM "video_reactions"');
+  await dataSource.query('DELETE FROM "subscriptions"');
   await dataSource.query('DELETE FROM "video_views"');
   await dataSource.query('DELETE FROM "video_uploads"');
   await dataSource.query('DELETE FROM "videos"');

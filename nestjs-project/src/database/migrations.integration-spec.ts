@@ -10,6 +10,7 @@ import { CreateCategories1792416126626 } from './migrations/1792416126626-Create
 import { SeedCategories1792416144429 } from './migrations/1792416144429-SeedCategories';
 import { ExtendVideosForPublishing1792416589954 } from './migrations/1792416589954-ExtendVideosForPublishing';
 import { CreateVideoViews1792458459333 } from './migrations/1792458459333-CreateVideoViews';
+import { CreateSocialInteractions1792472801299 } from './migrations/1792472801299-CreateSocialInteractions';
 
 const PUBLISHING_COLUMNS = [
   'title',
@@ -33,6 +34,17 @@ const MANAGED_TABLES = [
   'video_uploads',
   'categories',
   'video_views',
+  'video_reactions',
+  'comments',
+  'comment_reactions',
+  'subscriptions',
+];
+
+const SOCIAL_TABLES = [
+  'video_reactions',
+  'comments',
+  'comment_reactions',
+  'subscriptions',
 ];
 
 const MIGRATIONS = [
@@ -43,6 +55,7 @@ const MIGRATIONS = [
   SeedCategories1792416144429,
   ExtendVideosForPublishing1792416589954,
   CreateVideoViews1792458459333,
+  CreateSocialInteractions1792472801299,
 ];
 
 describe('Database migrations (integration)', () => {
@@ -68,6 +81,7 @@ describe('Database migrations (integration)', () => {
     await dataSource.query(
       `DROP TYPE IF EXISTS "public"."verification_tokens_type_enum"`,
     );
+    await dataSource.query(`DROP TYPE IF EXISTS "public"."reaction_value"`);
   });
 
   afterAll(async () => {
@@ -275,6 +289,59 @@ describe('Database migrations (integration)', () => {
        WHERE tc.table_name = 'video_views'`,
     );
     expect(fks.map((row) => row.delete_rule)).toEqual(['CASCADE']);
+  });
+
+  it('should create the social tables, their cascading FKs and channels.subscriber_count', async () => {
+    const fks = await dataSource.query<
+      { constraint_name: string; delete_rule: string }[]
+    >(
+      `SELECT rc.constraint_name, rc.delete_rule
+       FROM information_schema.referential_constraints rc
+       JOIN information_schema.table_constraints tc ON tc.constraint_name = rc.constraint_name
+       WHERE tc.table_name = ANY($1::text[])
+       ORDER BY rc.constraint_name`,
+      [SOCIAL_TABLES],
+    );
+    expect(fks.map((row) => row.constraint_name)).toEqual([
+      'FK_comment_reactions_comment',
+      'FK_comment_reactions_user',
+      'FK_comments_parent',
+      'FK_comments_user',
+      'FK_comments_video',
+      'FK_subscriptions_channel',
+      'FK_subscriptions_user',
+      'FK_video_reactions_user',
+      'FK_video_reactions_video',
+    ]);
+    expect(fks.every((row) => row.delete_rule === 'CASCADE')).toBe(true);
+
+    const [column] = await dataSource.query<
+      { data_type: string; column_default: string }[]
+    >(
+      `SELECT data_type, column_default FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'channels' AND column_name = 'subscriber_count'`,
+    );
+    expect(column).toMatchObject({ data_type: 'integer', column_default: '0' });
+  });
+
+  it('should revert the social interactions migration', async () => {
+    await dataSource.undoLastMigration();
+
+    const tables = await dataSource.query<{ table_name: string }[]>(
+      `SELECT table_name FROM information_schema.tables
+       WHERE table_schema = 'public' AND table_name = ANY($1::text[])`,
+      [SOCIAL_TABLES],
+    );
+    expect(tables).toHaveLength(0);
+    const columns = await dataSource.query<{ column_name: string }[]>(
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'channels' AND column_name = 'subscriber_count'`,
+    );
+    expect(columns).toHaveLength(0);
+    const types = await dataSource.query<{ typname: string }[]>(
+      `SELECT typname FROM pg_type WHERE typname = 'reaction_value'`,
+    );
+    expect(types).toHaveLength(0);
   });
 
   it('should revert the video views migration and drop its table', async () => {
