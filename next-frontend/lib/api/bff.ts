@@ -85,9 +85,29 @@ export async function readJson<T>(request: Request): Promise<T | null> {
   }
 }
 
+/**
+ * `cursor`/`limit` da query do navegador para repassar ao upstream nas listagens keyset; os
+ * ausentes ficam de fora (o upstream aplica os padrões e valida — 400 passa direto).
+ */
+export function cursorQuery(request: Request): { cursor?: string; limit?: number } {
+  const params = new URL(request.url).searchParams;
+  const cursor = params.get("cursor");
+  const limit = params.get("limit");
+  return {
+    ...(cursor !== null && { cursor }),
+    ...(limit !== null && { limit: Number(limit) }),
+  };
+}
+
 export function invalidBody(message = "Request body must be valid JSON"): Response {
   return errorResponse(400, "VALIDATION_ERROR", message);
 }
 
 /** Contexto das rotas `app/api/videos/[publicId]/**` (no Next 16 `params` é uma Promise). */
 export type PublicIdContext = { params: Promise<{ publicId: string }> };
+
+/** Contexto das rotas `app/api/comments/[commentId]/**`. */
+export type CommentIdContext = { params: Promise<{ commentId: string }> };
+
+/** Contexto das rotas `app/api/channels/[nickname]/**`. */
+export type NicknameContext = { params: Promise<{ nickname: string }> };
