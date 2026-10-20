@@ -19,6 +19,8 @@ const iconButtonVariants = cva(
         default: "bg-primary text-primary-foreground",
         outline: "border-foreground bg-transparent text-foreground hover:bg-muted/40",
         ghost: "bg-transparent text-foreground hover:bg-muted",
+        // Circular filled action beside pill buttons (watch page "⋮"); radius in compoundVariants.
+        secondary: "border border-border bg-secondary text-secondary-foreground",
       },
       size: {
         sm: "size-8 rounded-[var(--radius-2)] [&_svg:not([class*='size-'])]:size-4",
@@ -26,6 +28,8 @@ const iconButtonVariants = cva(
         lg: "size-10 rounded-[var(--radius-3)] [&_svg:not([class*='size-'])]:size-6",
       },
     },
+    // After the size classes, so the circle wins over each size's radius.
+    compoundVariants: [{ variant: "secondary", class: "rounded-[var(--radius-full)]" }],
     defaultVariants: {
       variant: "ghost",
       size: "md",
