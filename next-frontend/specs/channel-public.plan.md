@@ -10,7 +10,7 @@ target_file: tests/channel-public.e2e-spec.ts
 
 ## Application Overview
 
-`/channel/{nickname}` é uma página pública renderizada no servidor: o RSC chama `GET /channels/{nickname}` e `GET /channels/{nickname}/videos` via `upstream` **sem** token, e `generateMetadata` define o título "{name} (@{nickname}) — StreamTube" (`video-channel-management/TD-07`, `TD-08`, `TD-12`). A página mostra banner e avatar placeholder, nome, `@nickname`, "{video_count} videos", descrição, as abas (só "Videos" nesta fase), os chips Latest/Popular/Oldest (escrevem `?sort=`) e a grade de cards dos vídeos `published` + `public`, cada um com link para `/watch/{public_id}` e thumbnail por URL pública estável (`TD-10`). "Load more" pagina por `?cursor=` (`TD-06`). Nickname inexistente → página 404. Inscrição, sino e contador de inscritos ficam para a Fase 06.
+`/channel/{nickname}` é uma página pública renderizada no servidor: o RSC chama `GET /channels/{nickname}` e `GET /channels/{nickname}/videos` via `upstream` **sem** token, e `generateMetadata` define o título "{name} (@{nickname}) — StreamTube" (`video-channel-management/TD-07`, `TD-08`, `TD-12`). A página mostra banner e avatar placeholder, nome, `@nickname`, "{video_count} videos", descrição, as abas (só "Videos" nesta fase), os chips Latest/Popular/Oldest (escrevem `?sort=`) e a grade de cards dos vídeos `published` + `public`, cada um com link para `/watch/{public_id}` e thumbnail por URL pública estável (`TD-10`). as páginas seguintes chegam por scroll infinito via `GET /api/channels/{nickname}/videos`, sem trocar a URL (`home-search-production/TD-04`, substitui o "Load more" por `?cursor=` de `TD-06`). Nickname inexistente → página 404. Inscrição, sino e contador de inscritos ficam para a Fase 06.
 
 **Atenção para o implementador (fixtures — SI-04.10):** os handlers de `channels.ts` devolvem para `GET /channels/tech_mastery` `{ nickname: "tech_mastery", name: "Tech Mastery", description: "Tutoriais de tecnologia", video_count: 24, created_at }` e, em `GET /channels/tech_mastery/videos`, 24 `VideoCardItem` (página de 20, `next_cursor` para os 4 restantes) com `view_count` distintos e `thumbnail_url` em `http://localhost:9000/streamtube-videos/thumbnails/<id>/auto.jpg?v=1`; `sort=popular` ordena por `view_count`. `GET /channels/nao_existe` → `404 CHANNEL_NOT_FOUND`. As imagens são atendidas no spec por `page.route('http://localhost:9000/**')` com um PNG pequeno (nunca `/api/**`). A página não depende de login.
 
@@ -43,16 +43,16 @@ target_file: tests/channel-public.e2e-spec.ts
 #### 2.1. sort-popular-and-load-more
 
 **Covers AC:** #2
-**Source:** auto
-**Last sync:** 2026-10-19T03:27:58Z
+**Source:** manual
+**Last sync:** 2026-10-20T00:00:00Z
 
 **Steps:**
   1. Usuário clica no chip "Popular"
     - expect: a URL passa a conter `sort=popular` (sem `cursor`) e o chip "Popular" fica ativo
     - expect: o primeiro card é o de maior número de visualizações
-  2. Usuário clica em "Load more"
-    - expect: a URL ganha `cursor=` mantendo `sort=popular`
-    - expect: os 4 cards restantes aparecem e o botão "Load more" some
+  2. Usuário rola até o fim da grade (sentinela do scroll infinito — `home-search-production/TD-04`)
+    - expect: os 4 cards restantes aparecem sem trocar a URL (continua `sort=popular`, sem `cursor`)
+    - expect: o sentinela some quando não há mais páginas
   3. Usuário abre `/channel/tech_mastery?sort=invalido`
     - expect: a página renderiza com o chip "Latest" ativo (valor inválido ignorado)
 

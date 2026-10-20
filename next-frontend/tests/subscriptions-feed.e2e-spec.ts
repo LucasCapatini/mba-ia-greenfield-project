@@ -81,14 +81,16 @@ test.describe("subscriptions-feed", () => {
     await waitForHydration(page)
     await expect(cards(page)).toHaveCount(20)
 
-    await page.getByRole("button", { name: "Load more" }).click()
+    // Scroll infinito (home-search-production/TD-04): o sentinela abaixo do grid traz a página seguinte.
+    await page.locator("[data-slot='infinite-scroll-sentinel']").scrollIntoViewIfNeeded()
 
     await expect(cards(page)).toHaveCount(24)
+    expect(page.url()).not.toContain("cursor=")
     const ids = await cards(page)
       .getByRole("link", { name: /^Tutorial/ })
       .evaluateAll((links) => links.map((link) => link.getAttribute("href")))
     expect(new Set(ids).size).toBe(24)
-    await expect(page.getByRole("button", { name: "Load more" })).toHaveCount(0)
+    await expect(page.locator("[data-slot='infinite-scroll-sentinel']")).toHaveCount(0)
   })
 
   test("2.3 empty-state-without-subscriptions", async ({ page }) => {

@@ -64,11 +64,14 @@ test.describe("channel-public", () => {
     await expect(cards(page).first()).toContainText("Tutorial 18")
     await expect(cards(page).first()).toContainText("23.5K views")
 
-    await page.getByRole("button", { name: "Load more" }).click()
-    await expect(page).toHaveURL(/cursor=/)
-    expect(page.url()).toContain("sort=popular")
+    // Scroll infinito (home-search-production/TD-04): rolar até o sentinela traz os 4 restantes
+    // sem trocar a URL.
+    await expect(cards(page)).toHaveCount(20)
+    await page.locator("[data-slot='infinite-scroll-sentinel']").scrollIntoViewIfNeeded()
     await expect(cards(page)).toHaveCount(24)
-    await expect(page.getByRole("button", { name: "Load more" })).toHaveCount(0)
+    expect(page.url()).not.toContain("cursor=")
+    expect(page.url()).toContain("sort=popular")
+    await expect(page.locator("[data-slot='infinite-scroll-sentinel']")).toHaveCount(0)
 
     await page.goto("/channel/tech_mastery?sort=invalido")
     await expect(page.getByRole("radio", { name: "Latest" })).toHaveAttribute("aria-checked", "true")
