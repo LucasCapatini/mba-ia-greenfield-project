@@ -52,6 +52,7 @@ function renderButton(hasCustomThumbnail = false) {
 }
 
 beforeEach(() => {
+  router.push.mockClear()
   refreshMock.mockClear()
   toastSuccess.mockClear()
   toastError.mockClear()
@@ -127,6 +128,19 @@ describe("<ThumbnailUploadButton />", () => {
 
     await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1))
     expect(calls).toEqual([{ method: "DELETE", file: null }])
+  })
+
+  it("sends an expired session to login and back to the edit page, slashes readable", async () => {
+    const user = userEvent.setup()
+    mockThumbnail(() => new HttpResponse(null, { status: 401 }))
+    renderButton()
+
+    await user.upload(screen.getByLabelText("Change Thumbnail"), image("capa.png", "image/png"))
+
+    await waitFor(() =>
+      expect(router.push).toHaveBeenCalledWith("/login?returnTo=/studio/videos/vid-1/edit")
+    )
+    expect(refreshMock).not.toHaveBeenCalled()
   })
 
   it("only offers removal when the thumbnail is custom", () => {

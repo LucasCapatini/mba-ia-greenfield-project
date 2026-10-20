@@ -7,6 +7,7 @@ import { Controller, useForm, useWatch } from "react-hook-form"
 import { toast } from "sonner"
 import { z } from "zod"
 
+import { loginHref } from "@/lib/auth/return-to"
 import { cn } from "@/lib/utils"
 import type {
   ApiErrorEnvelope,
@@ -144,7 +145,7 @@ function VideoEditForm({
   const descriptionLength = useWatch({ control, name: "description" })?.length ?? 0
 
   function toLogin() {
-    router.push(`/login?returnTo=${encodeURIComponent(pathname)}`)
+    router.push(loginHref(pathname))
   }
 
   async function save(values: VideoFormValues): Promise<void> {

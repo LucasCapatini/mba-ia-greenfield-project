@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
+import { loginHref } from "@/lib/auth/return-to"
 import { cn } from "@/lib/utils"
 import { FieldError } from "@/components/auth/field-error"
 import { ChannelAvatar } from "@/components/channel/channel-avatar"
@@ -88,7 +89,7 @@ function CommentComposer({
     return (
       <p data-slot="comment-composer" data-state="anonymous" className={cn("text-body-md", className)}>
         <Link
-          href={`/login?returnTo=${encodeURIComponent(returnTo).replaceAll("%2F", "/")}`}
+          href={loginHref(returnTo)}
           className="text-link hover:underline"
         >
           Sign in to comment
