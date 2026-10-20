@@ -124,7 +124,7 @@ function CommentComposer({
       onSubmit={submit}
       className={cn("flex w-full gap-4", className)}
     >
-      {avatarName ? <ChannelAvatar name={avatarName} className="size-10 shrink-0" /> : null}
+      {avatarName ? <ChannelAvatar name={avatarName} size="md" className="shrink-0" /> : null}
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <label htmlFor={fieldId} className="sr-only">
           {label}

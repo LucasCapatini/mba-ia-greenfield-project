@@ -151,8 +151,8 @@ function VideoCard({
           <Link href={channelHref} tabIndex={-1} aria-hidden="true" className="shrink-0">
             <ChannelAvatar
               name={video.channel.name}
+              size="md"
               aria-hidden="true"
-              className="size-10 [&_[data-slot=avatar-fallback]]:text-label-md"
             />
           </Link>
           <div className="flex min-w-0 flex-col gap-2">

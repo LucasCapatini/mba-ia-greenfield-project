@@ -54,7 +54,7 @@ function CommentItem({
       className={cn("flex w-full gap-4", className)}
       {...props}
     >
-      <ChannelAvatar name={comment.author.name} className="size-10 shrink-0" />
+      <ChannelAvatar name={comment.author.name} size="md" className="shrink-0" />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-start justify-between gap-2">
           <p className="flex flex-wrap items-baseline gap-2">
