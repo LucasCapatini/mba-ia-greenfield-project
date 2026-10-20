@@ -88,6 +88,7 @@ describe('VideosService (integration — DB + RustFS + pg-boss reais)', () => {
       await abortAllMultipart(client, process.env.S3_BUCKET!, key);
       await cleanPrefix(client, process.env.S3_BUCKET!, key);
     }
+    await cleanAllTables(dataSource);
     await module.close();
   });
 
