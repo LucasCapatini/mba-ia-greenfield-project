@@ -66,6 +66,7 @@ describe("publicRead", () => {
       userId: "u1",
       email: "viewer@example.com",
       channelSlug: "viewer",
+      channelName: "",
     });
     const authorizations: (string | null)[] = [];
     let refreshCalls = 0;

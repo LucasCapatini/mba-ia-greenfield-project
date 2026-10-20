@@ -77,6 +77,13 @@ test.describe("watch-social", () => {
     await expect(header(page)).toHaveText("25 Comments")
     await expect(page.getByRole("button", { name: "Sort by: Latest" })).toBeVisible()
     await expect(page.getByLabel("Add a comment")).toBeVisible()
+    // Iniciais do avatar a partir do nome do canal guardado na sessão (não do nickname).
+    await expect(
+      page
+        .locator("[data-slot='comment-composer']")
+        .first()
+        .getByRole("img", { name: "Studio Canal" })
+    ).toHaveText("SC")
     await expect(roots(page)).toHaveCount(20)
     await expect(page.getByRole("button", { name: "Comment actions" })).toHaveCount(1)
     await expect(

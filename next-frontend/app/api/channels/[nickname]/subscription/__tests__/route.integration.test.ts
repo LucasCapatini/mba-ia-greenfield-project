@@ -49,6 +49,7 @@ async function login(accessToken = "active-at") {
     userId: "u1",
     email: "studio@example.com",
     channelSlug: "studio_canal",
+    channelName: "",
   });
 }
 

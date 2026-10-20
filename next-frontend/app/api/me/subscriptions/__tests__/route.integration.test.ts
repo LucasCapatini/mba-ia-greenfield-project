@@ -56,6 +56,7 @@ describe("GET /api/me/subscriptions", () => {
       userId: "u1",
       email: "studio@example.com",
       channelSlug: "studio_canal",
+      channelName: "",
     });
     const calls = recordUpstreamCalls();
 

@@ -34,6 +34,8 @@ async function tryRefresh(): Promise<boolean> {
     userId: session.userId,
     email: session.email,
     channelSlug: session.channelSlug,
+    // Cookies emitidos antes do campo existir não trazem channelName.
+    channelName: session.channelName ?? "",
   });
 
   return true;
