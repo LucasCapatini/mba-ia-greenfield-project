@@ -35,7 +35,8 @@ test.describe("studio-channel", () => {
     // 1. Visualizar e editar o canal
 
     test("1.1 settings-show-current-channel", async ({ page }) => {
-      await page.getByRole("link", { name: "Meu canal" }).click()
+      await page.getByRole("button", { name: "Account" }).click()
+      await page.getByRole("dialog", { name: "Account" }).getByRole("link", { name: "Edit Channel" }).click()
 
       await expect(page).toHaveURL(/\/studio\/channel$/)
       await expect(page.getByRole("heading", { level: 1, name: "Channel Settings" })).toBeVisible()

@@ -1,5 +1,6 @@
 "use client"
 
+import { useId } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
@@ -17,6 +18,8 @@ import { cn } from "@/lib/utils"
 function SideNavSubscriptions() {
   const subscriptions = useSubscriptions()
   const pathname = usePathname()
+  // The menu can be in the lg+ column and in the drawer at the same time — ids must be unique.
+  const headingId = useId()
 
   if (!subscriptions) {
     return null
@@ -24,8 +27,8 @@ function SideNavSubscriptions() {
   const { channels, hasMore, loadingMore, loadMore } = subscriptions
 
   return (
-    <section aria-labelledby="side-nav-subscriptions" className="flex flex-col gap-1">
-      <h2 id="side-nav-subscriptions" className="px-3 py-1.5 text-label-lg text-sidebar-foreground">
+    <section aria-labelledby={headingId} className="flex flex-col gap-1">
+      <h2 id={headingId} className="px-3 py-1.5 text-label-lg text-sidebar-foreground">
         Subscriptions
       </h2>
       {channels.length === 0 ? (

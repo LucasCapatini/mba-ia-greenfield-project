@@ -20,6 +20,7 @@ describe("useSession", () => {
       userId: "user-1",
       email: "alice@example.com",
       channelSlug: "alice",
+      channelName: "Alice",
       isLoggedIn: true,
     };
     const { result } = renderHook(() => useSession(), { wrapper: makeWrapper(session) });
@@ -34,6 +35,7 @@ describe("useSession", () => {
       userId: "",
       email: "",
       channelSlug: "",
+      channelName: "",
       isLoggedIn: false,
     };
     const { result } = renderHook(() => useSession(), { wrapper: makeWrapper(session) });

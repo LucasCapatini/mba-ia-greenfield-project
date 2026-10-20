@@ -1,122 +1,142 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { http, HttpResponse } from "msw"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SessionProvider } from "@/components/auth/session-provider"
 import type { SessionState } from "@/components/auth/session-provider"
-import { server } from "@/mocks/server"
+import { NavStateProvider } from "@/components/layout/nav-state-provider"
+
 import { AppHeader } from "../app-header"
 
-const { pushMock, refreshMock } = vi.hoisted(() => ({
-  pushMock: vi.fn(),
-  refreshMock: vi.fn(),
+const { navigation, router } = vi.hoisted(() => ({
+  navigation: { pathname: "/", search: "" },
+  router: { push: vi.fn(), refresh: vi.fn(), replace: vi.fn() },
 }))
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: pushMock, refresh: refreshMock }),
+  useRouter: () => router,
+  usePathname: () => navigation.pathname,
+  useSearchParams: () => new URLSearchParams(navigation.search),
 }))
 
 const anonymous: SessionState = {
   userId: "",
   email: "",
   channelSlug: "",
+  channelName: "",
   isLoggedIn: false,
 }
 
 const authenticated: SessionState = {
   userId: "user-1",
   email: "alice@example.com",
-  channelSlug: "alice",
+  channelSlug: "alice_ch",
+  channelName: "Alice Channel",
   isLoggedIn: true,
 }
 
-function renderHeader(session: SessionState) {
+function mockViewport(lgUp: boolean) {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn().mockImplementation((query: string) => ({
+      matches: lgUp,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }))
+  )
+}
+
+function renderHeader(session: SessionState, initialMode: "expanded" | "mini" = "expanded") {
   return render(
     <SessionProvider initialSession={session}>
-      <AppHeader />
+      <NavStateProvider initialMode={initialMode}>
+        <AppHeader />
+      </NavStateProvider>
     </SessionProvider>
   )
 }
 
 beforeEach(() => {
-  pushMock.mockClear()
-  refreshMock.mockClear()
+  navigation.pathname = "/"
+  navigation.search = ""
+  document.cookie = "side_nav=; path=/; max-age=0"
+  vi.unstubAllGlobals()
+  mockViewport(true)
 })
 
 describe("<AppHeader />", () => {
-  it("anonymous: shows Entrar and Criar conta links and no Sair button", () => {
+  it("anonymous: shows menu, logo, search and Sign in back to the current page", () => {
+    navigation.pathname = "/watch/abc"
     renderHeader(anonymous)
 
-    expect(screen.getByRole("link", { name: "Entrar" })).toHaveAttribute(
+    const header = screen.getByRole("banner")
+    expect(header).toHaveAttribute("data-session", "anonymous")
+    expect(within(header).getByRole("button", { name: "Menu" })).toBeInTheDocument()
+    expect(within(header).getByRole("link", { name: "StreamTube home" })).toHaveAttribute("href", "/")
+    expect(within(header).getByRole("search", { name: "Search videos" })).toBeInTheDocument()
+    expect(within(header).getByRole("link", { name: "Sign in" })).toHaveAttribute(
       "href",
-      "/login"
+      "/login?returnTo=/watch/abc"
     )
-    expect(screen.getByRole("link", { name: "Criar conta" })).toHaveAttribute(
-      "href",
-      "/signup"
-    )
-    expect(screen.queryByRole("button", { name: "Sair" })).not.toBeInTheDocument()
-    expect(screen.getByRole("banner")).toHaveAttribute("data-session", "anonymous")
+    expect(within(header).queryByRole("button", { name: "Account" })).not.toBeInTheDocument()
+    expect(within(header).queryByRole("link", { name: "Upload video" })).not.toBeInTheDocument()
   })
 
-  it("authenticated: shows the user's e-mail and a Sair button, no sign-in links", () => {
-    renderHeader(authenticated)
-
-    expect(screen.getByText("alice@example.com")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Sair" })).toBeInTheDocument()
-    expect(screen.queryByRole("link", { name: "Entrar" })).not.toBeInTheDocument()
-    expect(screen.getByRole("banner")).toHaveAttribute(
-      "data-session",
-      "authenticated"
-    )
-  })
-
-  it("authenticated: links to the studio (Meus vídeos, Meu canal) before Sair", () => {
-    renderHeader(authenticated)
-
-    const videos = screen.getByRole("link", { name: "Meus vídeos" })
-    const channel = screen.getByRole("link", { name: "Meu canal" })
-    const logout = screen.getByRole("button", { name: "Sair" })
-    expect(videos).toHaveAttribute("href", "/studio/videos")
-    expect(channel).toHaveAttribute("href", "/studio/channel")
-    expect(videos.compareDocumentPosition(logout) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(channel.compareDocumentPosition(logout) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  })
-
-  it("anonymous: renders no studio links", () => {
+  it("anonymous: Sign in keeps the query string of the current page", () => {
+    navigation.pathname = "/results"
+    navigation.search = "q=lofi"
     renderHeader(anonymous)
 
-    expect(screen.queryByRole("link", { name: "Meus vídeos" })).not.toBeInTheDocument()
-    expect(screen.queryByRole("link", { name: "Meu canal" })).not.toBeInTheDocument()
-    expect(document.querySelector("a[href^='/studio']")).toBeNull()
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+      "href",
+      "/login?returnTo=/results%3Fq%3Dlofi"
+    )
+    expect(screen.getByRole("searchbox", { name: "Search" })).toHaveValue("lofi")
   })
 
-  it("Sair posts to /api/auth/logout, then pushes to / and refreshes the RSC tree", async () => {
+  it("authenticated: shows the upload shortcut and the avatar with the channel initials, no Portuguese labels", () => {
+    renderHeader(authenticated)
+
+    const header = screen.getByRole("banner")
+    expect(header).toHaveAttribute("data-session", "authenticated")
+    expect(within(header).getByRole("link", { name: "Upload video" })).toHaveAttribute(
+      "href",
+      "/studio/upload"
+    )
+    expect(within(header).getByRole("button", { name: "Account" })).toHaveTextContent("AC")
+    expect(within(header).queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument()
+    for (const text of ["Sair", "Entrar", "Meus vídeos", "Meu canal", "alice@example.com"]) {
+      expect(header).not.toHaveTextContent(text)
+    }
+  })
+
+  it("on lg+, ≡ toggles mini/expanded, reflects it in aria-expanded and persists the cookie", async () => {
     const user = userEvent.setup()
-    let calls = 0
-    server.use(
-      http.post("/api/auth/logout", () => {
-        calls += 1
-        return new HttpResponse(null, { status: 204 })
-      })
-    )
     renderHeader(authenticated)
+    const menu = screen.getByRole("button", { name: "Menu" })
+    expect(menu).toHaveAttribute("aria-expanded", "true")
 
-    await user.click(screen.getByRole("button", { name: "Sair" }))
+    await user.click(menu)
+    expect(menu).toHaveAttribute("aria-expanded", "false")
+    expect(document.cookie).toContain("side_nav=mini")
 
-    await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1))
-    expect(calls).toBe(1)
-    expect(pushMock).toHaveBeenCalledWith("/")
+    await user.click(menu)
+    expect(menu).toHaveAttribute("aria-expanded", "true")
+    expect(document.cookie).not.toContain("side_nav=mini")
   })
 
-  it("home link points to / and carries the brand", () => {
-    renderHeader(anonymous)
+  it("below lg, ≡ opens the drawer instead of changing the column mode", async () => {
+    const user = userEvent.setup()
+    mockViewport(false)
+    renderHeader(authenticated, "mini")
+    const menu = screen.getByRole("button", { name: "Menu" })
+    expect(menu).toHaveAttribute("aria-expanded", "false")
 
-    expect(screen.getByRole("link", { name: "StreamTube home" })).toHaveAttribute(
-      "href",
-      "/"
-    )
+    await user.click(menu)
+
+    expect(menu).toHaveAttribute("aria-expanded", "true")
+    expect(document.cookie).not.toContain("side_nav=mini")
   })
 })

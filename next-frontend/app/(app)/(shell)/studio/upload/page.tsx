@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 // estúdio; o dropzone abre a sessão multipart e leva à tela de processamento.
 export default function StudioUploadPage() {
   return (
-    <main className="flex w-full flex-col gap-6 px-6 pt-8 pb-6">
+    <main className="flex w-full flex-col gap-6 px-4 pt-8 pb-6 sm:px-6">
       <h1 className="text-h1 text-foreground">Upload video</h1>
       <UploadDropzone />
     </main>

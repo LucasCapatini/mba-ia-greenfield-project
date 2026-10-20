@@ -34,9 +34,17 @@ test.describe("channel-social", () => {
   // 1. Menu lateral
 
   test("1.1 side-nav-only-with-session", async ({ page }) => {
+    // Anônimo: menu com "Home" e o convite para entrar (home-search-production/TD-05).
     await page.goto("/channel/tech_mastery")
     await expect(page.getByRole("heading", { level: 1, name: "Tech Mastery" })).toBeVisible()
-    await expect(mainNav(page)).toHaveCount(0)
+    await expect(mainNav(page).getByRole("link", { name: "Home" })).toHaveAttribute("href", "/")
+    await expect(mainNav(page).getByText("Sign in to see your subscriptions")).toBeVisible()
+    await expect(mainNav(page).getByRole("link", { name: "Sign in" })).toHaveAttribute(
+      "href",
+      "/login?returnTo=/channel/tech_mastery"
+    )
+    await expect(mainNav(page).getByRole("link", { name: "Subscriptions" })).toHaveCount(0)
+    await expect(mainNav(page).getByRole("link", { name: "Your videos" })).toHaveCount(0)
 
     await login(page)
     await page.goto("/channel/tech_mastery")
