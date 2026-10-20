@@ -42,7 +42,7 @@
 
   Root Cause Analysis
 
-  The handle collision issue (john@gmail.com and john@outlook.com both producing
+  The handle collision issue (john@[domínio] and john@outlook.com both producing
    handle john) was missed because it's a data flow edge case: two individually
   reasonable specifications (unique handle constraint + derivation from email
   prefix) combine to create an unaddressed failure scenario.
@@ -65,7 +65,7 @@
 
 ● Here's a summary of the problem and the proposed fix:
 
-  The gap: The handle collision (john@gmail.com + john@outlook.com → both get
+  The gap: The handle collision (john@[domínio] + john@outlook.com → both get
   handle john) wasn't caught because it's a cross-specification constraint 
   conflict — two individually correct specs combine to create an unaddressed
   failure path. None of the 4 existing validation categories guide the agent to
@@ -140,7 +140,7 @@
 
      During Phase 02 planning (auth), the validation step failed to catch that
      channel handles derived from email prefixes can collide when two users
-     share the same prefix (e.g., john@gmail.com and john@outlook.com → both
+     share the same prefix (e.g., john@[domínio] and john@outlook.com → both
      produce handle john). The user had to point this out manually.
 
      The root issue is broader than derived values: functional requirements have
