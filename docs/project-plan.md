@@ -126,6 +126,8 @@ Página onde o usuário assiste ao vídeo com player funcional, descrição, sug
 
 **Entregáveis:** página de visualização com player funcional, sidebar de sugestões, download e acesso anônimo.
 
+_Status (2026-10-19): concluída (backend + frontend) — `docs/phases/phase-05-watch-page/` (`GET /videos/{publicId}` com o canal; `POST /videos/{publicId}/views` com dedup diária por espectador em `video_views` + job agendado `video-views.cleanup`; `GET /videos/{publicId}/related` com mesma categoria primeiro; IP real do visitante atrás do BFF via `TRUST_PROXY` + IP fixo do `next-frontend`; no frontend, BFF com sessão opcional, `VideoPlayer` com controles próprios, renovação da URL assinada e registro único de visualização, página `/watch/{publicId}` com estados 404/processando/erro e o mesmo player no preview do estúdio). Auditoria visual feita contra PNGs exportados do Figma (MCP sem cota). Pendências: o `X-Forwarded-For` enviado pelo navegador é mantido pelo `next start`, então o deploy precisa de um proxy reverso que o sobrescreva (`watch-page/TD-03`); volume nomeado para o `db`; `ip_range` na rede `streamtube`; colisão de nomes entre `--text-overlay` e `--color-overlay`; unificar a origem pública (`lib/request-origin.ts`) com a cópia da página de edição; alias do shadcn CLI que instalou o pacote npm `cn`._
+
 ---
 
 ### Fase 06 — Interações Sociais (Likes, Comentários, Inscrições)
