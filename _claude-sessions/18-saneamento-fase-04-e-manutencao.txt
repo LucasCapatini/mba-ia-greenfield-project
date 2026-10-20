@@ -72,7 +72,7 @@ Revisando a transcrição commitada: o e-mail não foi anonimizado e apareceu um
 
 ● Bash
     # Verify full anonymization on scratch copy
-    S="C:/Users/lucas/AppData/Local/Temp/claude/C--Users-lucas-source-repos-mba-ia-greenfield-project/840df3bb-1703-4034-a1dd-d7bddbe43e0e/scratchpad"; sed -i -e 's/lucascapatini@gmail\.com/[e-mail do usuário]/g' "$S/s17.txt"; grep -c -i -E "[domínio removido]|capatini@|@gmail" "$S/s17.txt"; grep -o -E "\"key\":\"team::[0-9]+\"" "$S/s17.txt" | sort -u
+    S="C:/Users/lucas/AppData/Local/Temp/claude/C--Users-lucas-source-repos-mba-ia-greenfield-project/840df3bb-1703-4034-a1dd-d7bddbe43e0e/scratchpad"; sed -i -e 's/lucascapatini@[domínio]\.com/[e-mail do usuário]/g' "$S/s17.txt"; grep -c -i -E "[domínio removido]|capatini@|@[domínio]" "$S/s17.txt"; grep -o -E "\"key\":\"team::[0-9]+\"" "$S/s17.txt" | sort -u
   ⎿ [Bash → resultado]
       0
       "key":"team::1133408809201095091"
@@ -104,12 +104,12 @@ git checkout -b docs/anonimizar-sessao-17
 
 sed -i \
   -e 's/lucas[\\]*\.capatini@[domínio removido][\\]*\.ai/[e-mail do usuário]/g' \
-  -e 's/lucascapatini@gmail[\\]*\.com/[e-mail do usuário]/g' \
+  -e 's/lucascapatini@[domínio][\\]*\.com/[e-mail do usuário]/g' \
   -e 's/[domínio removido]/[domínio]/g' \
   -e 's/team::[0-9]\+/team::[id]/g' \
   _claude-sessions/17-fase-04-gerenciamento-videos-canal.txt
 
-grep -c -i -E "[domínio removido]|capatini@|@gmail" _claude-sessions/17-fase-04-gerenciamento-videos-canal.txt   # deve dar 0
+grep -c -i -E "[domínio removido]|capatini@|@[domínio]" _claude-sessions/17-fase-04-gerenciamento-videos-canal.txt   # deve dar 0
 
 git add _claude-sessions/17-fase-04-gerenciamento-videos-canal.txt
 git commit -m "sessao 17: anonimiza e-mails e identificadores pessoais da transcrição" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -167,11 +167,11 @@ No linha:1 caractere:5
     + CategoryInfo          : ObjectNotFound: (-e:String) [], CommandNotFoundException
     + FullyQualifiedErrorId : CommandNotFoundException
 
-▓   lucasDell3250Lucas   ~\source\repos\mba-ia-greenfield-project  docs/anonimizar-sessao-17 ≢                  ~#@❯     -e 's/lucascapatini@gmail[\\]*\.com/[e-mail do usuário]/g' \
+▓   lucasDell3250Lucas   ~\source\repos\mba-ia-greenfield-project  docs/anonimizar-sessao-17 ≢                  ~#@❯     -e 's/lucascapatini@[domínio][\\]*\.com/[e-mail do usuário]/g' \
 -e : O termo '-e' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a
 grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente.
 No linha:1 caractere:5
-+     -e 's/lucascapatini@gmail[\\]*\.com/[e-mail do usuário]/g' \
++     -e 's/lucascapatini@[domínio][\\]*\.com/[e-mail do usuário]/g' \
 +     ~~
     + CategoryInfo          : ObjectNotFound: (-e:String) [], CommandNotFoundException
     + FullyQualifiedErrorId : CommandNotFoundException
@@ -197,7 +197,7 @@ No linha:1 caractere:5
 
 ● Bash
     # Run anonymization sed on the transcript via Git Bash
-    cd C:/Users/lucas/source/repos/mba-ia-greenfield-project && git branch --show-current && git status --short && F=_claude-sessions/17-fase-04-gerenciamento-videos-canal.txt && sed -i -e 's/lucas[\\]*\.capatini@[domínio removido][\\]*\.ai/[e-mail do usuário]/g' -e 's/lucascapatini@gmail[\\]*\.com/[e-mail do usuário]/g' -e 's/[domínio removido]/[domínio]/g' -e 's/team::[0-9]\+/team::[id]/g' "$F" && echo "restantes: $(grep -c -i -E '[domínio removido]|capatini@|@gmail' "$F")" && git diff --stat && file "$F"
+    cd C:/Users/lucas/source/repos/mba-ia-greenfield-project && git branch --show-current && git status --short && F=_claude-sessions/17-fase-04-gerenciamento-videos-canal.txt && sed -i -e 's/lucas[\\]*\.capatini@[domínio removido][\\]*\.ai/[e-mail do usuário]/g' -e 's/lucascapatini@[domínio][\\]*\.com/[e-mail do usuário]/g' -e 's/[domínio removido]/[domínio]/g' -e 's/team::[0-9]\+/team::[id]/g' "$F" && echo "restantes: $(grep -c -i -E '[domínio removido]|capatini@|@[domínio]' "$F")" && git diff --stat && file "$F"
   ⎿ [Bash → resultado]
       docs/anonimizar-sessao-17
       restantes: 0
@@ -230,9 +230,9 @@ O `sed` do Git Bash removeu cerca de 4.700 caracteres `\r` embutidos no arquivo,
     # Restore file and anonymize byte-safely with node
     cd C:/Users/lucas/source/repos/mba-ia-greenfield-project && F=_claude-sessions/17-fase-04-gerenciamento-videos-canal.txt && git checkout -- "$F" && node -e '
     const fs=require("fs");const f=process.argv[1];let s=fs.readFileSync(f,"utf8");
-    const rules=[[/lucas\\*\.capatini@[domínio removido]\\*\.ai/g,"[e-mail do usuário]"],[/lucascapatini@gmail\\*\.com/g,"[e-mail do usuário]"],[/[domínio removido]/g,"[domínio]"],[/team::\d+/g,"team::[id]"]];
+    const rules=[[/lucas\\*\.capatini@[domínio removido]\\*\.ai/g,"[e-mail do usuário]"],[/lucascapatini@[domínio]\\*\.com/g,"[e-mail do usuário]"],[/[domínio removido]/g,"[domínio]"],[/team::\d+/g,"team::[id]"]];
     for(const [re,rep] of rules){s=s.replace(re,()=>rep);}
-    fs.writeFileSync(f,s,"utf8");' "$F" && echo "restantes: $(grep -c -i -E '[domínio removido]|capatini@|@gmail' "$F")" && echo "CR agora: $(tr -cd '\r' < "$F" | wc -c)" && git diff --stat
+    fs.writeFileSync(f,s,"utf8");' "$F" && echo "restantes: $(grep -c -i -E '[domínio removido]|capatini@|@[domínio]' "$F")" && echo "CR agora: $(tr -cd '\r' < "$F" | wc -c)" && git diff --stat
   ⎿ [Bash → resultado]
       restantes: 7
       CR agora: 4707
@@ -241,7 +241,7 @@ O `sed` do Git Bash removeu cerca de 4.700 caracteres `\r` embutidos no arquivo,
 
 ● Bash
     # Show remaining matches
-    cd C:/Users/lucas/source/repos/mba-ia-greenfield-project && grep -n -o -i -E ".{40}([domínio removido]|capatini@|@gmail).{30}" _claude-sessions/17-fase-04-gerenciamento-videos-canal.txt | cut -c1-200
+    cd C:/Users/lucas/source/repos/mba-ia-greenfield-project && grep -n -o -i -E ".{40}([domínio removido]|capatini@|@[domínio]).{30}" _claude-sessions/17-fase-04-gerenciamento-videos-canal.txt | cut -c1-200
   ⎿ [Bash → resultado]
       9274: preference): the user's email is lucas.capatini@[domínio].ai. Use it only to 
       22941:ser message): the user's email is lucas.capatini@[domínio].ai. Use it only to 
@@ -258,15 +258,15 @@ O `sed` do Git Bash removeu cerca de 4.700 caracteres `\r` embutidos no arquivo,
     const rules = [
       [/lucas\.capatini@(?:[domínio removido]|\[domínio\])\.ai/g, "[e-mail do usuário]"],
       [/lucas\\\.capatini@[domínio removido]\\\.ai/g, "[e-mail do usuário]"],
-      [/lucascapatini@gmail\.com/g, "[e-mail do usuário]"],
-      [/lucascapatini@gmail\\\.com/g, "[e-mail do usuário]"],
+      [/lucascapatini@[domínio]\.com/g, "[e-mail do usuário]"],
+      [/lucascapatini@[domínio]\\\.com/g, "[e-mail do usuário]"],
       [/[domínio removido]/g, "[domínio]"],
       [/team::\d+/g, "team::[id]"],
     ];
     for (const [re, rep] of rules) s = s.replace(re, () => rep);
     fs.writeFileSync(f, s, "utf8");
     EOF
-    node "C:/Users/lucas/AppData/Local/Temp/claude/C--Users-lucas-source-repos-mba-ia-greenfield-project/840df3bb-1703-4034-a1dd-d7bddbe43e0e/scratchpad/anon.js" _claude-sessions/17-fase-04-gerenciamento-videos-canal.txt && F=_claude-sessions/17-fase-04-gerenciamento-videos-canal.txt && echo "restantes: $(grep -c -i -E '[domínio removido]|capatini@|@gmail|domínio\]\.ai' "$F")" && echo "CR: $(tr -cd '\r' < "$F" | wc -c)" && git diff --stat && git diff -U0 | grep -E "^[+-][^+-]" | cut -c1-160
+    node "C:/Users/lucas/AppData/Local/Temp/claude/C--Users-lucas-source-repos-mba-ia-greenfield-project/840df3bb-1703-4034-a1dd-d7bddbe43e0e/scratchpad/anon.js" _claude-sessions/17-fase-04-gerenciamento-videos-canal.txt && F=_claude-sessions/17-fase-04-gerenciamento-videos-canal.txt && echo "restantes: $(grep -c -i -E '[domínio removido]|capatini@|@[domínio]|domínio\]\.ai' "$F")" && echo "CR: $(tr -cd '\r' < "$F" | wc -c)" && git diff --stat && git diff -U0 | grep -E "^[+-][^+-]" | cut -c1-160
   ⎿ [Bash → resultado]
       restantes: 1
       CR: 4707
@@ -301,7 +301,7 @@ Rodei a anonimização daqui, no próprio arquivo da branch `docs/anonimizar-ses
 
 ```powershell
 # Conferir (deve listar só a linha do comando sed citado na conversa, sem e-mail real)
-Select-String -Path _claude-sessions\17-fase-04-gerenciamento-videos-canal.txt -Pattern "[domínio removido]|@gmail|capatini@" | Select-Object LineNumber, Line
+Select-String -Path _claude-sessions\17-fase-04-gerenciamento-videos-canal.txt -Pattern "[domínio removido]|@[domínio]|capatini@" | Select-Object LineNumber, Line
 
 git diff --stat     # 1 arquivo, 10 inserções / 10 remoções
 
@@ -347,7 +347,7 @@ Certo, executei todas as etapas até o git branch -a, como prosseguimos agora ?
 
 ● Bash
     # Verify branch cleanup and current dev state
-    cd C:/Users/lucas/source/repos/mba-ia-greenfield-project && git fetch -q origin --prune; git branch -a; git status -sb | head -3; git log --oneline -3 origin/dev; echo "main..dev: $(git rev-list --count origin/main..origin/dev)  dev..main: $(git rev-list --count origin/dev..origin/main)"; git grep -c -E "[domínio removido]\.ai|lucascapatini@gmail" origin/dev -- _claude-sessions/ || echo "dev limpo"
+    cd C:/Users/lucas/source/repos/mba-ia-greenfield-project && git fetch -q origin --prune; git branch -a; git status -sb | head -3; git log --oneline -3 origin/dev; echo "main..dev: $(git rev-list --count origin/main..origin/dev)  dev..main: $(git rev-list --count origin/dev..origin/main)"; git grep -c -E "[domínio removido]\.ai|lucascapatini@[domínio]" origin/dev -- _claude-sessions/ || echo "dev limpo"
   ⎿ [Bash → resultado]
       * dev
         main
@@ -363,21 +363,21 @@ Certo, executei todas as etapas até o git branch -a, como prosseguimos agora ?
 
 ● Bash
     # Locate personal email in other committed files
-    cd C:/Users/lucas/source/repos/mba-ia-greenfield-project && git grep -n -o -E ".{60}([domínio removido]\.ai|lucascapatini@gmail).{20}" origin/dev -- _claude-sessions/ | cut -c1-220; git grep -l -i -E "[domínio removido]|@gmail\.com" origin/dev -- . | head
+    cd C:/Users/lucas/source/repos/mba-ia-greenfield-project && git grep -n -o -E ".{60}([domínio removido]\.ai|lucascapatini@[domínio]).{20}" origin/dev -- _claude-sessions/ | cut -c1-220; git grep -l -i -E "[domínio removido]|@[domínio]\.com" origin/dev -- . | head
   ⎿ [Bash → resultado]
       origin/dev:_claude-sessions/06-atualizando-skill-plan-impl-detalhes-obscuros.txt
       origin/dev:_claude-sessions/16-fase-03-upload-processamento.txt
 
 ● Bash
     # Show email occurrences in sessions 06 and 16
-    cd C:/Users/lucas/source/repos/mba-ia-greenfield-project && for f in _claude-sessions/06-atualizando-skill-plan-impl-detalhes-obscuros.txt _claude-sessions/16-fase-03-upload-processamento.txt; do echo "== $f"; grep -n -o -i -E ".{0,70}([domínio removido]|@gmail\.com).{0,30}" "$f" | cut -c1-200; done; git log --oneline -1 origin/main -- _claude-sessions/06-atualizando-skill-plan-impl-detalhes-obscuros.txt
+    cd C:/Users/lucas/source/repos/mba-ia-greenfield-project && for f in _claude-sessions/06-atualizando-skill-plan-impl-detalhes-obscuros.txt _claude-sessions/16-fase-03-upload-processamento.txt; do echo "== $f"; grep -n -o -i -E ".{0,70}([domínio removido]|@[domínio]\.com).{0,30}" "$f" | cut -c1-200; done; git log --oneline -1 origin/main -- _claude-sessions/06-atualizando-skill-plan-impl-detalhes-obscuros.txt
   ⎿ [Bash → resultado]
       == _claude-sessions/06-atualizando-skill-plan-impl-detalhes-obscuros.txt
       45:  The handle collision issue ([e-mail removido] and [e-mail removido] both pro
       68:  The gap: The handle collision ([e-mail removido] + [e-mail removido] → both g
       143:     share the same prefix (e.g., [e-mail removido] and [e-mail removido] → both
       == _claude-sessions/16-fase-03-upload-processamento.txt
-      340:      Author: Lucas Capatini Ernandes <[e-mail removido]>
+      340:      Author: [nome do usuário] <[e-mail removido]>
       15376:      7  C--Users-lucas-source-repos-[domínio removido]-Cobranca-ANova-ETL
       15377:      1  C--Users-lucas-source-repos-[domínio removido]-Cobranca-ANova-Localiza-Websi
       15378:      8  C--Users-lucas-source-repos-[domínio removido]-Cobranca-ANova-Tenda-ETL
@@ -400,7 +400,7 @@ A parte B foi concluída: só restam `dev` e `main`, local e remotamente, e `dev
 
 Revisei o resto do repositório e isso muda a recomendação:
 
-- **O Gmail já é público de qualquer forma:** `[e-mail removido]` é o e-mail de autor de 30 commits. Reescrever o histórico das transcrições não esconderia esse endereço.
+- **O [domínio] já é público de qualquer forma:** `[e-mail removido]` é o e-mail de autor de 30 commits. Reescrever o histórico das transcrições não esconderia esse endereço.
 - **O e-mail corporativo** (`@[domínio removido]`) só existe no commit `47822ae` e no PR #6, e a versão atual do arquivo já está limpa.
 
 **Recomendação: aceite o histórico como está.** Reescrever exigiria `push --force` em `dev` e um pedido ao suporte do GitHub para apagar as refs do PR #6, um custo alto para remover um único e-mail de contato.

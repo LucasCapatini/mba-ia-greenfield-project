@@ -21597,7 +21597,7 @@ The precedent is a single commit touching `CLAUDE.md`, `README.md` and `project-
     git show 8986166 -- README.md docs/project-plan.md CLAUDE.md | sed -n 1,140p
   ⎿ [Bash → resultado]
       commit 8986166740424e8df76a754e7cd259ea8e1aff39
-      Author: Lucas Capatini Ernandes <[e-mail removido]>
+      Author: [nome do usuário] <[e-mail removido]>
       Date:   Mon Oct 19 22:49:55 2026 -0400
       
           docs: fecha a Fase 05 no README, project-plan e CLAUDE.md e registra no TD-03 a exigência de proxy reverso no deploy
@@ -21780,7 +21780,7 @@ I'll review the README table, since pipes inside code in a GFM table need escapi
 
 ● Bash
     # Check table escaping and confidentiality in changed files
-    grep -n "reaction\` | Define\|sort=latest" README.md; git diff --name-only | xargs grep -c -i "[domínio corporativo removido]\|@gmail\|source/repos" | grep -v ":0$" || echo "confidencialidade: 0 ocorrências nos arquivos alterados"
+    grep -n "reaction\` | Define\|sort=latest" README.md; git diff --name-only | xargs grep -c -i "[domínio corporativo removido]\|@[domínio]\|source/repos" | grep -v ":0$" || echo "confidencialidade: 0 ocorrências nos arquivos alterados"
   ⎿ [Bash → resultado]
       287:| `PUT` / `DELETE /videos/{publicId}/reaction` | Define (`{ value: "like" | "dislike" }`) ou remove a reação ao vídeo |
       290:| `GET` / `POST /videos/{publicId}/comments` | Raízes paginadas (`sort=latest|top`, cursor) e criação |

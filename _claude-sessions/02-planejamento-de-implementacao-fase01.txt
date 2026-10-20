@@ -275,7 +275,7 @@
      └ mcp__context7__resolve-library-id: 758 tokens
 
      Available
-     └ mcp__claude_ai_Gmail__authenticate
+     └ mcp__claude_ai_[domínio]__authenticate
      └ mcp__claude_ai_Google_Calendar__authenticate
      └ mcp__ide__executeCode
      └ mcp__ide__getDiagnostics
