@@ -74,8 +74,19 @@ npm test                                 # Vitest — unit + integration (run mo
 npm run test:watch                       # Vitest watch mode (run in background)
 
 npx tsc --noEmit                         # Type-check (required before declaring a task done)
-npx shadcn@latest add <component>        # Add a shadcn primitive — respects components.json
+npx shadcn add <component> --dry-run     # Preview files + deps first (pinned CLI from package.json)
+npx shadcn add <component>               # Add a shadcn primitive — then follow "Adding shadcn primitives" below
 ```
+
+#### Adding shadcn primitives (registry imports `cn` from the npm package)
+
+Investigated in `task-manutencao-pos-fase-05` (2026-10-20): the **official registry** (`ui.shadcn.com/r/styles/{style}/{name}.json`) currently ships every item with `import { cn } from "cn"` and `dependencies: ["cn"]` — `radix-nova` (our style) and `new-york-v4` alike, for `slider`, `button`, `progress`, `tabs`, … The CLI does not rewrite that import, so both the pinned CLI (`shadcn` 4.7.0 in `package.json`) and `shadcn@latest` (4.22.1 at the time) add the npm package `cn` (unrelated to this project) and generate `from "cn"`. **It is not a project misconfiguration:** `npx shadcn info` resolves `utils → @/lib/utils` correctly; `components.json` and `tsconfig.json` need no change. Safe procedure:
+
+1. Preview inside the container: `npx shadcn add <c> --dry-run` (files + dependencies) and `--view components/ui/<c>.tsx` (contents). Prefer the pinned `npx shadcn` over `@latest`, so the CLI version matches the lockfile.
+2. Install: `docker compose exec next-frontend npx shadcn add <c>`.
+3. Fix the import in every new `components/ui/*.tsx`: `from "cn"` → `from "@/lib/utils"`.
+4. If `cn` was added: `docker compose exec next-frontend npm uninstall cn` (cleans the `node_modules` volume), then on the host `git checkout -- package.json package-lock.json` to restore the manifests byte-for-byte (keep any *other* dependency the item legitimately needs — e.g. a Radix package not yet installed — by re-adding it with `npm install <pkg>`).
+5. Verify: `git diff package.json package-lock.json` shows no `cn`, and `grep -rn 'from "cn"' components` is empty. Then reconcile the primitive with the design tokens (see `.claude/rules/next-frontend-ui.md`).
 
 ### Host-only commands (Docker / connectivity probes)
 
@@ -321,7 +332,7 @@ Before declaring any task done in this subproject:
 
 - Compare against `components/ui/button.tsx` (canonical primitive) and `app/globals.css` (canonical token registry).
 - If a Figma value has no matching token, ADD the token to `app/globals.css` first, then consume it — do not inline a hex/px value.
-- If the design implies a missing shadcn primitive, install it via `npx shadcn@latest add <name>` rather than hand-rolling it.
+- If the design implies a missing shadcn primitive, install it via `npx shadcn add <name>` (following "Adding shadcn primitives" above — the registry's `cn` import must be fixed after install) rather than hand-rolling it.
 
 # Figma MCP Integration Rules — next-frontend
 
