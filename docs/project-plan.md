@@ -168,6 +168,15 @@ Home page com listagem de vídeos, busca, navegação geral, responsividade e pr
 
 **Entregáveis:** home page, busca, navegação, responsividade, testes realizados e ambiente de produção configurado.
 
+_Status (2026-10-20): concluída (backend + frontend + infra) — `docs/phases/phase-07-home-search-production/` (migration `AddVideoSearch` com `pg_trgm` + `unaccent` e índices de trigramas; `GET /videos` público com `?category=` e `?q=` sobre título e nome/nickname do canal, sem acento nem caixa; throttle de 60 req/min por visitante nas listagens, em `GET /categories` e nas leituras de alta frequência — vídeo, playback, relacionados, comentários e `GET /me/subscriptions` (`home-search-production/TD-01`, Revisions 2026-10-20); no frontend, home com chips de categoria e `/results` com scroll infinito por hook próprio e restauração no `sessionStorage` (também no canal e no feed), header do Figma com busca e menu da conta, menu lateral expandido/mini por cookie e drawer abaixo de `lg`, menu também para o anônimo, todas as telas responsivas, e leituras de RSC que encaminham o IP do visitante (`watch-page/TD-03`, Revisions 2026-10-20); testes E2E com projeto mobile e a suíte full-stack contra as stacks reais, com smoke somente leitura; para produção, SMTP autenticado, migrations compiladas, imagens multi-stage, `deploy/compose.yaml` com Caddy, PostgreSQL e backup, CI em `.github/workflows/ci.yml` e deploy por GHCR + SSH em `deploy.yml`, validados localmente). O deploy real (VPS, DNS, S3, SMTP e secrets) é tarefa operacional, conduzida pelo `docs/deploy/runbook.md`. Auditoria visual feita contra PNGs exportados do Figma (sem MCP)._
+
+**Pendências pós-Fase 07** (viram tarefas em `docs/tasks/` quando forem atacadas):
+
+- **Variante do chip de categoria:** o Figma da home mostra o chip ativo preto, enquanto o `FilterChip` atual usa o estilo da ordenação do canal. Ficou como exceção no drift report (`docs/phases/phase-07-home-search-production/frontend-drift-report.md`) porque o nome da variante precisa vir do Figma, que estava sem acesso.
+- **Limite das rotas de autenticação:** cadastro, login e recuperação de senha seguem no limite global de 10 req/min por visitante (`phase-02-auth/TD-08`). Reavaliar para visitantes atrás de NAT compartilhado; a suíte full-stack só roda uma passada por minuto por causa dele.
+- **Handles abertos no Jest:** os scripts `test` e `test:e2e` do backend usam `--forceExit`. Achar a causa com `--detectOpenHandles` e fechar as conexões das suítes.
+- **Limpeza dos usuários da suíte full-stack:** cada execução cria usuários `full-stack-*` no banco de dev, e não há como apagá-los com um único comando (`channels`, `videos` e tokens referenciam os pais sem `ON DELETE CASCADE`).
+
 ---
 
 ## 4. Pontos de Atenção

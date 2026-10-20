@@ -272,6 +272,14 @@ The in-code defaults (`mail.config.ts`, `env.validation.ts`) still use the displ
 
 Start from `cp .env.example .env` — the example carries both keys with working local values.
 
+### Produção: SMTP autenticado e migrations compiladas (Fase 07)
+
+- **SMTP** (`home-search-production/TD-09`): `MAIL_USER` + `MAIL_PASSWORD` (opcionais, mas **juntos** — o Joi recusa só um deles e nomeia a chave faltante) e `MAIL_SECURE` (`true`/`false`, default `false`; `true` = TLS implícito na porta 465, `false` com STARTTLS na 587). Sem `MAIL_USER`, `mailTransport()` (`src/mail/mail.module.ts`) monta o transporte do Mailpit (só `host`/`port`, sem `auth`).
+- **Migrations sem ts-node:** `src/database/data-source.ts` resolve `migrations`/`entities` pela extensão do próprio arquivo (`dataSourcePaths`): rodando como `.ts` (ts-node, `npm run migration:run`) usa `src/**`; compilado (`dist/database/data-source.js`) usa `dist/**`. Em produção: `npm run build` e depois `npm run migration:run:prod` (`typeorm migration:run -d dist/database/data-source.js`) — é o que o serviço one-shot `migrate` executa (`home-search-production/TD-11`).
+- **Ao verificar o `dist/` em dev**, pare o `start:dev` antes (`docker compose restart nestjs-api`): o `nest start --watch` usa `deleteOutDir` e apaga o `dist/` enquanto você o inspeciona. O `npm run openapi:export` também roda `nest build` e derruba o `start:dev` — suba-o de novo depois.
+- **`SWAGGER_ENABLED`** consta do `.env.example` (`false`); mantenha `false` em produção.
+- **Throttle de leitura (Fase 07):** além do global (10 req/min por rota e visitante), as listagens públicas têm `LISTING_THROTTLE` e `GET /categories` tem `CATEGORIES_THROTTLE` (60/min), e as leituras de alta frequência — `GET /videos/{publicId}`, `/playback`, `/related`, `/comments` e `GET /me/subscriptions` — usam `READ_THROTTLE` (60/min, `src/common/throttling/read-throttle.ts`): o polling de processamento (3 s) e o layout com sessão estouravam o global.
+
 ## Build Assets
 
 `tsc` (and therefore `nest build`) only emits compiled `.ts` files to `dist/`. Any non-TypeScript runtime asset — Handlebars templates (`.hbs`), JSON fixtures, static config files, etc. — must be declared in `nest-cli.json` under `compilerOptions.assets` (with `watchAssets: true` for dev). Without that, the file exists in `src/` but is missing in `dist/` and runtime fails only after build.

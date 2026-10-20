@@ -278,6 +278,7 @@ _Pesquisa:_ o MCP `context7` não está disponível neste ambiente; as versões 
 
 **Revisions:**
 - 2026-10-20 — Lista de canais seguidos do menu lateral: `GET /me/subscriptions` ordenado por nome do canal (alfabético, desempate por id) em cursor keyset; o menu mostra os 7 primeiros e um "Show more" carrega/expande o restante. Rationale: OQ-3 do `/plan-validate 6`, escolha do usuário.
+- 2026-10-20 — Fase 07 (`home-search-production/TD-05`): o menu lateral passa a ser visível também para o visitante anônimo, com "Home" e um convite para entrar; "Subscriptions", "Your videos" e a lista de canais seguidos continuam só com sessão. Colapso pelo "≡" e drawer mobile entram na mesma fase. Rationale: ICC-1 do `/plan-validate 7`, escolha do usuário.
 
 ---
 

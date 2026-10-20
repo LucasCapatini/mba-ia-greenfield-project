@@ -230,12 +230,41 @@ npx playwright test tests/auth-login.e2e-spec.ts
 ```
 
 **Important rules:**
+- Since phase 07, `next.config.ts` has `output: "standalone"` (production image, `Dockerfile`). `next start` prints `"next start" does not work with "output: standalone"` — expected: it still serves the build for the E2E runs; only the image uses `node server.js`.
 - Step 3 must use `MSW_ENABLED=true` — without it `instrumentation.ts` skips MSW and upstream calls will fail or hit the real NestJS API (`instrumentation.ts` runs in `next start` too).
+- Projects: `chromium` (desktop, every spec) and `mobile` (`devices["Pixel 7"]`, only `tests/shell-responsive.e2e-spec.ts` via `testMatch` — `home-search-production/TD-06`). A plain `npx playwright test` runs both; `--project=mobile` runs just the phone profile. Specs that cover both profiles split them with `test.skip(({ isMobile }) => …)`.
 - Never add `webServer` to `playwright.config.ts` — Playwright must not manage the server process (it runs inside Docker, not on the host). `workers: 1`: the server-side MSW store is one in-memory state per server and the login handler resets it, so spec files must not run in parallel.
 - If a production server built from the current code is already running, skip steps 1–4. Never run `npm run build` while `next dev` is running: both write to `.next`.
 - **Playwright uses the host's `node_modules`**, not the container's volume — the container's `npm install` never refreshes it. This is the only sanctioned host-side install: when `@playwright/test` changes in `package.json`, run `npm ci` once on the host (and `node node_modules/@playwright/test/cli.js install chromium` if the Playwright version changed). Vitest, `tsc` and lint still run only inside the container.
 - **`next dev` on this bind mount (manual development only).** Turbopack's watcher misses newly created `app/**` folders (404 until restart) and sometimes stale `mocks/` handler edits; deep route handlers can also 404 intermittently (see above). Restart with `docker compose restart next-frontend` — do not try to kill the old `next dev` from inside the container.
 - The `node:22-slim` image has no `ps`/`pkill`/`wget`. To inspect processes use `/proc` (`ls /proc | grep -E '^[0-9]+$'` + `cat /proc/<pid>/cmdline`); for HTTP probes from inside the container use `node -e "fetch('http://localhost:3000').then(r=>console.log(r.status))"`. Restarting the container is the reliable way to stop a dev server.
+
+### Full-stack E2E (real stacks, no MSW)
+
+A few journeys run against **both real stacks** — browser → BFF → API → worker → storage → Mailpit — to catch what the mocked suite cannot (`home-search-production/TD-06`). They live in `full-stack/` with their own config (`playwright.full-stack.config.ts`: `baseURL` from `FULL_STACK_BASE_URL`, default `http://localhost:3001`; `workers: 1`; 180 s per test for upload + processing; no `webServer`) and run on the **host**, like the mocked suite.
+
+```bash
+# 1. Backend (from nestjs-project/): infrastructure + migrations + API dev server; the video-worker service is part of `up`
+docker compose up -d
+docker compose exec nestjs-api npm run migration:run
+docker compose exec -d nestjs-api npm run start:dev
+curl --retry 30 --retry-delay 2 --retry-all-errors -s -o /dev/null -w '%{http_code}\n' http://localhost:3000/categories
+
+# 2. Frontend (from next-frontend/): production build served WITHOUT MSW_ENABLED
+docker compose restart next-frontend && docker compose exec next-frontend npm run build
+docker compose exec -d next-frontend npm run start
+curl --retry 15 --retry-delay 2 --retry-connrefused -I http://localhost:3001
+
+# 3. Journeys + smoke (Windows: node node_modules/@playwright/test/cli.js test -c playwright.full-stack.config.ts)
+npx playwright test -c playwright.full-stack.config.ts            # or: npm run test:full-stack
+npx playwright test -c playwright.full-stack.config.ts --grep @smoke   # read-only smoke only
+```
+
+- **Journeys:** `account` (sign up → confirmation link read from Mailpit's API, `MAILPIT_URL` default `http://localhost:8025` → login → "Sign Out" from the account menu → login), `publish-and-discover` (studio upload of `tests/fixtures/watch-sample.webm` → worker → publish → found on the home and in `/results?q=` → plays and registers a view) and `social` (comment, like and subscribe to another user's channel → the video lands in `/feed/subscriptions`). Helpers in `full-stack/support/stack.ts`.
+- **Each run creates its own users** (`full-stack-<label>-<random>@example.com`, password `Password1`); no journey depends on another. They stay in the dev database until the backend e2e suites (`npm run test:e2e`) truncate it. There is no one-statement cleanup: `channels`, `videos`, `refresh_tokens` and `verification_tokens` reference their parents without `ON DELETE CASCADE`, so removing them by hand means deleting the videos, channels and tokens of the `full-stack-%` users first (uploaded objects stay in the bucket).
+- **Smoke (`@smoke`, `full-stack/smoke.e2e-spec.ts`) is read-only** — the deploy runs it against production, so it never signs up, sends e-mail or uploads: `/` answers with the grid or the empty state, `/results?q=` answers, `/login` renders and, when `SMOKE_VIDEO_ID` is set, that video plays.
+- **Rate limits are real.** All journeys come from one IP (the host), and the `/auth/*` routes keep the global 10 req/min per visitor: one pass of the suite fits, but immediate back-to-back passes (`--repeat-each`, re-runs within the same minute) end in 429 on sign-up/login. Wait a minute between passes.
+- **`npm run openapi:export` restarts nothing for you:** it runs `nest build` in the API container, which takes down a running `start:dev` — start it again before running the journeys.
 
 ### MSW + Vitest — wired
 
@@ -259,6 +288,8 @@ Real browser → real Next.js (RSC, layouts, real `/api/**` Route Handlers serve
    - **Social (Fase 06)** — `mocks/handlers/{comments,subscriptions}.ts` + `mocks/handlers/_social.ts` (regras compartilhadas) sobre `studioStore().social` (seed em `mocks/factories/social.ts`). Qualquer `Bearer` é o usuário do store (`studio_canal`), que começa **seguindo `tech_mastery`** (`subscriber_count` 1200, já contando com ele); anônimo recebe `viewer_reaction: null`, `viewer_subscribed: false` e `viewer_is_author: false`. `GET /videos/{id}` e `GET /channels/{nickname}` trazem inscritos e o estado do espectador; reações a vídeo/comentário, comentários, respostas e inscrições mutam o store como o backend (só vídeo `published` — rascunho → 404 inclusive para o dono; editar/excluir comentário alheio → 403 `COMMENT_FORBIDDEN`; `commentId` fora do formato uuid → 404 `COMMENT_NOT_FOUND`). `GET /me/subscriptions` lista os canais seguidos por nome; `GET /me/subscriptions/videos` devolve os 24 cards de `tech_mastery` (página de 20 + 4) enquanto o usuário o segue e `[]` depois.
    - Seed social: `tech-01` (publicado de `tech_mastery`, `education`, 1.2K likes, `comment_count` 25) com 23 raízes — a do próprio usuário (a mais recente, única com o menu "⋮"), a de `bia` com 2 respostas e o maior `like_count` (340), outra de `bia` sem respostas e 20 de preenchimento (`ana`/`caio`/`davi`/`eva`) —, logo "Show more comments" traz 3; `published-01` com 10 raízes + 2 respostas (= `comment_count` 12, uma delas do próprio usuário). Ids de comentário são uuids determinísticos (`00000000-0000-4000-8000-…`), recomeçados a cada reset do store.
    - Triggers sociais: `comments-down-id` (publicado de `tech_mastery`) → `GET /videos/{id}/comments` responde 500; `PUT /channels/{nickname-do-store}/subscription` → 422 `CANNOT_SUBSCRIBE_OWN_CHANNEL`; vídeos de `tech_mastery` (`tech-01`, `comments-down-id`) ficam fora do painel e das sugestões e respondem 403 `VIDEO_FORBIDDEN` a mutações do estúdio.
+   - **Home e busca (Fase 07)** — `GET /videos` (`mocks/handlers/videos.ts`) lista, do mais recente ao mais antigo, os vídeos do store `published` + `public` + `ready` fora da listagem oculta (16), os 24 de `tech_mastery` (categoria `technology` só nesta listagem) e "Música ao vivo" do canal `rock_club` ("Rock Club", `music`) — 41 cards, páginas de 20. `category` filtra pelo slug; `q` (2–100 após `trim`, senão 400 `VALIDATION_ERROR`) casa título ou nome/nickname do canal sem acento nem caixa (`mastery` → os 24 de `tech_mastery`; `musica` → "Música ao vivo").
+   - Triggers da home: `category=upstream-error` → 500 (erro da primeira página); qualquer slug fora das 10 categorias (ex.: `unknown-category`) → 404 `CATEGORY_NOT_FOUND`, como o backend.
    - Bytes do storage (`PUT` de partes, imagens de thumbnail em `http://localhost:9000/**`) não passam pelo BFF: o spec os atende com `page.route("http://localhost:9000/**")` — nunca `/api/**`.
 5. Playwright runs on the **host** (`npx playwright test`, `http://localhost:3001`); the containerized `next start` (production build) must run with `MSW_ENABLED=true`. No `webServer` in `playwright.config.ts` (the server is containerized); `workers: 1` because the MSW store is shared.
 
@@ -315,6 +346,7 @@ next-frontend/
 ├── mocks/                            # MSW handlers + factories + store + server (msw/node) — loaded by Vitest setupFiles AND instrumentation.ts
 ├── specs/                            # *.plan.md test specs emitted by /plan-test-specs (one per E2E file in tests/)
 ├── tests/                            # Playwright e2e (*.e2e-spec.ts) — real /api/** run; upstream NestJS faked server-side
+├── full-stack/                       # Playwright e2e against the real stacks (no MSW) — playwright.full-stack.config.ts; @smoke = post-deploy smoke
 ├── instrumentation.ts                # Boots server-side MSW when MSW_ENABLED=true (E2E only)
 ├── proxy.ts                          # Next 16 Proxy — optimistic session check for /studio/** and /feed/** (redirect with returnTo); __tests__/proxy.test.ts
 ├── openapi.json                      # Committed copy of the backend spec (refreshed by scripts/sync-openapi.sh)
