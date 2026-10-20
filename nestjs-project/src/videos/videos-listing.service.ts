@@ -8,10 +8,12 @@ import type {
   ListOwnerVideosDto,
   OwnerVideoSort,
 } from './dto/list-videos.dto';
+import { Subscription } from '../subscriptions/entities/subscription.entity';
 import type {
   ChannelVideosPage,
   OwnerVideosPage,
   RelatedVideosResponse,
+  SubscriptionFeedPage,
 } from './dto/video-pages.dto';
 import type { VideoCardItem, VideoListItem } from './dto/video-response.dto';
 import { Video } from './entities/video.entity';
@@ -128,6 +130,41 @@ export class VideosListingService {
   }
 
   /**
+   * Feed das inscrições (social-interactions/TD-08): vídeos `published` + `public` + `ready` dos
+   * canais que o usuário segue, montado na leitura por join com `subscriptions` (sem fan-out na
+   * escrita), do mais recente ao mais antigo em keyset `latest`. Os joins são 1:1 por vídeo (PK
+   * da inscrição e canal dono), então as linhas cruas continuam alinhadas às entidades.
+   */
+  async listSubscriptionFeed(
+    userId: string,
+    query: { cursor?: string; limit: number },
+  ): Promise<SubscriptionFeedPage> {
+    const qb = this.videos()
+      .innerJoin(
+        Subscription,
+        'subscription',
+        'subscription.channel_id = video.channel_id AND subscription.user_id = :userId',
+        { userId },
+      )
+      .innerJoinAndSelect('video.channel', 'channel')
+      .where("video.status = 'published'")
+      .andWhere("video.visibility = 'public'")
+      .andWhere("video.processing_status = 'ready'")
+      .andWhere('video.published_at IS NOT NULL');
+
+    const { videos, nextCursor } = await this.page(
+      qb,
+      'latest',
+      CHANNEL_SORTS.latest,
+      query,
+    );
+    return {
+      items: videos.map((video) => this.toCardItem(video, video.channel)),
+      next_cursor: nextCursor,
+    };
+  }
+
+  /**
    * Sugestões da watch page (watch-page/TD-04): só `published` + `public` + `ready`, nunca o
    * próprio vídeo. Primeiro a mesma categoria por `published_at` decrescente; se faltar (ou o
    * vídeo não tem categoria), completa com os públicos mais recentes das demais, sem repetir.
@@ -201,7 +238,7 @@ export class VideosListingService {
       .addOrderBy('video.id', spec.direction)
       .limit(query.limit + 1);
 
-    // Sem joins: cada linha crua corresponde a uma entidade, na mesma ordem.
+    // Sem joins que multipliquem linhas (só 1:1): cada linha crua corresponde a uma entidade.
     const { entities, raw } = await qb.getRawAndEntities<{
       sort_value: string;
     }>();

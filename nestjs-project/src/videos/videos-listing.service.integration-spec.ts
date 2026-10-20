@@ -5,6 +5,7 @@ import {
   cleanAllTables,
   createTestDataSource,
 } from '../test/create-test-data-source';
+import { Subscription } from '../subscriptions/entities/subscription.entity';
 import { User } from '../users/entities/user.entity';
 import {
   ListChannelVideosDto,
@@ -493,6 +494,106 @@ describe('VideosListingService (integration)', () => {
         channelQuery({ sort: 'oldest' }),
       );
       expect(oldest.items.map((item) => item.title)).toEqual(['a', 'b', 'c']);
+    });
+  });
+
+  describe('listSubscriptionFeed (Fase 06 — social-interactions/TD-08)', () => {
+    async function followerOf(...channelIds: string[]): Promise<string> {
+      const fan = await dataSource.getRepository(User).save(
+        dataSource.getRepository(User).create({
+          email: `fan${++counter}@example.com`,
+          password: 'hashed',
+        }),
+      );
+      for (const channelId of channelIds) {
+        await dataSource.getRepository(Subscription).save({
+          user_id: fan.id,
+          channel_id: channelId,
+        });
+      }
+      return fan.id;
+    }
+
+    async function otherChannel(nickname: string): Promise<Channel> {
+      const owner = await dataSource.getRepository(User).save(
+        dataSource.getRepository(User).create({
+          email: `${nickname}@example.com`,
+          password: 'hashed',
+        }),
+      );
+      return dataSource.getRepository(Channel).save(
+        dataSource.getRepository(Channel).create({
+          name: nickname,
+          nickname,
+          user_id: owner.id,
+        }),
+      );
+    }
+
+    it('should list only published + public + ready videos of followed channels, newest first, across pages', async () => {
+      const followed = await otherChannel('seguido');
+      const ignored = await otherChannel('ignorado');
+      const published = { status: 'published' as const };
+      await seed([
+        { ...published, title: 'c1', published_at: minutes(10) },
+        { ...published, title: 'c3', published_at: minutes(30) },
+        {
+          ...published,
+          title: 'unlisted',
+          visibility: 'unlisted',
+          published_at: minutes(40),
+        },
+        {
+          ...published,
+          title: 'processing',
+          processing_status: 'processing',
+          published_at: minutes(41),
+        },
+        { title: 'draft' },
+      ]);
+      await seed(
+        [
+          { ...published, title: 's2', published_at: minutes(20) },
+          { ...published, title: 's4', published_at: minutes(50) },
+        ],
+        followed.id,
+      );
+      await seed(
+        [{ ...published, title: 'x', published_at: minutes(60) }],
+        ignored.id,
+      );
+      const fan = await followerOf(channel.id, followed.id);
+
+      const titles: string[] = [];
+      let cursor: string | undefined;
+      let pages = 0;
+      do {
+        const page = await service.listSubscriptionFeed(fan, {
+          cursor,
+          limit: 2,
+        });
+        pages++;
+        titles.push(...page.items.map((item) => item.title));
+        for (const item of page.items) {
+          expect(Object.keys(item.channel).sort()).toEqual([
+            'name',
+            'nickname',
+          ]);
+        }
+        cursor = page.next_cursor ?? undefined;
+      } while (cursor);
+
+      expect(titles).toEqual(['s4', 'c3', 's2', 'c1']);
+      expect(pages).toBe(2);
+    });
+
+    it('should return an empty feed for a user who follows nobody', async () => {
+      await seed([{ status: 'published', published_at: minutes(1) }]);
+      const loner = await followerOf();
+
+      await expect(
+        service.listSubscriptionFeed(loner, { limit: 20 }),
+      ).resolves.toEqual({ items: [], next_cursor: null });
     });
   });
 });

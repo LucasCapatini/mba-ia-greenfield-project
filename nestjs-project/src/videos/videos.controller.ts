@@ -129,7 +129,7 @@ export class VideosController {
   @ApiOperation({
     summary: 'Estado e metadados do vídeo',
     description:
-      'Leitura pública com autenticação opcional. O dono vê o vídeo em qualquer status (polling de processing_status, metadados do worker, campos editoriais); anônimos e outros usuários só veem vídeos `published` (public ou unlisted). Um rascunho alheio responde 404, sem revelar que existe.',
+      'Leitura pública com autenticação opcional. O dono vê o vídeo em qualquer status (polling de processing_status, metadados do worker, campos editoriais); anônimos e outros usuários só veem vídeos `published` (public ou unlisted). Um rascunho alheio responde 404, sem revelar que existe. Com token, `viewer_reaction` e `channel.viewer_subscribed` trazem o estado do solicitante; anônimo → null/false (Fase 06).',
   })
   @ApiHeader(optionalBearerHeader)
   @ApiParam(publicIdParam)
@@ -159,7 +159,7 @@ export class VideosController {
     @Param('publicId') publicId: string,
   ): Promise<VideoResponse> {
     const video = await this.ownership.loadReadable(user, publicId);
-    return this.videosService.getVideo(video);
+    return this.videosService.getVideo(video, user?.sub);
   }
 
   @Public()

@@ -168,14 +168,13 @@ describe('videos-get', () => {
       .expect(200);
     const body = res.body as VideoBody;
 
+    // Fase 06 (social-interactions/TD-04): o canal embutido ganhou inscritos e o estado do espectador.
     expect(body.channel).toEqual({
       nickname: channel.nickname,
       name: channel.name,
+      subscriber_count: 0,
+      viewer_subscribed: false,
     });
-    expect(Object.keys(body.channel ?? {}).sort()).toEqual([
-      'name',
-      'nickname',
-    ]);
     expect(body).toMatchObject({
       public_id: publicId,
       status: 'published',

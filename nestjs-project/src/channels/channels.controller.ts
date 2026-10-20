@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Patch } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiHeader,
   ApiOperation,
   ApiParam,
   ApiResponse,
@@ -9,6 +10,7 @@ import {
 } from '@nestjs/swagger';
 import type { JwtPayload } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { OptionalUser } from '../auth/decorators/optional-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { ApiErrorEnvelope } from '../common/openapi/api-error-envelope.dto';
 import { NonEmptyBodyPipe } from '../common/pipes/non-empty-body.pipe';
@@ -88,7 +90,13 @@ export class ChannelsController {
   @ApiOperation({
     summary: 'Página pública do canal',
     description:
-      'Nome, nickname, descrição e contagem de vídeos `published` + `public` do canal. Não exige autenticação.',
+      'Nome, nickname, descrição, contagem de vídeos `published` + `public` e de inscritos do canal. Não exige autenticação; com token, `viewer_subscribed` diz se o solicitante segue o canal (anônimo → false — Fase 06).',
+  })
+  @ApiHeader({
+    name: 'Authorization',
+    required: false,
+    description:
+      'Opcional: `Bearer <access_token>`. Sem header → anônimo; token inválido ou expirado → 401.',
   })
   @ApiParam({
     name: 'nickname',
@@ -101,13 +109,19 @@ export class ChannelsController {
     type: ChannelPublicResponse,
   })
   @ApiResponse({
+    status: 401,
+    description: 'Token presente mas inválido ou expirado',
+    schema: errorEnvelope,
+  })
+  @ApiResponse({
     status: 404,
     description: 'CHANNEL_NOT_FOUND',
     schema: errorEnvelope,
   })
   async getPublicChannel(
+    @OptionalUser() user: JwtPayload | undefined,
     @Param('nickname') nickname: string,
   ): Promise<ChannelPublicResponse> {
-    return this.channelsService.getPublicChannel(nickname);
+    return this.channelsService.getPublicChannel(nickname, user?.sub);
   }
 }

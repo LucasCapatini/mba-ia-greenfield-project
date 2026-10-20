@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, QueryFailedError } from 'typeorm';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { Video } from '../videos/entities/video.entity';
 import {
   ChannelNotFoundException,
@@ -33,7 +34,10 @@ function isPgUniqueViolationOnColumn(err: unknown, column: string): boolean {
 
 @Injectable()
 export class ChannelsService {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly subscriptions: SubscriptionsService,
+  ) {}
 
   /** Canal do usuário (1:1, criado no cadastro — Fase 02); `null` se o invariante foi violado. */
   async findByUserId(userId: string): Promise<Channel | null> {
@@ -73,8 +77,14 @@ export class ChannelsService {
     return this.toResponse(await this.requireOwnChannel(userId));
   }
 
-  /** `GET /channels/{nickname}` — leitura pública, sem id nem dados do usuário. */
-  async getPublicChannel(nickname: string): Promise<ChannelPublicResponse> {
+  /**
+   * `GET /channels/{nickname}` — leitura pública, sem id nem dados do usuário. `viewerId` (token
+   * opcional) preenche `viewer_subscribed` (social-interactions/TD-04); anônimo → `false`.
+   */
+  async getPublicChannel(
+    nickname: string,
+    viewerId?: string,
+  ): Promise<ChannelPublicResponse> {
     const channel = await this.findByNickname(nickname);
     if (!channel) {
       throw new ChannelNotFoundException();
@@ -85,6 +95,11 @@ export class ChannelsService {
       description: channel.description,
       video_count: await this.countPublicVideos(channel.id),
       created_at: channel.created_at.toISOString(),
+      subscriber_count: channel.subscriber_count,
+      viewer_subscribed: await this.subscriptions.isSubscribed(
+        viewerId,
+        channel.id,
+      ),
     };
   }
 

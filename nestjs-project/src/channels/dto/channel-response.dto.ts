@@ -51,4 +51,16 @@ export class ChannelPublicResponse {
 
   @ApiProperty({ description: 'ISO-8601' })
   created_at: string;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Inscritos no canal (social-interactions/TD-04).',
+    example: 1200,
+  })
+  subscriber_count: number;
+
+  @ApiProperty({
+    description: 'Se o solicitante segue o canal; anônimo → false.',
+  })
+  viewer_subscribed: boolean;
 }

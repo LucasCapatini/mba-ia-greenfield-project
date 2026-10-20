@@ -7,7 +7,11 @@ import {
 import { User } from '../users/entities/user.entity';
 import { Video } from '../videos/entities/video.entity';
 import { NICKNAME_PATTERN, RESERVED_NICKNAMES } from './channels.constants';
-import { ChannelsService } from './channels.service';
+import type { ChannelsService } from './channels.service';
+import {
+  createChannelsService,
+  createSubscriptionsService,
+} from '../test/channels-service';
 import { Channel } from './entities/channel.entity';
 
 describe('ChannelsService (integration)', () => {
@@ -21,7 +25,7 @@ describe('ChannelsService (integration)', () => {
     await dataSource.initialize();
     userRepository = dataSource.getRepository(User);
     channelRepository = dataSource.getRepository(Channel);
-    channelsService = new ChannelsService(dataSource);
+    channelsService = createChannelsService(dataSource);
   });
 
   afterAll(async () => {
@@ -205,8 +209,36 @@ describe('ChannelsService (integration)', () => {
         'description',
         'name',
         'nickname',
+        'subscriber_count',
         'video_count',
+        'viewer_subscribed',
       ]);
+    });
+
+    it('should report subscriber_count and viewer_subscribed for subscriber, non-subscriber and anonymous', async () => {
+      const owner = await createUser();
+      await channelsService.createChannel(owner.id, 'seguido@example.com');
+      const fan = await createUser();
+      const other = await createUser();
+      await createSubscriptionsService(dataSource).subscribe(fan.id, 'seguido');
+
+      const anonymous = await channelsService.getPublicChannel('seguido');
+      expect(anonymous).toMatchObject({
+        subscriber_count: 1,
+        viewer_subscribed: false,
+      });
+      await expect(
+        channelsService.getPublicChannel('seguido', fan.id),
+      ).resolves.toMatchObject({
+        subscriber_count: 1,
+        viewer_subscribed: true,
+      });
+      await expect(
+        channelsService.getPublicChannel('seguido', other.id),
+      ).resolves.toMatchObject({
+        subscriber_count: 1,
+        viewer_subscribed: false,
+      });
     });
   });
 });
