@@ -93,6 +93,8 @@ const baseVideo: Video = {
   published_at: null,
   created_at: FIXTURE_NOW,
   processed_at: FIXTURE_NOW,
+  // Canal do usuário logado (`buildChannel`); o handler reprojeta o atual a cada resposta.
+  channel: { nickname: "studio_canal", name: "Studio Canal" },
 };
 
 /** Vídeo `ready` com thumbnail automática `?v=1` (sobrescreva o que o cenário precisa). */
@@ -174,6 +176,15 @@ export function buildOwnerVideos(): Video[] {
     buildVideo({
       public_id: "published-01",
       title: "Aula publicada",
+      // Mais de 3 linhas: a watch page recolhe a descrição e mostra "…more" (watch-page/TD-09).
+      description: [
+        "Nesta aula montamos o projeto do zero.",
+        "Primeiro configuramos o ambiente com Docker.",
+        "Depois criamos o módulo de vídeos e as rotas públicas.",
+        "Por fim publicamos o resultado e conferimos as visualizações.",
+        "Material complementar na descrição do canal.",
+      ].join("\n"),
+      category: findCategory("music"),
       status: "published",
       visibility: "public",
       view_count: 1_520,
@@ -212,6 +223,10 @@ export function buildOwnerVideos(): Video[] {
       public_id: `published-v${n}`,
       title: `Video ${n}`,
       status: "published",
+      // Os 3 primeiros dividem a categoria de `published-01`: sugestões da watch page.
+      category: findCategory(
+        index < 3 ? "music" : index % 2 === 0 ? "education" : "gaming",
+      ),
       view_count: (index + 1) * 100,
       published_at: daysAgo(named.length + index),
     });
