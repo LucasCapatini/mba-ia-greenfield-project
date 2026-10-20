@@ -19,7 +19,7 @@ const twMerge = extendTailwindMerge({
             "label-xl",
             "label-2xl",
             "helper",
-            "overlay",
+            "overlay-md",
           ],
         },
       ],

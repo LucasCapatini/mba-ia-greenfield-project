@@ -37,7 +37,7 @@ docker compose exec nestjs-api npm run start:dev
 
 Services:
 - `nestjs-api` — NestJS API, port `3000`
-- `db` — PostgreSQL 17, port `5432`, database `streamtube`, user/password `streamtube`
+- `db` — PostgreSQL 17, port `5432`, database `streamtube`, user/password `streamtube`. Os dados ficam no volume nomeado `pg_data` (`nestjs-project_pg_data`, montado em `/var/lib/postgresql/data`): o banco sobrevive a `docker compose down`/`up` e à recriação do container ou da rede `streamtube`; só `docker compose down -v` o apaga, junto com os demais volumes nomeados — depois disso rode `npm run migration:run` de novo. Ao adotar o volume pela primeira vez (task `manutencao-pos-fase-05`), o banco nasce vazio uma única vez: rode `npm run migration:run`; os dados de desenvolvimento anteriores não são migrados.
 - `mailpit` — SMTP sink for dev: SMTP on `1025` (used by the API as `MAIL_HOST=mailpit`), web UI on `http://localhost:8025`
 - `node_modules` volume — named volume `nestjs-project_node_modules` mounted over `/home/node/app/node_modules`, so dependencies never touch the slow 9p bind mount (type-check went from minutes to seconds). The host's `nestjs-project/node_modules` is **not** what the container uses; `docker compose down -v` deletes the volume and the next `up` needs `npm install` again.
 - `rustfs` — object storage S3-compatível para dev (`rustfs/rustfs:1.0.3`, `phase-03-upload-processing/TD-01`): API S3 em `9000` (a API/worker usam `S3_ENDPOINT=http://rustfs:9000`; o navegador usa `S3_PUBLIC_ENDPOINT=http://localhost:9000` só para URLs pré-assinadas), console em `9001`. Dados no volume nomeado `rustfs_data` (`docker compose down -v` apaga os vídeos enviados).
@@ -60,10 +60,10 @@ All services are attached to the named Docker network `streamtube`, declared in 
 
 Toda requisição do navegador chega à API pelo container `next-frontend` (strict BFF), então sem ajuste o throttler global (`ThrottlerModule.forRoot([{ ttl: 60000, limit: 10 }])`) daria a **todos os visitantes um único orçamento**. Por isso:
 
-- A rede `streamtube` tem **sub-rede fixa** (`172.30.0.0/24`, `ipam` no `compose.yaml`) e o `next-frontend` recebe o **IP fixo** `172.30.0.10` (`next-frontend/compose.yaml`).
+- A rede `streamtube` tem **sub-rede fixa** (`172.30.0.0/24`, `ipam` no `compose.yaml`) e o `next-frontend` recebe o **IP fixo** `172.30.0.10` (`next-frontend/compose.yaml`). A alocação dinâmica fica restrita a `ip_range: 172.30.0.128/25` (`.128`–`.254`, gateway `172.30.0.1`), então nenhum container do backend pode ocupar o IP em que a API confia, por maior que a stack fique.
 - `TRUST_PROXY` (opcional, IPs/CIDRs separados por vírgula, validado no Joi; `.env.example` = `172.30.0.10`) liga o `trust proxy` do Express só para esse endereço (`src/main.ts`). Ausente → `trust proxy` desligado e o tracker é o IP do socket. Nunca use o nome do serviço Compose: o Express só aceita IP/sub-rede.
 - `ThrottlerBehindProxyGuard` (`src/auth/guards/throttler-behind-proxy.guard.ts`, registrado como `APP_GUARD` no `AuthModule`) rastreia `req.ips[0]` — o primeiro IP de `X-Forwarded-For` — e cai em `req.ip` quando nenhum proxy é confiável. O gateway do host (requisições do host na porta 3000) **não** é confiável, então um `X-Forwarded-For` enviado por `curl` do host é ignorado.
-- **Recriar a rede depois de mudar a sub-rede:** `docker compose down` no `next-frontend/` e aqui, depois `docker compose up -d` aqui primeiro e no frontend em seguida. Atenção: o `db` não tem volume nomeado — recriar o container do Postgres apaga os dados de desenvolvimento (rode `npm run migration:run` de novo).
+- **Recriar a rede depois de mudar a sub-rede:** `docker compose down` no `next-frontend/` e aqui, depois `docker compose up -d` aqui primeiro e no frontend em seguida. O banco sobrevive à recriação, porque o `db` usa o volume nomeado `pg_data`.
 
 ### Variáveis de ambiente da Fase 03
 

@@ -1,9 +1,9 @@
 import type { Metadata } from "next"
-import { headers } from "next/headers"
 import { notFound, redirect } from "next/navigation"
 
 import { upstream } from "@/lib/api/upstream"
 import { getSession } from "@/lib/auth/session"
+import { requestOrigin } from "@/lib/request-origin"
 import { UploadVideoForm } from "@/components/upload/upload-video-form"
 
 export const metadata: Metadata = {
@@ -12,14 +12,6 @@ export const metadata: Metadata = {
 
 type UploadProcessingPageProps = {
   params: Promise<{ publicId: string }>
-}
-
-/** Origem pública do app, para o link `/watch/{publicId}` (OQ-5). */
-async function requestOrigin(): Promise<string> {
-  const list = await headers()
-  const host = list.get("x-forwarded-host") ?? list.get("host") ?? "localhost:3001"
-  const protocol = list.get("x-forwarded-proto") ?? "http"
-  return `${protocol}://${host}`
 }
 
 // /studio/upload/{publicId} — envio + processamento + formulário de detalhes (Figma 156:2110).

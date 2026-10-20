@@ -226,9 +226,11 @@
   --text-helper: 12px;
   --text-helper--line-height: 16px;
   --text-helper--font-weight: 400;
-  --text-overlay: 16px;
-  --text-overlay--line-height: 20px;
-  --text-overlay--font-weight: 400;
+  /* Estilo "Inter/Overlay" do Figma. Sufixo -md: o nome `text-overlay` sozinho colidia com o token de cor
+     --color-overlay e a classe gerava tamanho de fonte e cor #00000080 ao mesmo tempo. */
+  --text-overlay-md: 16px;
+  --text-overlay-md--line-height: 20px;
+  --text-overlay-md--font-weight: 400;
   --shadow-card: 0 10px 15px 0 #0000001a, 0 4px 6px 0 #0000001a;
   --shadow-drawer-left: -4px 0 24px 0 #00000080;
   --shadow-button-focus: 0 4px 35.7px 33px #00000040;
