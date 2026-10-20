@@ -17,6 +17,8 @@ import {
 } from '../../common/pagination/cursor-page.dto';
 import { IsNotBefore } from '../../common/validation/is-not-before.validator';
 import {
+  RELATED_VIDEOS_DEFAULT_LIMIT,
+  RELATED_VIDEOS_MAX_LIMIT,
   VIDEO_PROCESSING_STATUSES,
   VIDEO_STATUSES,
   VIDEO_VISIBILITIES,
@@ -102,6 +104,25 @@ export class ListOwnerVideosDto extends CursorPageQuery {
   @IsISO8601({ strict: true })
   @IsNotBefore('from')
   to?: string;
+}
+
+/**
+ * `GET /videos/{publicId}/related` — sugestões da watch page. Lista fechada, sem cursor
+ * (watch-page/TD-04, Revisions 2026-10-19).
+ */
+export class RelatedVideosQuery {
+  /** Quantidade de sugestões (1..24). */
+  @ApiPropertyOptional({
+    minimum: 1,
+    maximum: RELATED_VIDEOS_MAX_LIMIT,
+    default: RELATED_VIDEOS_DEFAULT_LIMIT,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(RELATED_VIDEOS_MAX_LIMIT)
+  limit: number = RELATED_VIDEOS_DEFAULT_LIMIT;
 }
 
 /** `GET /channels/{nickname}/videos` — página pública do canal. */

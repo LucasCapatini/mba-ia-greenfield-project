@@ -52,3 +52,7 @@ export const VIDEO_ERROR_CODES = {
 
 /** Limite do título (`videos.title` varchar(100)). */
 export const VIDEO_TITLE_MAX_LENGTH = 100;
+
+/** Sugestões da watch page (`GET /videos/{publicId}/related`, watch-page/TD-04): padrão e teto de `limit`. */
+export const RELATED_VIDEOS_DEFAULT_LIMIT = 12;
+export const RELATED_VIDEOS_MAX_LIMIT = 24;

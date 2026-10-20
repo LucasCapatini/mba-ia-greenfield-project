@@ -9,6 +9,7 @@ import { CreateVideosAndVideoUploads1792352807074 } from './migrations/179235280
 import { CreateCategories1792416126626 } from './migrations/1792416126626-CreateCategories';
 import { SeedCategories1792416144429 } from './migrations/1792416144429-SeedCategories';
 import { ExtendVideosForPublishing1792416589954 } from './migrations/1792416589954-ExtendVideosForPublishing';
+import { CreateVideoViews1792458459333 } from './migrations/1792458459333-CreateVideoViews';
 
 const PUBLISHING_COLUMNS = [
   'title',
@@ -31,6 +32,7 @@ const MANAGED_TABLES = [
   'videos',
   'video_uploads',
   'categories',
+  'video_views',
 ];
 
 const MIGRATIONS = [
@@ -40,6 +42,7 @@ const MIGRATIONS = [
   CreateCategories1792416126626,
   SeedCategories1792416144429,
   ExtendVideosForPublishing1792416589954,
+  CreateVideoViews1792458459333,
 ];
 
 describe('Database migrations (integration)', () => {
@@ -174,9 +177,23 @@ describe('Database migrations (integration)', () => {
     expect(fks.map((row) => row.delete_rule)).toEqual(['SET NULL']);
   });
 
+  /**
+   * Undoes migrations from the top down to (and including) `name`, whatever was added after it —
+   * `runMigrations()` re-applies them all afterwards.
+   */
+  async function undoThrough(name: string): Promise<void> {
+    for (;;) {
+      const [last] = await dataSource.query<{ name: string }[]>(
+        `SELECT "name" FROM "migrations" ORDER BY "id" DESC LIMIT 1`,
+      );
+      await dataSource.undoLastMigration();
+      if (!last || last.name === name) return;
+    }
+  }
+
   it('should backfill the title of Phase 03 videos when the publishing migration runs', async () => {
     // Simulate a database still at Phase 03: drop the publishing columns, insert drafts, re-run.
-    await dataSource.undoLastMigration();
+    await undoThrough('ExtendVideosForPublishing1792416589954');
     const [{ id: userId }] = await dataSource.query<{ id: string }[]>(
       `INSERT INTO "users" ("email", "password") VALUES ('backfill@example.com', 'x') RETURNING "id"`,
     );
@@ -234,6 +251,40 @@ describe('Database migrations (integration)', () => {
       channelId,
     ]);
     await dataSource.query(`DELETE FROM "users" WHERE "id" = $1`, [userId]);
+  });
+
+  it('should create video_views with the dedup unique key, the window_start index and a cascading FK', async () => {
+    const indexes = await dataSource.query<{ indexdef: string }[]>(
+      `SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND tablename = 'video_views'`,
+    );
+    const definitions = indexes.map((row) => row.indexdef);
+
+    expect(
+      definitions.some((d) =>
+        /UNIQUE.*video_views.*(video_id, viewer_key, window_start)/.test(d),
+      ),
+    ).toBe(true);
+    expect(definitions.some((d) => /video_views.*(window_start)/.test(d))).toBe(
+      true,
+    );
+
+    const fks = await dataSource.query<{ delete_rule: string }[]>(
+      `SELECT rc.delete_rule
+       FROM information_schema.referential_constraints rc
+       JOIN information_schema.table_constraints tc ON tc.constraint_name = rc.constraint_name
+       WHERE tc.table_name = 'video_views'`,
+    );
+    expect(fks.map((row) => row.delete_rule)).toEqual(['CASCADE']);
+  });
+
+  it('should revert the video views migration and drop its table', async () => {
+    await dataSource.undoLastMigration();
+
+    const result = await dataSource.query<{ table_name: string }[]>(
+      `SELECT table_name FROM information_schema.tables
+       WHERE table_schema = 'public' AND table_name = 'video_views'`,
+    );
+    expect(result).toHaveLength(0);
   });
 
   it('should revert the publishing migration and drop its columns', async () => {

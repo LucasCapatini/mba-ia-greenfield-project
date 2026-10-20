@@ -91,6 +91,20 @@ describe('QueueService (integration — pg-boss on the real PostgreSQL)', () => 
     ]);
   });
 
+  it('should register a UTC cron schedule for the video views cleanup and overwrite it on reschedule', async () => {
+    await service.schedule(QUEUE_NAMES.VIDEO_VIEWS_CLEANUP, '0 4 * * *', {});
+    await service.schedule(QUEUE_NAMES.VIDEO_VIEWS_CLEANUP, '0 3 * * *', {});
+
+    const rows = await dataSource.query<{ cron: string; timezone: string }[]>(
+      `SELECT "cron", "timezone" FROM "${QUEUE_SCHEMA}"."schedule" WHERE "name" = $1`,
+      [QUEUE_NAMES.VIDEO_VIEWS_CLEANUP],
+    );
+    expect(rows).toEqual([{ cron: '0 3 * * *', timezone: 'UTC' }]);
+    await expect(
+      service.hasQueue(QUEUE_NAMES.VIDEO_VIEWS_CLEANUP),
+    ).resolves.toBe(true);
+  });
+
   it('should keep a single active job per singleton key', async () => {
     const videoId = randomUUID();
     const key = singletonKeys.videoProcess(videoId);

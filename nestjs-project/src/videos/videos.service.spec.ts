@@ -58,7 +58,7 @@ describe('VideosService', () => {
     publicUrl: jest.Mock;
   };
   let queue: { send: jest.Mock };
-  let channels: { findByUserId: jest.Mock };
+  let channels: { findByUserId: jest.Mock; findById: jest.Mock };
   let categories: { findById: jest.Mock };
   let videoRepo: { update: jest.Mock; findOneOrFail: jest.Mock };
 
@@ -111,6 +111,11 @@ describe('VideosService', () => {
     queue = { send: jest.fn().mockResolvedValue('job-1') };
     channels = {
       findByUserId: jest.fn().mockResolvedValue({ id: 'channel-1' }),
+      findById: jest.fn().mockResolvedValue({
+        id: 'channel-1',
+        nickname: 'canal_dono',
+        name: 'Canal do Dono',
+      }),
     };
     categories = { findById: jest.fn().mockResolvedValue(null) };
     videoRepo = {
@@ -579,6 +584,40 @@ describe('VideosService', () => {
         updated_at: new Date('2026-10-18T10:02:00.000Z'),
         upload: null,
       }) as unknown as Video;
+
+    it('should map the loaded channel relation to { nickname, name } without querying again', async () => {
+      const video = readyVideo();
+      Object.assign(video, {
+        channel_id: 'channel-9',
+        channel: {
+          id: 'channel-9',
+          nickname: 'tech_mastery',
+          name: 'Tech Mastery',
+          description: 'not exposed',
+        },
+      });
+
+      const result = await service.getVideo(video);
+
+      expect(result.channel).toEqual({
+        nickname: 'tech_mastery',
+        name: 'Tech Mastery',
+      });
+      expect(channels.findById).not.toHaveBeenCalled();
+    });
+
+    it('should look the channel up by channel_id when the relation is not loaded', async () => {
+      const video = readyVideo();
+      Object.assign(video, { channel_id: 'channel-1' });
+
+      const result = await service.getVideo(video);
+
+      expect(channels.findById).toHaveBeenCalledWith('channel-1');
+      expect(result.channel).toEqual({
+        nickname: 'canal_dono',
+        name: 'Canal do Dono',
+      });
+    });
 
     it('should map the video state with a stable public thumbnail_url and ISO dates', async () => {
       const result = await service.getVideo(readyVideo());

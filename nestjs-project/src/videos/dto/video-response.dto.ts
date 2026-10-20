@@ -139,6 +139,19 @@ export class UploadCompletedResponse {
   size_bytes: number;
 }
 
+/**
+ * Dados públicos do canal dono do vídeo — nas listagens (`VideoCardItem`) e, desde a Fase 05, no
+ * `VideoResponse` (resolução OQ-1). Declarado antes dos dois: `emitDecoratorMetadata` referencia a
+ * classe na definição das propriedades.
+ */
+export class VideoCardChannel {
+  @ApiProperty({ example: 'tech_mastery' })
+  nickname: string;
+
+  @ApiProperty({ example: 'Tech Mastery Plus' })
+  name: string;
+}
+
 export class VideoResponse {
   @ApiProperty({ example: 'dQw4w9WgXcQ' })
   public_id: string;
@@ -242,6 +255,13 @@ export class VideoResponse {
 
   @ApiProperty({ nullable: true, description: 'ISO-8601' })
   processed_at: string | null;
+
+  @ApiProperty({
+    type: VideoCardChannel,
+    description:
+      'Canal dono do vídeo (nickname e nome públicos) — a watch page o exibe sob o título (Fase 05).',
+  })
+  channel: VideoCardChannel;
 }
 
 /** Linha do painel do dono (`GET /channels/me/videos`). */
@@ -289,14 +309,6 @@ export class VideoListItem {
 
   @ApiProperty({ description: 'ISO-8601' })
   created_at: string;
-}
-
-export class VideoCardChannel {
-  @ApiProperty({ example: 'tech_mastery' })
-  nickname: string;
-
-  @ApiProperty({ example: 'Tech Mastery Plus' })
-  name: string;
 }
 
 /** Card das listagens públicas (`GET /channels/{nickname}/videos`, Fases 05/07). */

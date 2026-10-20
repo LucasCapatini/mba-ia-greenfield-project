@@ -24,6 +24,7 @@ type Seed = Partial<
     | 'view_count'
     | 'created_at'
     | 'published_at'
+    | 'category_id'
   >
 >;
 
@@ -48,6 +49,9 @@ describe('VideosListingService (integration)', () => {
   let service: VideosListingService;
   let channel: Channel;
   let counter = 0;
+  let music: string;
+  let gaming: string;
+  let news: string;
 
   beforeAll(async () => {
     dataSource = createTestDataSource(ALL_ENTITIES);
@@ -57,6 +61,14 @@ describe('VideosListingService (integration)', () => {
       thumbnailUrl: () => null,
     } as unknown as VideosService;
     service = new VideosListingService(dataSource, thumbnails);
+    // Categorias semeadas pela migration SeedCategories (cleanAllTables não as apaga).
+    const categories = await dataSource.query<{ id: string; slug: string }[]>(
+      `SELECT "id", "slug" FROM "categories" WHERE "slug" IN ('music', 'gaming', 'news')`,
+    );
+    const bySlug = new Map(categories.map((c) => [c.slug, c.id]));
+    music = bySlug.get('music')!;
+    gaming = bySlug.get('gaming')!;
+    news = bySlug.get('news')!;
   });
 
   afterAll(async () => {
@@ -98,6 +110,7 @@ describe('VideosListingService (integration)', () => {
           processing_status: spec.processing_status ?? 'ready',
           view_count: spec.view_count ?? 0,
           published_at: spec.published_at ?? null,
+          category_id: spec.category_id ?? null,
         }),
       );
       const createdAt = spec.created_at ?? minutes(counter);
@@ -313,6 +326,98 @@ describe('VideosListingService (integration)', () => {
           ownerQuery({ sort: 'views', cursor: first.next_cursor! }),
         ),
       ).rejects.toMatchObject({ errorCode: 'VALIDATION_ERROR' });
+    });
+  });
+
+  describe('listRelated', () => {
+    const published = (
+      title: string,
+      category_id: string | null,
+      minute: number,
+    ): Seed => ({
+      title,
+      status: 'published',
+      category_id,
+      published_at: minutes(minute),
+    });
+
+    it('should list the same category first by published_at desc, then fill with other categories without repeating', async () => {
+      const [origin] = await seed([
+        published('origin', music, 50),
+        published('m1', music, 1),
+        published('m3', music, 3),
+        published('m2', music, 2),
+        published('g1', gaming, 10),
+        published('n1', news, 12),
+        published('none', null, 11),
+      ]);
+
+      const result = await service.listRelated(origin, 12);
+
+      expect(result.items.map((item) => item.title)).toEqual([
+        'm3',
+        'm2',
+        'm1',
+        'n1',
+        'none',
+        'g1',
+      ]);
+      expect(Object.keys(result)).toEqual(['items']);
+      expect(result.items[0].channel).toEqual({
+        nickname: 'listing',
+        name: 'Listing',
+      });
+    });
+
+    it('should exclude the origin, unlisted, drafts and videos that are not ready', async () => {
+      const [origin] = await seed([
+        published('origin', music, 50),
+        { ...published('unlisted', music, 1), visibility: 'unlisted' },
+        { title: 'draft', category_id: music },
+        {
+          ...published('processing', music, 2),
+          processing_status: 'processing',
+        },
+        { ...published('failed', gaming, 3), processing_status: 'failed' },
+        published('ok', music, 4),
+      ]);
+
+      const result = await service.listRelated(origin, 12);
+
+      expect(result.items.map((item) => item.title)).toEqual(['ok']);
+    });
+
+    it('should list only the most recent public videos when the origin has no category', async () => {
+      const [origin] = await seed([
+        published('origin', null, 50),
+        published('m1', music, 1),
+        published('none', null, 3),
+        published('g1', gaming, 2),
+      ]);
+
+      const result = await service.listRelated(origin, 12);
+
+      expect(result.items.map((item) => item.title)).toEqual([
+        'none',
+        'g1',
+        'm1',
+      ]);
+    });
+
+    it('should respect the limit across both groups', async () => {
+      const [origin] = await seed([
+        published('origin', music, 50),
+        published('m1', music, 1),
+        published('m2', music, 2),
+        published('g1', gaming, 10),
+        published('g2', gaming, 11),
+      ]);
+
+      const onlySame = await service.listRelated(origin, 1);
+      const mixed = await service.listRelated(origin, 3);
+
+      expect(onlySame.items.map((item) => item.title)).toEqual(['m2']);
+      expect(mixed.items.map((item) => item.title)).toEqual(['m2', 'm1', 'g2']);
     });
   });
 

@@ -36,14 +36,14 @@ describe('VideosOwnership', () => {
     ownership = module.get(VideosOwnership);
   });
 
-  it('should return the video with its upload session and category when the user owns the channel', async () => {
+  it('should return the video with its upload session, category and channel when the user owns the channel', async () => {
     await expect(ownership.loadOwned('user-1', 'abcdefghijk')).resolves.toBe(
       video,
     );
 
     expect(videoRepository.findOne).toHaveBeenCalledWith({
       where: { public_id: 'abcdefghijk' },
-      relations: ['upload', 'category'],
+      relations: ['upload', 'category', 'channel'],
     });
     expect(channels.findByUserId).toHaveBeenCalledWith('user-1');
   });

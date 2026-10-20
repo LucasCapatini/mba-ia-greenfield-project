@@ -8,7 +8,11 @@ import type {
   ListOwnerVideosDto,
   OwnerVideoSort,
 } from './dto/list-videos.dto';
-import type { ChannelVideosPage, OwnerVideosPage } from './dto/video-pages.dto';
+import type {
+  ChannelVideosPage,
+  OwnerVideosPage,
+  RelatedVideosResponse,
+} from './dto/video-pages.dto';
 import type { VideoCardItem, VideoListItem } from './dto/video-response.dto';
 import { Video } from './entities/video.entity';
 import { VideosService } from './videos.service';
@@ -121,6 +125,56 @@ export class VideosListingService {
       items: videos.map((video) => this.toCardItem(video, channel)),
       next_cursor: nextCursor,
     };
+  }
+
+  /**
+   * Sugestões da watch page (watch-page/TD-04): só `published` + `public` + `ready`, nunca o
+   * próprio vídeo. Primeiro a mesma categoria por `published_at` decrescente; se faltar (ou o
+   * vídeo não tem categoria), completa com os públicos mais recentes das demais, sem repetir.
+   */
+  async listRelated(
+    video: Pick<Video, 'id' | 'category_id'>,
+    limit: number,
+  ): Promise<RelatedVideosResponse> {
+    const related: Video[] = [];
+    if (video.category_id) {
+      related.push(
+        ...(await this.relatedCandidates(video.id, limit)
+          .andWhere('video.category_id = :categoryId', {
+            categoryId: video.category_id,
+          })
+          .getMany()),
+      );
+    }
+    if (related.length < limit) {
+      const fill = this.relatedCandidates(video.id, limit - related.length);
+      if (video.category_id) {
+        // Os da mesma categoria já vieram todos (menos que `limit`): nada se repete.
+        fill.andWhere('video.category_id IS DISTINCT FROM :categoryId', {
+          categoryId: video.category_id,
+        });
+      }
+      related.push(...(await fill.getMany()));
+    }
+    return {
+      items: related.map((item) => this.toCardItem(item, item.channel)),
+    };
+  }
+
+  private relatedCandidates(
+    excludeId: string,
+    limit: number,
+  ): SelectQueryBuilder<Video> {
+    return this.videos()
+      .innerJoinAndSelect('video.channel', 'channel')
+      .where("video.status = 'published'")
+      .andWhere("video.visibility = 'public'")
+      .andWhere("video.processing_status = 'ready'")
+      .andWhere('video.published_at IS NOT NULL')
+      .andWhere('video.id <> :excludeId', { excludeId })
+      .orderBy('video.published_at', 'DESC')
+      .addOrderBy('video.id', 'DESC')
+      .take(limit);
   }
 
   private videos(): SelectQueryBuilder<Video> {
