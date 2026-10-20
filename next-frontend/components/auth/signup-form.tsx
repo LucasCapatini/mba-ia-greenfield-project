@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Controller, useForm } from "react-hook-form"
+import { Controller, useForm, useWatch } from "react-hook-form"
 import { z } from "zod"
 
 import { FieldError } from "@/components/auth/field-error"
@@ -46,7 +46,6 @@ function SignupForm({ className, ...props }: React.ComponentProps<"form">) {
     register,
     handleSubmit,
     control,
-    watch,
     setError,
     formState: { errors, isSubmitting },
   } = useForm<SignupValues>({
@@ -68,12 +67,9 @@ function SignupForm({ className, ...props }: React.ComponentProps<"form">) {
   )
   const [created, setCreated] = React.useState(false)
 
-  const passwordValue = watch("password")
+  const passwordValue = useWatch({ control, name: "password" })
 
   async function onSubmit(values: SignupValues) {
-    // RegisterDto has no declared properties in the contract source yet; the
-    // payload is authored per phase-02-auth-frontend/TD-04 and passed through
-    // by the BFF route (which casts to the upstream shape).
     const payload = {
       email: values.email,
       password: values.password,

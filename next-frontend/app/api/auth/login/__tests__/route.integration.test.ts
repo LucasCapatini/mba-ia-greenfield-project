@@ -34,6 +34,54 @@ function makeRequest(body: Record<string, unknown>) {
 }
 
 describe("POST /api/auth/login", () => {
+  it("writes nothing to the server console on success or on an upstream error (tokens never logged)", async () => {
+    const spies = (["log", "info", "debug"] as const).map((method) =>
+      vi.spyOn(console, method).mockImplementation(() => {})
+    );
+
+    const ok = await POST(makeRequest({ email: "alice@example.com", password: "pw" }));
+    expect(ok.status).toBe(200);
+
+    server.use(
+      http.post(`${env.API_URL}/auth/login`, () =>
+        HttpResponse.json(
+          { statusCode: 401, error: "INVALID_CREDENTIALS", message: "Invalid email or password" },
+          { status: 401 }
+        )
+      )
+    );
+    const failed = await POST(makeRequest({ email: "bad@example.com", password: "wrong" }));
+    expect(failed.status).toBe(401);
+
+    for (const spy of spies) {
+      expect(spy).not.toHaveBeenCalled()
+      spy.mockRestore()
+    }
+  });
+
+  it("returns 400 VALIDATION_ERROR without calling the upstream when the body is not valid JSON", async () => {
+    const upstreamCalls: string[] = [];
+    const onRequest = ({ request }: { request: Request }) => {
+      upstreamCalls.push(request.url);
+    };
+    server.events.on("request:start", onRequest);
+
+    const res = await POST(
+      new Request("http://localhost/api/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{not json",
+      })
+    );
+
+    server.events.removeListener("request:start", onRequest);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body).toMatchObject({ statusCode: 400, error: "VALIDATION_ERROR" });
+    expect(upstreamCalls).toHaveLength(0);
+    expect(cookieMap.has("streamtube_session")).toBe(false);
+  });
+
   it("returns 200 with empty body (no tokens) and sets iron-session cookie on success", async () => {
     const res = await POST(makeRequest({ email: "alice@example.com", password: "pw" }));
     expect(res.status).toBe(200);

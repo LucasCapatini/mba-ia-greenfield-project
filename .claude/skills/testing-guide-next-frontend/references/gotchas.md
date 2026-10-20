@@ -24,7 +24,7 @@ MSW must be **listening before** the route handler issues its fetch. `mocks/setu
 
 ## Playwright is containerized — no `webServer`, host-run
 
-Per `next-frontend/CLAUDE.md` E2E architecture: Playwright runs on the **host** (`npx playwright test`, `baseURL` `http://localhost:3001`) against the **containerized `next dev` started with `MSW_ENABLED=true`**. Do **not** add a `webServer` block (it would try to spawn/own the server) and do **not** point Playwright at a production `build && start` — the dev server is managed out-of-band and the contract is real `/api/**` + server-side-faked upstream. E2E specs must not `page.route()`/browser-intercept `/api/**` and must not reach a real NestJS API.
+Per `next-frontend/CLAUDE.md` E2E architecture: Playwright runs on the **host** (`node node_modules/@playwright/test/cli.js test`, `baseURL` `http://localhost:3001`) against the **containerized production build** — `npm run build`, then `MSW_ENABLED=true npm run start`. Do **not** run the suite against `next dev`: `next dev` (16.2.6, Turbopack and webpack) intermittently 404s deep Route Handlers on the Windows/Docker Desktop bind mount, while `next build` + `next start` serves every route deterministically. Do **not** add a `webServer` block (it would try to spawn/own the server) — the server is managed out-of-band and the contract is real `/api/**` + server-side-faked upstream. Keep `workers: 1`: the server-side MSW store is shared by every spec file and the login handler resets it. Rebuild after any `app/`, `components/`, `lib/` or `mocks/` change you want the suite to see. E2E specs must not `page.route()`/browser-intercept `/api/**` and must not reach a real NestJS API.
 
 ## Vitest 4 specifics (this project on `^4.1.6`)
 

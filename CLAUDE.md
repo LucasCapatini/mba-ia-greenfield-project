@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 StreamTube — a video sharing platform (YouTube-like). Users can upload, manage, and publish videos. Anonymous users can watch freely; social features (comments, subscriptions, likes) require authentication.
 
-Phases 01 (base config), 02 (auth: register → email confirmation → login → password reset, backend + frontend), 03 (video upload via presigned multipart, processing worker and playback URLs — backend) and 04 (video & channel management: categories, edit/publish, custom thumbnails, deletion, studio screens incl. the upload UI, public channel page — backend + frontend) are done. Phases 05–07 (watch page, social, home/search) are planned. Full plan and phase scopes: [docs/project-plan.md](docs/project-plan.md).
+Phases 01 (base config), 02 (auth: register → email confirmation → login → password reset, backend + frontend), 03 (video upload via presigned multipart, processing worker and playback URLs — backend) and 04 (video & channel management: categories, edit/publish, custom thumbnails, deletion, studio screens incl. the upload UI, public channel page — backend + frontend) and 05 (watch page: custom player with signed-URL renewal, deduplicated view count with daily cleanup, same-category suggestions, download, unlisted by direct link, anonymous access; real visitor IP behind the BFF via `TRUST_PROXY` — backend + frontend) are done. Phases 06–07 (social, home/search) are planned. Full plan and phase scopes: [docs/project-plan.md](docs/project-plan.md).
 
 ## Repository Structure
 
@@ -142,6 +142,14 @@ A change is only considered complete when **all** of the following pass, inside 
 5. If a backend contract changed, the OpenAPI chain was rerun and `types.gen.ts` is in sync.
 
 If any of these fails, the task is not done — fix the underlying issue before declaring completion.
+
+## Confidentiality (public repository)
+
+This repository is public. It is **inadmissible** to cite, search, list or copy into it any data that does not belong to this project — in particular data from the author's employer or other work: names or directories of other repositories on the machine (anything under `~/source/repos/` outside this monorepo, other projects' folders under `~/.claude/projects/`), client names, corporate e-mail addresses or domains, and personal identifiers.
+
+- Never list or read other projects' directories; keep searches scoped to this repository and to this project's own session folder.
+- When checking for or removing such data, report only file paths and counts — never echo the matching lines.
+- Session transcripts in `_claude-sessions/` must be checked and sanitized before they are committed.
 
 ## Git Conventions
 

@@ -36,7 +36,7 @@ Scales available: `red`, `blue`, `almost-black`, `neutral` (each with `-100…-1
 
 ### Typography utilities
 
-Custom text styles (registered in `@theme inline` AND in `lib/utils.ts` tailwind-merge groups): `text-display`, `text-h1`, `text-h2`, `text-h3`, `text-body-lg`, `text-body-md`, `text-caption`, `text-label-md`, `text-label-lg`, `text-label-xl`, `text-label-2xl`, `text-helper`, `text-overlay`. Each carries its own `font-size`, `line-height`, and `font-weight` — **do NOT combine** with `leading-*` or `font-medium` / `font-semibold` unless Figma explicitly overrides. Standalone weights: `font-weight-{400,500,600,700}`.
+Custom text styles (registered in `@theme inline` AND in `lib/utils.ts` tailwind-merge groups): `text-display`, `text-h1`, `text-h2`, `text-h3`, `text-body-lg`, `text-body-md`, `text-caption`, `text-label-md`, `text-label-lg`, `text-label-xl`, `text-label-2xl`, `text-helper`, `text-overlay-md`. Each carries its own `font-size`, `line-height`, and `font-weight` — **do NOT combine** with `leading-*` or `font-medium` / `font-semibold` unless Figma explicitly overrides. Standalone weights: `font-weight-{400,500,600,700}`.
 
 For body copy / headings / labels use these utilities **instead of** raw `text-sm`, `text-base`, etc.
 
@@ -63,7 +63,7 @@ The reference primitive is `components/ui/button.tsx`. Every shadcn-style primit
 
 Workflow rules:
 
-- **Do NOT install or scaffold shadcn primitives manually.** Run `npx shadcn@latest add <component>` so the install respects `components.json`. After install, replace any external icon imports the generator adds with the corresponding custom icon component from `@/components/icons/` (creating it if it doesn't exist) and remove the icon package from dependencies if it gets added.
+- **Do NOT install or scaffold shadcn primitives manually.** Run `npx shadcn add <component>` (inside the container) so the install respects `components.json`, then follow `next-frontend/CLAUDE.md` → "Adding shadcn primitives": the registry ships `import { cn } from "cn"` + the npm `cn` dependency, which must be rewritten to `@/lib/utils` and removed from the manifests. After install, replace any external icon imports the generator adds with the corresponding custom icon component from `@/components/icons/` (creating it if it doesn't exist) and remove the icon package from dependencies if it gets added.
 - **After `shadcn add`, if the primitive has a Figma counterpart, reconcile it before use.** Fetch the Figma component (`get_design_context`) and rewrite the base classes in `components/ui/<name>.tsx` to use this project's tokens (`text-body-md`/`text-label-lg`, `rounded-[var(--radius-N)]`, `bg-input-background`, `border-border`, …). Drop `dark:` overrides that the semantic tokens already cover. Keep the API (props, `data-slot`, `asChild`) — only classes change. Do this once at install time, not via overrides at every call site.
 - **Do NOT add primitives that already exist** in `@/components/ui`. Reuse and compose.
 - All interactive components **MUST** handle `:hover`, `:focus-visible` (with `ring-ring` / `border-ring`), `:disabled`, and `aria-invalid` where applicable — see `components/ui/button.tsx` lines 13–16 for the reference shape.

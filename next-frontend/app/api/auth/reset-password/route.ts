@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import type { ApiErrorEnvelope, ResetPasswordDto } from "@/lib/api/contracts";
+import { invalidBody, readJson } from "@/lib/api/bff";
 import { upstream } from "@/lib/api/upstream";
 
 /**
@@ -9,7 +10,8 @@ import { upstream } from "@/lib/api/upstream";
  * Never touches the session cookie — resetting a password does not sign the user in.
  */
 export async function POST(request: Request) {
-  const body = (await request.json()) as ResetPasswordDto;
+  const body = await readJson<ResetPasswordDto>(request);
+  if (!body) return invalidBody();
 
   const { error, response } = await upstream.POST("/auth/reset-password", {
     body,

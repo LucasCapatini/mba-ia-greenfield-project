@@ -22,6 +22,16 @@ export const envValidationSchema = Joi.object({
   MAIL_PORT: Joi.number().default(1025),
   MAIL_FROM: Joi.string().default('"StreamTube" <noreply@streamtube.com>'),
   SWAGGER_ENABLED: Joi.string().valid('true', 'false').default('false'),
+  // IP(s) do proxy confiável — o BFF next-frontend (watch-page/TD-03). Ausente → `trust proxy`
+  // desligado e o throttler rastreia o IP do socket. Lista separada por vírgula de IPs/CIDRs.
+  TRUST_PROXY: Joi.string().custom((value: string, helpers) => {
+    const ip = Joi.string().ip({ cidr: 'optional' });
+    const entries = value.split(',').map((entry) => entry.trim());
+    const valid = entries.every(
+      (entry) => entry !== '' && ip.validate(entry).error === undefined,
+    );
+    return valid ? value : helpers.error('any.invalid');
+  }),
   // Object storage S3-compatível (phase-03-upload-processing/TD-01, TD-02)
   // Somente http/https: o SDK S3 exige esquema explícito (`rustfs:9000` seria um URI válido para o Joi).
   S3_ENDPOINT: Joi.string()

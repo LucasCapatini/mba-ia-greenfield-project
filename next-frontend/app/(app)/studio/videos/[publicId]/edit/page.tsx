@@ -1,9 +1,9 @@
 import type { Metadata } from "next"
-import { headers } from "next/headers"
 import { notFound, redirect } from "next/navigation"
 
 import { upstream } from "@/lib/api/upstream"
 import { getSession } from "@/lib/auth/session"
+import { requestOrigin } from "@/lib/request-origin"
 import { Card } from "@/components/ui/card"
 import { VideoEditForm } from "@/components/studio/video-edit-form"
 
@@ -13,14 +13,6 @@ export const metadata: Metadata = {
 
 type EditVideoPageProps = {
   params: Promise<{ publicId: string }>
-}
-
-/** Public origin of the app, for the `/watch/{publicId}` link (OQ-5). */
-async function requestOrigin(): Promise<string> {
-  const list = await headers()
-  const host = list.get("x-forwarded-host") ?? list.get("host") ?? "localhost:3001"
-  const protocol = list.get("x-forwarded-proto") ?? "http"
-  return `${protocol}://${host}`
 }
 
 // /studio/videos/{publicId}/edit — edição e publicação (Figma 156:2790). RSC: vídeo (como dono),
@@ -45,12 +37,14 @@ export default async function EditVideoPage({ params }: EditVideoPageProps) {
   }
 
   let streamUrl: string | null = null
+  let streamExpiresAt: string | null = null
   if (video.processing_status === "ready") {
     const playback = await upstream.GET("/videos/{publicId}/playback", {
       params: { path: { publicId } },
       headers: auth,
     })
     streamUrl = playback.data?.stream_url ?? null
+    streamExpiresAt = playback.data?.expires_at ?? null
   }
 
   return (
@@ -63,6 +57,7 @@ export default async function EditVideoPage({ params }: EditVideoPageProps) {
           categories={categoriesResult.data ?? []}
           origin={origin}
           streamUrl={streamUrl}
+          streamExpiresAt={streamExpiresAt}
         />
       </Card>
     </main>

@@ -4,6 +4,7 @@ import Link from "next/link"
 
 import { cn } from "@/lib/utils"
 import { formatCompactNumber, formatRelativeTime } from "@/lib/format"
+import { VideoThumbnail } from "@/components/video/video-thumbnail"
 
 /**
  * Card data for public listings. Mirrors the `VideoCardItem` wire shape planned for
@@ -16,27 +17,96 @@ type VideoCardData = {
   thumbnail_url: string | null
   view_count: number
   published_at: string | null
+  /** Shown as a badge on the thumbnail by the `horizontal` variant only. */
+  duration_seconds?: number | null
   channel?: { nickname: string; name: string }
 }
 
 type VideoCardProps = Omit<React.ComponentProps<"article">, "children"> & {
   video: VideoCardData
+  /** `default`: vertical card of the channel grid. `horizontal`: compact row of the watch page sidebar. */
+  variant?: "default" | "horizontal"
   /** Show the channel name line; off on the channel's own page, where it is redundant. */
   showChannel?: boolean
   now?: Date
+}
+
+function VideoCardMeta({ video, now }: { video: VideoCardData; now?: Date }) {
+  const views = `${formatCompactNumber(video.view_count)} ${video.view_count === 1 ? "view" : "views"}`
+  return (
+    <span data-slot="video-card-meta" className="flex flex-wrap items-center gap-1">
+      <span>{views}</span>
+      {video.published_at ? (
+        <>
+          {" "}
+          <span aria-hidden="true">•</span>{" "}
+          <time dateTime={video.published_at}>{formatRelativeTime(video.published_at, now)}</time>
+        </>
+      ) : null}
+    </span>
+  )
 }
 
 /**
  * Figma "VideoCard" (143:2505, instances 156:3591…): 16:9 thumbnail with radius-4, 16px gap, title
  * clamped to two lines, optional channel line and "N views • time ago" in body-lg muted. The whole
  * card links to the watch page (phase 05); the title names the link, so the image is decorative.
- * The verified badge of the design has no domain concept and is not rendered.
+ * The `horizontal` variant (Video show sidebar, 152:2219) puts a 168px thumbnail with the duration
+ * badge beside a compact text column. The verified badge of the design has no domain concept and
+ * is not rendered.
  */
-function VideoCard({ video, showChannel = true, now, className, ...props }: VideoCardProps) {
-  const views = `${formatCompactNumber(video.view_count)} ${video.view_count === 1 ? "view" : "views"}`
+function VideoCard({
+  video,
+  variant = "default",
+  showChannel = true,
+  now,
+  className,
+  ...props
+}: VideoCardProps) {
+  const channel =
+    showChannel && video.channel ? (
+      <span data-slot="video-card-channel" className="truncate">
+        {video.channel.name}
+      </span>
+    ) : null
+
+  if (variant === "horizontal") {
+    return (
+      <article
+        data-slot="video-card"
+        data-variant="horizontal"
+        className={cn("w-full", className)}
+        {...props}
+      >
+        <Link
+          href={`/watch/${video.public_id}`}
+          className="group flex gap-3 rounded-[var(--radius-2)] outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <VideoThumbnail
+            src={video.thumbnail_url}
+            alt=""
+            durationSeconds={video.duration_seconds}
+            className="w-42"
+          />
+          <div className="flex min-w-0 flex-col gap-1">
+            <h3
+              title={video.title}
+              className="line-clamp-2 text-body-md text-foreground group-hover:underline"
+            >
+              {video.title}
+            </h3>
+            <div className="flex flex-col gap-0.5 text-caption text-muted-foreground">
+              {channel}
+              <VideoCardMeta video={video} now={now} />
+            </div>
+          </div>
+        </Link>
+      </article>
+    )
+  }
 
   return (
-    <article data-slot="video-card" className={cn("w-full", className)} {...props}>
+    <article data-slot="video-card" data-variant="default" className={cn("w-full", className)} {...props}>
       <Link
         href={`/watch/${video.public_id}`}
         className="group flex flex-col gap-4 rounded-[var(--radius-4)] outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -62,23 +132,8 @@ function VideoCard({ video, showChannel = true, now, className, ...props }: Vide
             {video.title}
           </h3>
           <div className="flex flex-col gap-0.5 text-body-lg text-muted-foreground">
-            {showChannel && video.channel ? (
-              <span data-slot="video-card-channel" className="truncate">
-                {video.channel.name}
-              </span>
-            ) : null}
-            <span data-slot="video-card-meta" className="flex flex-wrap items-center gap-1">
-              <span>{views}</span>
-              {video.published_at ? (
-                <>
-                  {" "}
-                  <span aria-hidden="true">•</span>{" "}
-                  <time dateTime={video.published_at}>
-                    {formatRelativeTime(video.published_at, now)}
-                  </time>
-                </>
-              ) : null}
-            </span>
+            {channel}
+            <VideoCardMeta video={video} now={now} />
           </div>
         </div>
       </Link>

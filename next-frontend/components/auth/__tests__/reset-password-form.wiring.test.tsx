@@ -21,6 +21,23 @@ async function fillPasswords(
 }
 
 describe("<ResetPasswordForm /> wiring", () => {
+  it("updates the password strength meter on every typed character (useWatch)", async () => {
+    const user = userEvent.setup()
+    render(<ResetPasswordForm token="ok-token" />)
+    const meter = document.querySelector("[data-slot='password-strength-meter']")
+    const field = screen.getByLabelText("New password")
+
+    expect(meter).toHaveAttribute("data-strength", "empty")
+    await user.type(field, "a")
+    expect(meter).toHaveAttribute("data-strength", "weak")
+    await user.type(field, "bcdefgH")
+    expect(meter).toHaveAttribute("data-strength", "fair")
+    await user.type(field, "1")
+    expect(meter).toHaveAttribute("data-strength", "strong")
+    await user.type(field, "!")
+    expect(meter).toHaveAttribute("data-strength", "very-strong")
+  })
+
   it("posts { token, new_password } to /api/auth/reset-password and shows success with a Sign in link on 204", async () => {
     const user = userEvent.setup()
     const received: Record<string, unknown>[] = []

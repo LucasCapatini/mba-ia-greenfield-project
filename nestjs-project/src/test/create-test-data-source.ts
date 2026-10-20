@@ -1,4 +1,4 @@
-import { DataSource, EntitySchema, MigrationInterface } from 'typeorm';
+import { DataSource, DataSourceOptions, MigrationInterface } from 'typeorm';
 import { ENTITIES } from '../database/entities';
 
 /**
@@ -14,7 +14,7 @@ interface TestDataSourceOptions {
 }
 
 export function createTestDataSource(
-  entities: (Function | string | EntitySchema<any>)[],
+  entities: NonNullable<DataSourceOptions['entities']>,
   options: TestDataSourceOptions = {},
 ): DataSource {
   const { synchronize = true, migrations } = options;
@@ -36,6 +36,7 @@ export function createTestDataSource(
  * (schema `QUEUE_SCHEMA`, criado pelo próprio pg-boss — fora do TypeORM) quando existirem.
  */
 export async function cleanAllTables(dataSource: DataSource): Promise<void> {
+  await dataSource.query('DELETE FROM "video_views"');
   await dataSource.query('DELETE FROM "video_uploads"');
   await dataSource.query('DELETE FROM "videos"');
   await dataSource.query('DELETE FROM "refresh_tokens"');

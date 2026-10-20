@@ -14,7 +14,7 @@
     "start:prod": "node dist/main",
     "start:worker": "node --watch --enable-source-maps -r ts-node/register/transpile-only src/worker.ts",
     "start:worker:prod": "node dist/worker",
-    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix --max-warnings 0",
     "test": "jest --forceExit",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",

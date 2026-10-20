@@ -74,8 +74,19 @@ npm test                                 # Vitest — unit + integration (run mo
 npm run test:watch                       # Vitest watch mode (run in background)
 
 npx tsc --noEmit                         # Type-check (required before declaring a task done)
-npx shadcn@latest add <component>        # Add a shadcn primitive — respects components.json
+npx shadcn add <component> --dry-run     # Preview files + deps first (pinned CLI from package.json)
+npx shadcn add <component>               # Add a shadcn primitive — then follow "Adding shadcn primitives" below
 ```
+
+#### Adding shadcn primitives (registry imports `cn` from the npm package)
+
+Investigated in `task-manutencao-pos-fase-05` (2026-10-20): the **official registry** (`ui.shadcn.com/r/styles/{style}/{name}.json`) currently ships every item with `import { cn } from "cn"` and `dependencies: ["cn"]` — `radix-nova` (our style) and `new-york-v4` alike, for `slider`, `button`, `progress`, `tabs`, … The CLI does not rewrite that import, so both the pinned CLI (`shadcn` 4.7.0 in `package.json`) and `shadcn@latest` (4.22.1 at the time) add the npm package `cn` (unrelated to this project) and generate `from "cn"`. **It is not a project misconfiguration:** `npx shadcn info` resolves `utils → @/lib/utils` correctly; `components.json` and `tsconfig.json` need no change. Safe procedure:
+
+1. Preview inside the container: `npx shadcn add <c> --dry-run` (files + dependencies) and `--view components/ui/<c>.tsx` (contents). Prefer the pinned `npx shadcn` over `@latest`, so the CLI version matches the lockfile.
+2. Install: `docker compose exec next-frontend npx shadcn add <c>`.
+3. Fix the import in every new `components/ui/*.tsx`: `from "cn"` → `from "@/lib/utils"`.
+4. If `cn` was added: `docker compose exec next-frontend npm uninstall cn` (cleans the `node_modules` volume), then on the host `git checkout -- package.json package-lock.json` to restore the manifests byte-for-byte (keep any *other* dependency the item legitimately needs — e.g. a Radix package not yet installed — by re-adding it with `npm install <pkg>`).
+5. Verify: `git diff package.json package-lock.json` shows no `cn`, and `grep -rn 'from "cn"' components` is empty. Then reconcile the primitive with the design tokens (see `.claude/rules/next-frontend-ui.md`).
 
 ### Host-only commands (Docker / connectivity probes)
 
@@ -142,7 +153,15 @@ Source of decisions: `docs/decisions/technical-decisions-next-frontend-openapi-t
 - `lib/env.ts` is the **source of truth** for environment variable reads in `next-frontend/`.
 - See `.env.example` for the canonical key set and `lib/env.ts` for the `createEnv({ server, client, shared, ... })` schema. Current keys: `API_URL` (upstream base URL, server-only), `SESSION_PASSWORD` (iron-session cookie secret, ≥ 32 chars, server-only) and the optional `MSW_ENABLED=true` (process env read by `instrumentation.ts` — only set it for the E2E server (`next start`), never in `.env.local` for normal use). Bootstrap with `cp .env.example .env.local`.
 
-The two Compose stacks stay separate projects but share the named Docker network `streamtube`, created by `nestjs-project/compose.yaml` and declared `external` in `next-frontend/compose.yaml`. `API_URL` is therefore always `http://nestjs-api:3000` (the Compose service name — see `.env.example`). **Start the backend stack before the frontend**: without the network, `docker compose up` in `next-frontend/` fails with "network streamtube declared as external, but could not be found". Never point the upstream at the host machine's gateway alias or at `localhost` — only the Compose service name resolves across the shared network.
+The two Compose stacks stay separate projects but share the named Docker network `streamtube`, created by `nestjs-project/compose.yaml` (fixed subnet `172.30.0.0/24`) and declared `external` in `next-frontend/compose.yaml`, where this container gets the **fixed IP `172.30.0.10`** — the only address the API trusts for `X-Forwarded-For` (`TRUST_PROXY`, `watch-page/TD-03`; see `nestjs-project/CLAUDE.md` → "IP real do visitante atrás do BFF"). Changing the subnet requires recreating the network (`docker compose down` here and in the backend, then backend `up` first). `API_URL` is therefore always `http://nestjs-api:3000` (the Compose service name — see `.env.example`). **Start the backend stack before the frontend**: without the network, `docker compose up` in `next-frontend/` fails with "network streamtube declared as external, but could not be found". Never point the upstream at the host machine's gateway alias or at `localhost` — only the Compose service name resolves across the shared network.
+
+**Visitor IP and optional session (Phase 05, `watch-page/TD-03`).** Every browser request reaches the API through this container, so public calls carry the visitor's identity explicitly:
+
+- `lib/api/client-headers.ts` → `clientHeaders()` reads `x-forwarded-for` (first IP only) and `user-agent` from `headers()` and returns `{ "X-Forwarded-For"?, "User-Agent"? }`; a missing header is omitted.
+- `lib/api/bff.ts` → `withOptionalSession(call)` for public Route Handlers: no session → anonymous upstream call; session → `Bearer` + single-flight refresh (like `withSession`); refresh failed (session destroyed) or token still refused → the call is repeated anonymously and the public response is returned. Always merges `clientHeaders()`.
+- `lib/api/public-read.ts` → `publicRead(call)` for RSC reads: session `Bearer` when there is one + `clientHeaders()`; upstream `401` → repeated anonymously (a RSC cannot write the cookie, so there is no refresh). Returns the typed `openapi-fetch` result.
+- **Verified on `next start` (2026-10-20):** when the request has no `X-Forwarded-For`, Next fills it with the socket address in IPv4-mapped form — from the host through the published port it is the Docker gateway (`::ffff:172.30.0.1`), from another container on `streamtube` its own address (`::ffff:172.30.0.7`). In local dev every host browser therefore shares one IP; that is expected.
+- **Limitation:** Next keeps an `X-Forwarded-For` sent by the client (`??=`), so with nothing in front of `next start` a browser can claim any IP, and the API trusts it because it trusts this container (`TRUST_PROXY`). Any deployment must put a reverse proxy in front of the frontend that **overwrites** `X-Forwarded-For` with the real client address.
 
 Media streaming will eventually come from Object Storage (S3/MinIO) — TBD.
 
@@ -234,6 +253,8 @@ Real browser → real Next.js (RSC, layouts, real `/api/**` Route Handlers serve
 4. Per-scenario outcomes via **reserved trigger fixtures** in the shared handlers (`mocks/handlers/auth.ts`): e-mails `conflict@example.com` → 409, `badrequest@example.com` → 400; tokens `expired-token` → 401 `TOKEN_EXPIRED`, `invalid-token` → 401 `INVALID_TOKEN`, `badrequest-token` → 400 `VALIDATION_ERROR`; anything else → success. No per-test `server.use()`. Keep the trigger table small.
    - **Studio/canal (Fase 04)** — `mocks/handlers/{videos,channels,categories}.ts` leem um store mutável (`mocks/store.ts`, seed em `mocks/factories/videos.ts`) que o handler de `POST /auth/login` reseta (e `mocks/setup.ts` reseta após cada teste do Vitest). Seed: canal `studio_canal` + 22 vídeos (`ready-draft-01` "Aula pronta", `published-01`, `becomes-ready-02` — `processing` nas 2 primeiras leituras de `GET /videos/{id}` e `ready` depois —, `failed-01`, `processing-01`, "Aula 2", "aula 3" e 15 "Video NN" publicados); `PATCH`/`publish`/`unpublish`/`DELETE`/thumbnail atualizam o store.
    - Triggers de vídeo: `notfound-id` → 404 `VIDEO_NOT_FOUND`; `forbidden-id` → 403 `VIDEO_FORBIDDEN`; `processing-id` → sempre `processing` (fora da listagem); `other-channel-01` → 404 na leitura e 403 na mutação. `POST /videos` sempre cria `new-upload-id` (`part_size` 5 MiB, URLs de parte em `http://localhost:9000`, `processing` por 2 leituras após o `complete`).
+   - **Watch page (Fase 05)** — toda `VideoResponse` traz `channel` com o canal atual do store. Leitura pública como no backend: com `Bearer` (qualquer token = dono do store) lê qualquer status; anônimo só `published` (rascunho → 404). `published-01` é `music`, com descrição de 5 linhas; `published-v01..v03` também são `music` (os demais alternam `education`/`gaming`). `GET /videos/{id}/related` devolve `{ items }` (`limit` 1..24, padrão 12; fora disso 400 `VALIDATION_ERROR`) só com `published` + `public` + `ready` fora da listagem oculta, mesma categoria primeiro e mais recentes depois. `POST /videos/{id}/views` responde 204 e soma 1 a `view_count` por `publicId` + `X-Forwarded-For` anônimo em vídeo publicado (com `Bearer` não conta).
+   - Triggers da watch page: `unlisted-01` → publicado `unlisted` (`music`), abre por link e nunca aparece nas sugestões; `storage-down-id` → publicado cujo `GET /videos/{id}/playback` responde 503 `STORAGE_UNAVAILABLE`. Ambos ficam fora do painel e da página do canal.
    - Triggers de canal: `PATCH /channels/me` com nickname `taken_nick` → 409 `NICKNAME_TAKEN` (o nickname antigo passa a 404); `tech_mastery` é o canal público fixo (24 vídeos, página de 20); qualquer outro nickname → 404 `CHANNEL_NOT_FOUND`.
    - Bytes do storage (`PUT` de partes, imagens de thumbnail em `http://localhost:9000/**`) não passam pelo BFF: o spec os atende com `page.route("http://localhost:9000/**")` — nunca `/api/**`.
 5. Playwright runs on the **host** (`npx playwright test`, `http://localhost:3001`); the containerized `next start` (production build) must run with `MSW_ENABLED=true`. No `webServer` in `playwright.config.ts` (the server is containerized); `workers: 1` because the MSW store is shared.
@@ -263,7 +284,8 @@ next-frontend/
 │   ├── api/auth/<route>/route.ts     # BFF Route Handlers: signup, login, logout, forgot-password, reset-password, resend-confirmation
 │   │   └── __tests__/                # Route handler integration tests — same layout under api/videos/** and api/channel (*.integration.test.ts)
 │   ├── api/videos/**                 # BFF de vídeo (Fase 04): POST /api/videos; [publicId]: GET (polling), PATCH (encadeia publish → { video, published }), DELETE,
-│   │                                 #   publish, unpublish, thumbnail (PUT multipart / DELETE), upload (GET/DELETE), upload/parts, upload/complete
+│   │                                 #   publish, unpublish, thumbnail (PUT multipart / DELETE), upload (GET/DELETE), upload/parts, upload/complete;
+│   │                                 #   públicas com sessão opcional (Fase 05, withOptionalSession): playback (GET — o player renova as URLs) e views (POST)
 │   └── api/channel/route.ts          # PATCH → /channels/me; reescreve session.channelSlug quando o nickname muda
 ├── components/
 │   ├── ui/                           # shadcn primitives — ONLY add via shadcn CLI
@@ -310,7 +332,7 @@ Before declaring any task done in this subproject:
 
 - Compare against `components/ui/button.tsx` (canonical primitive) and `app/globals.css` (canonical token registry).
 - If a Figma value has no matching token, ADD the token to `app/globals.css` first, then consume it — do not inline a hex/px value.
-- If the design implies a missing shadcn primitive, install it via `npx shadcn@latest add <name>` rather than hand-rolling it.
+- If the design implies a missing shadcn primitive, install it via `npx shadcn add <name>` (following "Adding shadcn primitives" above — the registry's `cn` import must be fixed after install) rather than hand-rolling it.
 
 # Figma MCP Integration Rules — next-frontend
 

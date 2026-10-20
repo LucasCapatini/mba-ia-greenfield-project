@@ -4,12 +4,15 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
+  Ip,
   Param,
   Patch,
   Post,
   Put,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -32,8 +35,10 @@ import { ApiErrorEnvelope } from '../common/openapi/api-error-envelope.dto';
 import { NonEmptyBodyPipe } from '../common/pipes/non-empty-body.pipe';
 import { CompleteUploadDto } from './dto/complete-upload.dto';
 import { CreateVideoDto } from './dto/create-video.dto';
+import { RelatedVideosQuery } from './dto/list-videos.dto';
 import { PresignPartsDto } from './dto/presign-parts.dto';
 import { UpdateVideoDto } from './dto/update-video.dto';
+import { RelatedVideosResponse } from './dto/video-pages.dto';
 import {
   PlaybackResponse,
   PresignedPartsResponse,
@@ -46,6 +51,8 @@ import {
   THUMBNAIL_FIELD,
   ThumbnailUploadInterceptor,
 } from './thumbnail-upload.interceptor';
+import { VideoViewsService } from './video-views.service';
+import { VideosListingService } from './videos-listing.service';
 import { VideosOwnership } from './videos-ownership';
 import { VideosService } from './videos.service';
 
@@ -73,6 +80,8 @@ export class VideosController {
   constructor(
     private readonly videosService: VideosService,
     private readonly ownership: VideosOwnership,
+    private readonly videoViews: VideoViewsService,
+    private readonly listing: VideosListingService,
   ) {}
 
   @Post()
@@ -193,6 +202,93 @@ export class VideosController {
   ): Promise<PlaybackResponse> {
     const video = await this.ownership.loadReadable(user, publicId);
     return this.videosService.getPlayback(video);
+  }
+
+  @Public()
+  @Get(':publicId/related')
+  @ApiOperation({
+    summary: 'Sugestões da watch page',
+    description:
+      'Leitura pública com autenticação opcional; o vídeo de origem segue a regra de visibilidade de `GET /videos/{publicId}`. Devolve até `limit` vídeos `published` + `public` + `ready` (nunca unlisted nem o próprio vídeo): primeiro os da mesma categoria por publicação decrescente, completados pelos públicos mais recentes das demais categorias, sem repetir (watch-page/TD-04). Lista fechada, sem `next_cursor`.',
+  })
+  @ApiHeader(optionalBearerHeader)
+  @ApiParam(publicIdParam)
+  @ApiResponse({
+    status: 200,
+    description: 'Sugestões',
+    type: RelatedVideosResponse,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'VALIDATION_ERROR — limit fora de 1..24 ou não inteiro',
+    schema: errorEnvelope,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Token presente mas inválido ou expirado',
+    schema: errorEnvelope,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'VIDEO_NOT_FOUND — inexistente ou rascunho de terceiro',
+    schema: errorEnvelope,
+  })
+  async getRelated(
+    @OptionalUser() user: JwtPayload | undefined,
+    @Param('publicId') publicId: string,
+    @Query() query: RelatedVideosQuery,
+  ): Promise<RelatedVideosResponse> {
+    const video = await this.ownership.loadReadable(user, publicId);
+    return this.listing.listRelated(video, query.limit);
+  }
+
+  @Public()
+  @Post(':publicId/views')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Registra uma visualização',
+    description:
+      'Disparado pelo player após 10 s de reprodução acumulada (watch-page/TD-01). Leitura pública com autenticação opcional e a mesma regra de visibilidade de `GET /videos/{publicId}`. Responde 204 sempre que o vídeo é legível; só incrementa `view_count` para vídeo `published`, quando o solicitante não é o dono e na primeira visualização do espectador no dia UTC — usuário autenticado pelo id, anônimo por um hash de IP real + User-Agent (watch-page/TD-02).',
+  })
+  @ApiHeader(optionalBearerHeader)
+  @ApiHeader({
+    name: 'X-Forwarded-For',
+    required: false,
+    description:
+      'IP do visitante, enviado pelo BFF. Só é considerado quando a conexão vem de um proxy confiável (TRUST_PROXY, watch-page/TD-03).',
+  })
+  @ApiParam(publicIdParam)
+  @ApiResponse({
+    status: 204,
+    description: 'Visualização processada (contada ou não)',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Token presente mas inválido ou expirado',
+    schema: errorEnvelope,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'VIDEO_NOT_FOUND — inexistente ou rascunho de terceiro',
+    schema: errorEnvelope,
+  })
+  @ApiResponse({
+    status: 429,
+    description:
+      'Too Many Requests — limite do throttler global por IP real (corpo padrão do @nestjs/throttler)',
+  })
+  async recordView(
+    @OptionalUser() user: JwtPayload | undefined,
+    @Param('publicId') publicId: string,
+    @Ip() ip: string,
+    @Headers('user-agent') userAgent: string | undefined,
+  ): Promise<void> {
+    const video = await this.ownership.loadReadable(user, publicId);
+    await this.videoViews.record(video, {
+      userId: user?.sub,
+      ip,
+      userAgent: userAgent ?? '',
+    });
   }
 
   @Patch(':publicId')

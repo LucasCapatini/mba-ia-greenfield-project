@@ -20,7 +20,7 @@ export class VideosOwnership {
     private readonly channelsService: ChannelsService,
   ) {}
 
-  /** Carrega o vídeo (com a sessão de upload e a categoria) e garante que `userId` é o dono. */
+  /** Carrega o vídeo (com a sessão de upload, a categoria e o canal) e garante que `userId` é o dono. */
   async loadOwned(userId: string, publicId: string): Promise<Video> {
     const video = await this.findByPublicId(publicId);
     if (!(await this.isOwner(userId, video))) {
@@ -51,7 +51,7 @@ export class VideosOwnership {
   private async findByPublicId(publicId: string): Promise<Video> {
     const video = await this.videoRepository.findOne({
       where: { public_id: publicId },
-      relations: ['upload', 'category'],
+      relations: ['upload', 'category', 'channel'],
     });
     if (!video) {
       throw new VideoNotFoundException();

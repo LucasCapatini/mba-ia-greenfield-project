@@ -36,7 +36,7 @@ Default Vitest env is `node` (`vitest.config.ts`). Any test that renders JSX/TSX
 - `mocks/setup.ts` — global MSW lifecycle (`listen` `error` / `resetHandlers` / `close`).
 - `mocks/server.ts` — `setupServer(...handlers)`. `mocks/handlers/index.ts` — barrel. `mocks/handlers/<domain>.ts` — per-domain. `mocks/factories/<domain>.ts` — factories.
 - Path alias `@/*` → project root (`tsconfig.json`). Vitest resolves it via the Vite/tsconfig integration; if a future config needs it explicitly, add `test.alias` or `vite-tsconfig-paths` — do not invent new aliases per-file.
-- `playwright.config.ts` — **does not exist yet**. When Playwright is installed: **no `webServer` block** (the dev server is the containerized `next dev` with `MSW_ENABLED=true`, started out-of-band); `use.baseURL = "http://localhost:3001"`; specs in `tests/`. Playwright runs on the **host**, not in any container.
+- `playwright.config.ts` — **no `webServer` block** (the server is the containerized production build started out-of-band with `MSW_ENABLED=true npm run start`); `use.baseURL = "http://localhost:3001"`; specs in `tests/`; **`workers: 1`** (the server-side MSW store is one in-memory state per server and the login handler resets it, so spec files must not run in parallel); `retries` only in CI. Playwright runs on the **host**, not in any container.
 
 ## Commands (Vitest/tsc/lint inside the container; Playwright on the host)
 
@@ -50,14 +50,18 @@ docker compose exec next-frontend npm run test:watch            # watch (backgro
 docker compose exec next-frontend npx tsc --noEmit              # must exit 0
 docker compose exec next-frontend npm run lint                  # must exit 0
 
-# Playwright — on the HOST (once installed); containerized `next dev` must run with MSW_ENABLED=true
-npx playwright test
-npx playwright test tests/auth-login.e2e-spec.ts
+# Playwright — on the HOST, against the containerized PRODUCTION build (never `next dev`)
+docker compose restart next-frontend                 # stops any running dev server
+docker compose exec next-frontend npm run build      # rebuild after app/, components/, lib/ or mocks/ changes
+docker compose exec -d next-frontend sh -c "MSW_ENABLED=true npm run start"
+curl --retry 15 --retry-delay 2 --retry-connrefused -I http://localhost:3001
+node node_modules/@playwright/test/cli.js test                       # Windows: no npx shim
+node node_modules/@playwright/test/cli.js test tests/auth-login.e2e-spec.ts
 ```
 
 ## Build gates (Definition of Done — global `CLAUDE.md`)
 
-A change is done only when, **inside the container**: the affected Vitest tests pass, the **full** Vitest suite passes, `npx tsc --noEmit` exits 0, `npm run lint` exits 0 — and (once Playwright is installed) the affected E2E specs pass on the host. Compilation errors are never left as debt.
+A change is done only when, **inside the container**: the affected Vitest tests pass, the **full** Vitest suite passes, `npx tsc --noEmit` exits 0, `npm run lint` exits 0 — and the affected E2E specs pass on the host against the production build. Compilation errors are never left as debt.
 
 ## Coverage philosophy — Pragmatic
 

@@ -1,4 +1,8 @@
-import { appendRandomSuffix, sanitizeNickname } from './nickname.util';
+import {
+  appendRandomSuffix,
+  isUsableNickname,
+  sanitizeNickname,
+} from './nickname.util';
 
 describe('sanitizeNickname', () => {
   it('lowercases and strips invalid chars', () => {
@@ -38,6 +42,26 @@ describe('sanitizeNickname', () => {
     expect(a).toMatch(/^user_[a-z0-9]{8}$/);
     expect(b).toMatch(/^user_[a-z0-9]{8}$/);
   });
+});
+
+describe('isUsableNickname', () => {
+  it.each(['admin', 'me', 'channel', 'studio'])(
+    'rejects the reserved nickname "%s"',
+    (nickname) => {
+      expect(isUsableNickname(nickname)).toBe(false);
+    },
+  );
+
+  it.each(['a', 'ab'])('rejects "%s" (shorter than 3 chars)', (nickname) => {
+    expect(isUsableNickname(nickname)).toBe(false);
+  });
+
+  it.each(['abc', 'john', 'john_doe', 'user123'])(
+    'accepts "%s"',
+    (nickname) => {
+      expect(isUsableNickname(nickname)).toBe(true);
+    },
+  );
 });
 
 describe('appendRandomSuffix', () => {

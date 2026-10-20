@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useEffectEvent } from "react";
 import { useRouter } from "next/navigation";
 
 import type { Video } from "@/lib/api/contracts";
@@ -12,12 +12,21 @@ const TERMINAL = new Set(["ready", "failed"]);
 
 /**
  * Acompanha vídeos em `uploading|processing` (video-channel-management/TD-12): a cada
- * `POLL_INTERVAL_MS` lê o estado pelo BFF e, quando um id chega a `ready|failed`, recarrega o RSC
- * com `router.refresh()` — a página volta a ler tudo no servidor. Passe só os ids ainda em voo;
+ * `POLL_INTERVAL_MS` lê o estado pelo BFF e, quando um id chega a `ready|failed`, entrega o vídeo a
+ * `onSettled` (quando passado) e recarrega o RSC com `router.refresh()` — a página volta a ler tudo
+ * no servidor. O `onSettled` existe porque o router pode descartar o resultado do refresh: quem
+ * mostra o status deve atualizar a própria UI com o vídeo do poll. Passe só os ids ainda em voo;
  * lista vazia não agenda nada.
  */
-export function useProcessingPoll(publicIds: readonly string[]): void {
+export function useProcessingPoll(
+  publicIds: readonly string[],
+  onSettled?: (video: VideoResponse) => void,
+): void {
   const router = useRouter();
+  // Effect Event: lê sempre o callback mais recente sem reiniciar o timer quando ele muda.
+  const settle = useEffectEvent((video: VideoResponse) => {
+    onSettled?.(video);
+  });
   // Dependência estável: um array novo com os mesmos ids não reinicia o timer.
   const idsKey = publicIds.join(",");
 
@@ -34,12 +43,13 @@ export function useProcessingPoll(publicIds: readonly string[]): void {
       if (!res.ok || disposed) {
         return; // falha transitória ou 4xx: o próximo ciclo tenta de novo
       }
-      const { processing_status } = (await res.json()) as VideoResponse;
-      if (disposed) {
+      const video = (await res.json()) as VideoResponse;
+      if (disposed || !TERMINAL.has(video.processing_status)) {
         return;
       }
-      if (TERMINAL.has(processing_status)) inFlight.delete(publicId);
-      if (TERMINAL.has(processing_status)) router.refresh();        // RSC re-renders with fresh data
+      inFlight.delete(publicId);
+      settle(video);                                                 // UI reflects the poll right away
+      router.refresh();                                              // RSC re-renders with fresh data
     }
 
     const timer = setInterval(() => {

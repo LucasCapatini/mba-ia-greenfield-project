@@ -22,6 +22,28 @@ function makeRequest(body: Record<string, unknown>) {
 }
 
 describe("POST /api/auth/signup", () => {
+  it("returns 400 VALIDATION_ERROR without calling the upstream when the body is not valid JSON", async () => {
+    const upstreamCalls: string[] = [];
+    const onRequest = ({ request }: { request: Request }) => {
+      upstreamCalls.push(request.url);
+    };
+    server.events.on("request:start", onRequest);
+
+    const res = await POST(
+      new Request("http://localhost/api/auth/signup", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{not json",
+      })
+    );
+
+    server.events.removeListener("request:start", onRequest);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body).toMatchObject({ statusCode: 400, error: "VALIDATION_ERROR" });
+    expect(upstreamCalls).toHaveLength(0);
+  });
+
   it("returns 201 with {id,email} and no Set-Cookie on success", async () => {
     const res = await POST(makeRequest({ email: "alice@example.com", password: "pw" }));
     expect(res.status).toBe(201);

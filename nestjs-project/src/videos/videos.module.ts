@@ -6,8 +6,10 @@ import { QueueModule } from '../queue/queue.module';
 import { StorageModule } from '../storage/storage.module';
 import { ChannelVideosController } from './channel-videos.controller';
 import { VideoUpload } from './entities/video-upload.entity';
+import { VideoView } from './entities/video-view.entity';
 import { ThumbnailUploadInterceptor } from './thumbnail-upload.interceptor';
 import { ThumbnailProcessor } from './thumbnail.processor';
+import { VideoViewsService } from './video-views.service';
 import { Video } from './entities/video.entity';
 import { VideosOwnership } from './videos-ownership';
 import { VideosListingService } from './videos-listing.service';
@@ -19,7 +21,7 @@ import { VideosService } from './videos.service';
 // e CategoriesModule (categoria do vídeo — Fase 04).
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Video, VideoUpload]),
+    TypeOrmModule.forFeature([Video, VideoUpload, VideoView]),
     StorageModule,
     QueueModule,
     ChannelsModule,
@@ -32,6 +34,7 @@ import { VideosService } from './videos.service';
     ThumbnailProcessor,
     ThumbnailUploadInterceptor,
     VideosListingService,
+    VideoViewsService,
   ],
   exports: [VideosService],
 })

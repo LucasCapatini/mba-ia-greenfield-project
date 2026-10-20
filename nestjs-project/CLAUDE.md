@@ -37,7 +37,7 @@ docker compose exec nestjs-api npm run start:dev
 
 Services:
 - `nestjs-api` — NestJS API, port `3000`
-- `db` — PostgreSQL 17, port `5432`, database `streamtube`, user/password `streamtube`
+- `db` — PostgreSQL 17, port `5432`, database `streamtube`, user/password `streamtube`. Os dados ficam no volume nomeado `pg_data` (`nestjs-project_pg_data`, montado em `/var/lib/postgresql/data`): o banco sobrevive a `docker compose down`/`up` e à recriação do container ou da rede `streamtube`; só `docker compose down -v` o apaga, junto com os demais volumes nomeados — depois disso rode `npm run migration:run` de novo. Ao adotar o volume pela primeira vez (task `manutencao-pos-fase-05`), o banco nasce vazio uma única vez: rode `npm run migration:run`; os dados de desenvolvimento anteriores não são migrados.
 - `mailpit` — SMTP sink for dev: SMTP on `1025` (used by the API as `MAIL_HOST=mailpit`), web UI on `http://localhost:8025`
 - `node_modules` volume — named volume `nestjs-project_node_modules` mounted over `/home/node/app/node_modules`, so dependencies never touch the slow 9p bind mount (type-check went from minutes to seconds). The host's `nestjs-project/node_modules` is **not** what the container uses; `docker compose down -v` deletes the volume and the next `up` needs `npm install` again.
 - `rustfs` — object storage S3-compatível para dev (`rustfs/rustfs:1.0.3`, `phase-03-upload-processing/TD-01`): API S3 em `9000` (a API/worker usam `S3_ENDPOINT=http://rustfs:9000`; o navegador usa `S3_PUBLIC_ENDPOINT=http://localhost:9000` só para URLs pré-assinadas), console em `9001`. Dados no volume nomeado `rustfs_data` (`docker compose down -v` apaga os vídeos enviados).
@@ -49,11 +49,21 @@ Services:
   - **Pipeline de `upload.expire`** (`src/worker/upload-expiration.worker.ts`, TD-12): job atrasado agendado no pré-cadastro para `created_at + UPLOAD_TTL` (a API loga o prazo). Carrega a sessão; se não existe ou não está `active` → no-op. Senão, em transação: `UPDATE video_uploads SET state='expired' WHERE id=$1 AND state='active'` (zero linhas = o `complete`/`abort` venceu a corrida → no-op, sem tocar no storage) → `AbortMultipartUpload` (tolera `NoSuchUpload`; outro erro desfaz a transição e o pg-boss retenta) → `DELETE` do rascunho (a sessão cai em cascata). A regra de lifecycle `AbortIncompleteMultipartUpload` do bucket (`storage-init`, 2 dias > `UPLOAD_TTL` de 24 h) é **rede de segurança**, não o mecanismo principal — ela só cobre o que o job não conseguiu abortar.
   - **Pipeline de `video.delete`** (`src/worker/video-deletion.worker.ts`, `video-channel-management/TD-09`, Fase 04): `DELETE /videos/{id}` faz hard delete. Se há sessão multipart `active`, a API a aborta no storage **antes** (falha → 503 e nada muda). Depois, numa transação, apaga a linha (a `video_uploads` cai em cascata) e enfileira `video.delete` na MESMA conexão (opção `db`, como no `complete`), com `singletonKey video-delete:<videoId>` e 3 tentativas com backoff. O payload carrega `storageKey` e `thumbnailKeys` (só as não nulas), porque a linha já não existe quando o job roda. O handler chama `DeleteObject` em cada chave — chave ausente não é erro, então reentregas são seguras —, tenta todas mesmo se uma falhar e relança para o retry; na última tentativa loga `video.delete failed` com as chaves que sobraram.
   - **Pendência operacional (TD-09).** A regra de lifecycle do bucket só cobre multiparts incompletos: um objeto **completo** que o `video.delete` não conseguiu remover após as 3 tentativas fica órfão. Procure `video.delete failed` nos logs do `video-worker` e remova as chaves listadas à mão (`aws s3api delete-object`). Corrida conhecida e aceita: se o vídeo é excluído enquanto o `video.process` roda, o worker de processamento faz no-op ao não achar a linha, mas pode já ter gravado `auto.jpg` depois do `video.delete` — mesma limpeza manual.
+  - **Pipeline de `video-views.cleanup`** (`src/worker/video-views-cleanup.worker.ts`, `watch-page/TD-02`, Fase 05): job **agendado** — na subida o worker chama `QueueService.schedule('video-views.cleanup', '0 3 * * *')` (fuso UTC; reagendar sobrescreve, então reiniciar o worker é seguro) e consome a fila. O handler roda `DELETE FROM video_views WHERE window_start < (now() AT TIME ZONE 'UTC')::date - 2` (constantes em `worker.constants.ts`): só o balde do dia corrente deduplica visualizações novas, os vencidos são lixo. Idempotente; falha relança para o retry do pg-boss e o que sobrar sai no dia seguinte. O agendamento fica em `pgboss.schedule` (`SELECT * FROM pgboss.schedule`).
   - **Fixtures de vídeo.** `src/test/video-fixtures.ts` gera com o próprio ffmpeg (2 s de `testsrc`) um MP4 h264/aac, um MP4 sem áudio, um WebM vp9/opus e um MKV hevc, cacheados em `os.tmpdir()`; nada binário no repositório. Só suítes de integração/E2E os usam.
   - **Build.** `npm run build` emite `dist/main.js` e `dist/worker.js`; em produção, `npm run start:worker:prod` (`node dist/worker`).
   - **Dev e sinais.** O serviço executa `node --watch -r ts-node/register/transpile-only src/worker.ts` **diretamente** (mesmo comando de `npm run start:worker`), com `init: true`, `restart: unless-stopped` e `stop_grace_period: 15s`. Não use `npm run`/`nest start --watch` como comando do container: o `sh -c` do dash não repassa SIGTERM e o `nest` CLI sai antes de o filho terminar, então o worker morreria sem `app.close()`. Com o Node na frente, `docker compose stop video-worker` envia SIGTERM, `enableShutdownHooks` chama `app.close()`, o `QueueService` faz `boss.stop({ graceful: true })` (logado como "Queue stopped") e o processo sai em ~1 s. O `node --watch` reinicia o worker ao salvar um arquivo (transpile-only: a checagem de tipos continua sendo `npx tsc --noEmit`).
 
 All services are attached to the named Docker network `streamtube`, declared in `compose.yaml` and consumed as `external` by `next-frontend/compose.yaml`. **This stack must be started before the frontend stack** — the network only exists once `docker compose up -d` has run here.
+
+### IP real do visitante atrás do BFF (Fase 05, `watch-page/TD-03`)
+
+Toda requisição do navegador chega à API pelo container `next-frontend` (strict BFF), então sem ajuste o throttler global (`ThrottlerModule.forRoot([{ ttl: 60000, limit: 10 }])`) daria a **todos os visitantes um único orçamento**. Por isso:
+
+- A rede `streamtube` tem **sub-rede fixa** (`172.30.0.0/24`, `ipam` no `compose.yaml`) e o `next-frontend` recebe o **IP fixo** `172.30.0.10` (`next-frontend/compose.yaml`). A alocação dinâmica fica restrita a `ip_range: 172.30.0.128/25` (`.128`–`.254`, gateway `172.30.0.1`), então nenhum container do backend pode ocupar o IP em que a API confia, por maior que a stack fique.
+- `TRUST_PROXY` (opcional, IPs/CIDRs separados por vírgula, validado no Joi; `.env.example` = `172.30.0.10`) liga o `trust proxy` do Express só para esse endereço (`src/main.ts`). Ausente → `trust proxy` desligado e o tracker é o IP do socket. Nunca use o nome do serviço Compose: o Express só aceita IP/sub-rede.
+- `ThrottlerBehindProxyGuard` (`src/auth/guards/throttler-behind-proxy.guard.ts`, registrado como `APP_GUARD` no `AuthModule`) rastreia `req.ips[0]` — o primeiro IP de `X-Forwarded-For` — e cai em `req.ip` quando nenhum proxy é confiável. O gateway do host (requisições do host na porta 3000) **não** é confiável, então um `X-Forwarded-For` enviado por `curl` do host é ignorado.
+- **Recriar a rede depois de mudar a sub-rede:** `docker compose down` no `next-frontend/` e aqui, depois `docker compose up -d` aqui primeiro e no frontend em seguida. O banco sobrevive à recriação, porque o `db` usa o volume nomeado `pg_data`.
 
 ### Variáveis de ambiente da Fase 03
 
@@ -164,7 +174,7 @@ npm run migration:generate -- src/database/migrations/<Name>   # Diff entities �
 npm run openapi:export                   # nest build + node dist/openapi-export.js — the build applies the @nestjs/swagger CLI plugin (ts-node does not, so DTOs came out empty); then sync to the frontend — see root CLAUDE.md
 
 npx tsc --noEmit                         # Type-check (required before declaring a task done)
-npm run lint                             # ESLint with auto-fix
+npm run lint                             # ESLint with auto-fix; fails on any error or warning (--max-warnings 0)
 npm run format                           # Prettier formatting
 ```
 
@@ -267,7 +277,7 @@ NestJS with standard module structure. Source lives in `src/`, compiled output i
 - **TypeScript:** `nodenext` module resolution, `ES2023` target, `strictNullChecks` on, `noImplicitAny` off
 - **Decorators:** `emitDecoratorMetadata` + `experimentalDecorators` enabled — required for NestJS DI
 - **Prettier:** single quotes, trailing commas everywhere
-- **ESLint:** `no-explicit-any` allowed; `no-floating-promises` and `no-unsafe-argument` are warnings
+- **ESLint:** `no-explicit-any` allowed; `no-floating-promises` and `no-unsafe-argument` are configured as warnings, but the `lint` script runs with `--max-warnings 0`, so any warning fails it (policy: 0 errors and 0 warnings across `src/` and `test/`, including specs and e2e — type `res.body` and mocks instead of relying on `any`; per `saneamento-fase-04/TD-01`). To check without rewriting files, run `npx eslint "{src,apps,libs,test}/**/*.ts"` (no `--fix`).
 
 ## REST Conventions
 
