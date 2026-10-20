@@ -1,0 +1,12 @@
+# Nothing local or secret enters the build context (home-search-production/TD-11).
+node_modules
+dist
+coverage
+.env
+.env.*
+!.env.example
+test-results
+playwright-report
+specs
+*.log
+.git

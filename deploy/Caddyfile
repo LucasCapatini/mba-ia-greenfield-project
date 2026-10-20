@@ -1,0 +1,11 @@
+# StreamTube edge (home-search-production/TD-10). Automatic HTTPS for {$DOMAIN} (Let's Encrypt in
+# production; Caddy's local CA when DOMAIN=localhost).
+#
+# No `trusted_proxies`: Caddy ignores any X-Forwarded-For sent by the client and sets it to the real
+# client address before proxying. The frontend forwards that value to the API, which trusts it only
+# from the frontend's fixed IP — so a forged header cannot pick another visitor's rate budget
+# (closes the pending item of watch-page/TD-03, Revisions 2026-10-19).
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy web:3000
+}

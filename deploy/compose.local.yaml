@@ -1,0 +1,110 @@
+# Local validation of the production compose (home-search-production/TD-11, Revisions 2026-10-20):
+# builds the production images from the Dockerfiles and, under the `local-validation` profile, swaps
+# AWS S3 and the SMTP provider for RustFS and Mailpit — so the whole production environment can be
+# brought up on a test machine. Never use it on the VPS.
+#
+#   cp deploy/.env.example deploy/.env      # placeholders are enough locally
+#   docker compose -f deploy/compose.yaml -f deploy/compose.local.yaml --profile local-validation up -d --build
+#   open https://localhost (Caddy's local CA)  ·  Mailpit UI: http://localhost:8125
+#
+# Host ports avoid the dev stacks (RustFS 9100, Mailpit 8125); 80/443 belong to Caddy.
+
+x-local-api: &local-api
+  build:
+    context: ../nestjs-project
+  environment:
+    FRONTEND_URL: https://localhost
+    APP_URL: https://localhost
+    S3_ENDPOINT: http://rustfs:9000
+    S3_PUBLIC_ENDPOINT: http://localhost:9100
+    S3_FORCE_PATH_STYLE: "true"
+    MAIL_HOST: mailpit
+    MAIL_PORT: "1025"
+    MAIL_SECURE: "false"
+  depends_on:
+    storage-init:
+      condition: service_completed_successfully
+    mailpit:
+      condition: service_started
+
+services:
+  caddy:
+    environment:
+      DOMAIN: localhost
+
+  web:
+    build:
+      context: ../next-frontend
+
+  api: *local-api
+  worker: *local-api
+  migrate:
+    build:
+      context: ../nestjs-project
+
+  rustfs:
+    profiles: ["local-validation"]
+    image: rustfs/rustfs:1.0.3
+    ports:
+      - "9100:9000"
+    environment:
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_KEY}
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_OBS_LOGGER_LEVEL: error
+    volumes:
+      - rustfs_data:/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Same bootstrap as nestjs-project/compose.yaml: bucket, CORS for the HTTPS origin, lifecycle
+  # and the public-read policy on thumbnails/* (on AWS these are one-time runbook steps).
+  storage-init:
+    profiles: ["local-validation"]
+    image: amazon/aws-cli:2.38.1
+    entrypoint: ["/bin/sh", "-c"]
+    environment:
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+      AWS_DEFAULT_REGION: ${S3_REGION:-us-east-1}
+      AWS_EC2_METADATA_DISABLED: "true"
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+      S3_ENDPOINT: http://rustfs:9000
+      S3_BUCKET: ${S3_BUCKET:-streamtube-videos}
+      CORS_ORIGIN: https://localhost
+    command:
+      - |
+        set -eu
+        S3="aws --endpoint-url $$S3_ENDPOINT s3api"
+        $$S3 head-bucket --bucket "$$S3_BUCKET" >/dev/null 2>&1 || $$S3 create-bucket --bucket "$$S3_BUCKET"
+        $$S3 put-bucket-cors --bucket "$$S3_BUCKET" --cors-configuration "{\"CORSRules\":[{\"AllowedOrigins\":[\"$$CORS_ORIGIN\"],\"AllowedMethods\":[\"GET\",\"PUT\",\"HEAD\"],\"AllowedHeaders\":[\"*\"],\"ExposeHeaders\":[\"ETag\",\"Content-Length\",\"Content-Range\",\"Accept-Ranges\"],\"MaxAgeSeconds\":3000}]}"
+        $$S3 put-bucket-lifecycle-configuration --bucket "$$S3_BUCKET" --lifecycle-configuration '{"Rules":[{"ID":"abort-incomplete-multipart","Status":"Enabled","Filter":{"Prefix":""},"AbortIncompleteMultipartUpload":{"DaysAfterInitiation":2}}]}' || true
+        $$S3 put-bucket-policy --bucket "$$S3_BUCKET" --policy "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"PublicReadThumbnails\",\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":[\"s3:GetObject\"],\"Resource\":[\"arn:aws:s3:::$$S3_BUCKET/thumbnails/*\"]}]}"
+        echo "storage-init: bucket $$S3_BUCKET ready for $$CORS_ORIGIN"
+    networks:
+      - internal
+    depends_on:
+      rustfs:
+        condition: service_healthy
+
+  # Stands in for the SMTP provider; accepts the placeholder credentials of .env.example.
+  mailpit:
+    profiles: ["local-validation"]
+    image: axllent/mailpit
+    ports:
+      - "8125:8025"
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    networks:
+      - internal
+
+volumes:
+  rustfs_data: {}
