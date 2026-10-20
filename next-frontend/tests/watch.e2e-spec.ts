@@ -60,7 +60,8 @@ test.describe("watch", () => {
 
     await expect(page).toHaveTitle(/Aula publicada/)
     await expect(page.getByRole("heading", { level: 1, name: "Aula publicada" })).toBeVisible()
-    const channel = page.getByRole("link", { name: "Studio Canal", exact: true })
+    // Fase 06: o link do canal também carrega "N subscribers" sob o nome.
+    const channel = page.getByRole("link", { name: /^Studio Canal/ })
     await expect(channel).toHaveAttribute("href", "/channel/studio_canal")
     await expect(channel).toContainText("SC")
 
@@ -72,10 +73,17 @@ test.describe("watch", () => {
     await expect(page.getByRole("slider", { name: "Seek" })).toBeAttached()
     await expect(
       page.getByRole("button", {
-        name: /subscribe|like|subtitles|captions|settings|miniplayer|theater/i,
+        name: /subtitles|captions|settings|miniplayer|theater/i,
       })
     ).toHaveCount(0)
+    // Fase 06 (social-interactions/TD-04, TD-10): o anônimo vê Subscribe e o par like/dislike, mas
+    // no lugar do campo de comentário recebe o link "Sign in to comment".
+    await expect(page.getByRole("button", { name: "Subscribe" })).toBeVisible()
+    const reactions = page.getByRole("group", { name: "Video reactions" })
+    await expect(reactions.getByRole("button", { name: /^Like, / })).toBeVisible()
+    await expect(reactions.getByRole("button", { name: "Dislike" })).toBeVisible()
     await expect(page.getByRole("textbox")).toHaveCount(0)
+    await expect(page.getByRole("link", { name: "Sign in to comment" })).toBeVisible()
 
     const description = page.getByRole("region", { name: "Description" })
     await expect(description).toContainText(/views • /)
@@ -180,7 +188,7 @@ test.describe("watch", () => {
     await expect(
       page.getByRole("heading", { level: 1, name: "Vídeo em processamento" })
     ).toBeVisible()
-    await expect(page.getByRole("link", { name: "Studio Canal", exact: true })).toBeVisible()
+    await expect(page.getByRole("link", { name: /^Studio Canal/ })).toBeVisible()
     await expect(page.getByRole("region", { name: "Description" })).toBeVisible()
     await expect(page.getByRole("status").filter({ hasText: "Processing…" })).toBeVisible()
     await expect(page.locator("video")).toHaveCount(0)
@@ -190,7 +198,7 @@ test.describe("watch", () => {
     const alert = page.getByRole("main").getByRole("alert")
     await expect(alert).toHaveText("This video can't be played right now.")
     await expect(page.getByRole("heading", { level: 1, name: "Storage fora do ar" })).toBeVisible()
-    await expect(page.getByRole("link", { name: "Studio Canal", exact: true })).toBeVisible()
+    await expect(page.getByRole("link", { name: /^Studio Canal/ })).toBeVisible()
 
     const reread = page.waitForRequest(
       (request) =>

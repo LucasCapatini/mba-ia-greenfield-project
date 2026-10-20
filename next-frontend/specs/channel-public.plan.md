@@ -23,14 +23,14 @@ target_file: tests/channel-public.e2e-spec.ts
 #### 1.1. anonymous-sees-channel-info-and-videos
 
 **Covers AC:** #1, #4
-**Source:** auto
+**Source:** manual
 **Last sync:** 2026-10-19T03:27:58Z
 
 **Steps:**
   1. Usuário anônimo navega para `/channel/tech_mastery`
     - expect: `<title>` contém "Tech Mastery (@tech_mastery)"
     - expect: um `h1` "Tech Mastery", o texto "@tech_mastery", "24 videos" e "Tutoriais de tecnologia"
-    - expect: nenhum botão "Subscribe" e nenhum contador de inscritos
+    - expect: botão "Subscribe" (`aria-pressed="false"`) e "1.2K subscribers" na meta row (Fase 06 — `social-interactions/TD-04`; antes: nenhum botão nem contador)
     - expect: 20 cards de vídeo; a aba "Videos" selecionada e o chip "Latest" ativo
   2. Inspecionar o primeiro card
     - expect: o link do card aponta para `/watch/<public_id>`
