@@ -56,6 +56,9 @@ services:
       - POSTGRES_USER=streamtube
       - POSTGRES_PASSWORD=streamtube
       - POSTGRES_DB=streamtube
+    # Volume nomeado: recriar o container ou a rede streamtube não apaga o banco de desenvolvimento.
+    volumes:
+      - pg_data:/var/lib/postgresql/data
     networks:
       - streamtube
     healthcheck:
@@ -151,12 +154,16 @@ networks:
   streamtube:
     name: streamtube
     # Sub-rede fixa (watch-page/TD-03): o next-frontend recebe um IP fixo nela e a API só confia em
-    # X-Forwarded-For vindo desse IP (TRUST_PROXY no .env). Mudar a sub-rede exige recriar a rede:
-    # `docker compose down` no frontend e aqui, depois `up` aqui primeiro.
+    # X-Forwarded-For vindo desse IP (TRUST_PROXY no .env). O pool dinâmico (ip_range .128–.254) fica
+    # fora do IP fixo 172.30.0.10, então nenhum container do backend pode ocupá-lo. Mudar o ipam exige
+    # recriar a rede: `docker compose down` no frontend e aqui, depois `up` aqui primeiro.
     ipam:
       config:
         - subnet: 172.30.0.0/24
+          ip_range: 172.30.0.128/25
+          gateway: 172.30.0.1
 
 volumes:
   node_modules: {}
   rustfs_data: {}
+  pg_data: {}
