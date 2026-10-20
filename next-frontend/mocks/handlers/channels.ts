@@ -19,6 +19,7 @@ import {
   parseLimit,
   requireBearer,
 } from "./_http";
+import { channelView } from "./_social";
 
 type ChannelOk =
   paths["/channels/me"]["get"]["responses"][200]["content"]["application/json"];
@@ -217,18 +218,29 @@ export const handlers = [
     });
   }),
 
-  // GET /channels/:nickname — canal do store, `tech_mastery` ou 404
+  // GET /channels/:nickname — canal do store, `tech_mastery` ou 404; inscritos e
+  // `viewer_subscribed` vêm do store social (Fase 06)
   http.get<NicknameParams>(
     `${env.API_URL}/channels/:nickname`,
-    ({ params }) => {
+    ({ params, request }) => {
       const { channel } = studioStore();
-      if (params.nickname === channel.nickname) {
-        return HttpResponse.json<ChannelPublicOk>(toChannelPublic(channel));
+      const isStoreChannel = params.nickname === channel.nickname;
+      if (!isStoreChannel && params.nickname !== TECH_MASTERY.nickname) {
+        return channelNotFound();
       }
-      if (params.nickname === TECH_MASTERY.nickname) {
-        return HttpResponse.json<ChannelPublicOk>(TECH_MASTERY);
+      const view = channelView(params.nickname, request);
+      if (!view) {
+        return channelNotFound();
       }
-      return channelNotFound();
+      const social = {
+        subscriber_count: view.channel.subscriber_count,
+        viewer_subscribed: view.channel.viewer_subscribed,
+      };
+      return HttpResponse.json<ChannelPublicOk>(
+        isStoreChannel
+          ? toChannelPublic(channel, social)
+          : { ...TECH_MASTERY, ...social },
+      );
     },
   ),
 

@@ -233,9 +233,53 @@ export interface paths {
         };
         /**
          * Página pública do canal
-         * @description Nome, nickname, descrição e contagem de vídeos `published` + `public` do canal. Não exige autenticação.
+         * @description Nome, nickname, descrição, contagem de vídeos `published` + `public` e de inscritos do canal. Não exige autenticação; com token, `viewer_subscribed` diz se o solicitante segue o canal (anônimo → false — Fase 06).
          */
         get: operations["ChannelsController_getPublicChannel"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{nickname}/subscription": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Inscreve o usuário no canal
+         * @description Idempotente (social-interactions/TD-03): repetir não muda nada. Responde com o estado e a contagem de inscritos do canal.
+         */
+        put: operations["ChannelSubscriptionController_subscribe"];
+        post?: never;
+        /**
+         * Cancela a inscrição no canal
+         * @description Idempotente (social-interactions/TD-03): sem inscrição, devolve o mesmo estado sem efeito.
+         */
+        delete: operations["ChannelSubscriptionController_unsubscribe"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Canais seguidos pelo usuário
+         * @description Canais seguidos em ordem alfabética do nome (desempate por id), em cursor keyset. O menu lateral pede os 7 primeiros (`limit=7`) e "Show more" segue o `next_cursor`.
+         */
+        get: operations["MeSubscriptionsController_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -293,7 +337,7 @@ export interface paths {
         };
         /**
          * Estado e metadados do vídeo
-         * @description Leitura pública com autenticação opcional. O dono vê o vídeo em qualquer status (polling de processing_status, metadados do worker, campos editoriais); anônimos e outros usuários só veem vídeos `published` (public ou unlisted). Um rascunho alheio responde 404, sem revelar que existe.
+         * @description Leitura pública com autenticação opcional. O dono vê o vídeo em qualquer status (polling de processing_status, metadados do worker, campos editoriais); anônimos e outros usuários só veem vídeos `published` (public ou unlisted). Um rascunho alheio responde 404, sem revelar que existe. Com token, `viewer_reaction` e `channel.viewer_subscribed` trazem o estado do solicitante; anônimo → null/false (Fase 06).
          */
         get: operations["VideosController_getVideo"];
         put?: never;
@@ -540,6 +584,146 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/subscriptions/videos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Feed dos canais seguidos
+         * @description Vídeos publicados, públicos e prontos dos canais que o usuário segue, do mais recente ao mais antigo, em cursor keyset. Unlisted, rascunhos e vídeos em processamento ficam de fora.
+         */
+        get: operations["SubscriptionFeedController_feed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/videos/{publicId}/reaction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Define a reação do usuário ao vídeo
+         * @description Set-state idempotente (social-interactions/TD-03): cria ou troca a reação (like/dislike); repetir o mesmo valor não muda nada. Responde com o estado resultante e os contadores do vídeo.
+         */
+        put: operations["VideoReactionsController_setReaction"];
+        post?: never;
+        /**
+         * Remove a reação do usuário ao vídeo
+         * @description Idempotente (social-interactions/TD-03): sem reação, devolve o mesmo estado sem efeito.
+         */
+        delete: operations["VideoReactionsController_removeReaction"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/comments/{commentId}/reaction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Define a reação do usuário ao comentário
+         * @description Set-state idempotente (social-interactions/TD-03): cria ou troca a reação (like/dislike); repetir o mesmo valor não muda nada. Responde com o estado resultante e os contadores do comentário.
+         */
+        put: operations["CommentReactionsController_setReaction"];
+        post?: never;
+        /**
+         * Remove a reação do usuário ao comentário
+         * @description Idempotente (social-interactions/TD-03): sem reação, devolve o mesmo estado sem efeito.
+         */
+        delete: operations["CommentReactionsController_removeReaction"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/videos/{publicId}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Comentários raiz do vídeo
+         * @description Raízes paginadas em cursor keyset: `sort=latest` (padrão, mais recentes primeiro) ou `top` (mais curtidos). As respostas vêm por `GET /comments/{commentId}/replies`. Com token, cada item traz a reação do solicitante e se ele é o autor.
+         */
+        get: operations["VideoCommentsController_list"];
+        put?: never;
+        /**
+         * Comenta no vídeo
+         * @description Cria um comentário raiz. Texto puro, 1 a 2.000 caracteres após remover os espaços das pontas; quebras de linha preservadas. Soma 1 ao `comment_count` do vídeo.
+         */
+        post: operations["VideoCommentsController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/comments/{commentId}/replies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Respostas de um comentário raiz
+         * @description Respostas da raiz da mais antiga para a mais nova, em cursor keyset. Com token, cada item traz a reação do solicitante e se ele é o autor. Um comentário que já é resposta não tem respostas (404).
+         */
+        get: operations["CommentsController_listReplies"];
+        put?: never;
+        /**
+         * Responde a um comentário
+         * @description Cria uma resposta (um nível só): se `commentId` já é uma resposta, a nova é gravada na raiz dela. Soma 1 ao `reply_count` da raiz e ao `comment_count` do vídeo.
+         */
+        post: operations["CommentsController_reply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/comments/{commentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Exclui o próprio comentário
+         * @description Exclusão física. Apagar uma raiz apaga as respostas e desconta `1 + reply_count` do `comment_count` do vídeo; apagar uma resposta desconta 1 do vídeo e da raiz.
+         */
+        delete: operations["CommentsController_remove"];
+        options?: never;
+        head?: never;
+        /**
+         * Edita o próprio comentário
+         * @description Troca o texto (mesmas regras da criação) e grava `edited_at`. Vale para raízes e respostas.
+         */
+        patch: operations["CommentsController_update"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -623,6 +807,30 @@ export interface components {
             video_count: number;
             /** @description ISO-8601 */
             created_at: string;
+            /**
+             * @description Inscritos no canal (social-interactions/TD-04).
+             * @example 1200
+             */
+            subscriber_count: number;
+            /** @description Se o solicitante segue o canal; anônimo → false. */
+            viewer_subscribed: boolean;
+        };
+        SubscriptionStateResponse: {
+            /** @description Se o solicitante segue o canal após a escrita. */
+            subscribed: boolean;
+            /** @example 1200 */
+            subscriber_count: number;
+        };
+        VideoCardChannel: {
+            /** @example tech_mastery */
+            nickname: string;
+            /** @example Tech Mastery Plus */
+            name: string;
+        };
+        SubscribedChannelsPage: {
+            items: components["schemas"]["VideoCardChannel"][];
+            /** @description Cursor da próxima página; `null` na última. */
+            next_cursor: string | null;
         };
         CategoryResponse: {
             /**
@@ -695,11 +903,15 @@ export interface components {
             processing_status: "uploading" | "processing" | "ready" | "failed";
             upload: components["schemas"]["UploadSessionResponse"];
         };
-        VideoCardChannel: {
+        VideoChannel: {
             /** @example tech_mastery */
             nickname: string;
             /** @example Tech Mastery Plus */
             name: string;
+            /** @example 1200 */
+            subscriber_count: number;
+            /** @description Se o solicitante segue o canal; anônimo → false. */
+            viewer_subscribed: boolean;
         };
         VideoResponse: {
             /** @example dQw4w9WgXcQ */
@@ -761,8 +973,13 @@ export interface components {
             created_at: string;
             /** @description ISO-8601 */
             processed_at: string | null;
-            /** @description Canal dono do vídeo (nickname e nome públicos) — a watch page o exibe sob o título (Fase 05). */
-            channel: components["schemas"]["VideoCardChannel"];
+            /**
+             * @description Reação do solicitante ao vídeo (social-interactions/TD-04); anônimo → null.
+             * @enum {string|null}
+             */
+            viewer_reaction: "like" | "dislike" | null;
+            /** @description Canal dono do vídeo — a watch page o exibe sob o título (Fase 05) com a contagem de inscritos e o estado do botão Subscribe (Fase 06). */
+            channel: components["schemas"]["VideoChannel"];
         };
         PlaybackResponse: {
             /** @description GET pré-assinado do vídeo; o storage atende `Range` (206). */
@@ -904,6 +1121,78 @@ export interface components {
             items: components["schemas"]["VideoCardItem"][];
             /** @description Cursor da próxima página; `null` na última. */
             next_cursor: string | null;
+        };
+        SubscriptionFeedPage: {
+            items: components["schemas"]["VideoCardItem"][];
+            /** @description Cursor da próxima página; `null` na última. */
+            next_cursor: string | null;
+        };
+        SetReactionDto: {
+            /**
+             * @description Reação desejada: `like` ou `dislike`.
+             * @enum {string}
+             */
+            value: "like" | "dislike";
+        };
+        ReactionStateResponse: {
+            /**
+             * @description Reação do solicitante após a escrita; `null` = nenhuma.
+             * @enum {string|null}
+             */
+            viewer_reaction: "like" | "dislike" | null;
+            /** @example 1200 */
+            like_count: number;
+            /** @example 12 */
+            dislike_count: number;
+        };
+        CommentResponse: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: uuid
+             * @description null na raiz; nas respostas, o id da raiz (um nível só — TD-05).
+             */
+            parent_id: string | null;
+            /**
+             * @description Texto puro; quebras de linha preservadas.
+             * @example Ótimo vídeo
+             */
+            text: string;
+            /** @description Canal do autor (nickname e nome públicos). */
+            author: components["schemas"]["VideoCardChannel"];
+            /** @description ISO-8601 */
+            created_at: string;
+            /** @description ISO-8601 da última edição; null se nunca editado. */
+            edited_at: string | null;
+            /** @example 0 */
+            like_count: number;
+            /** @example 0 */
+            dislike_count: number;
+            /**
+             * @description Respostas da raiz; sempre 0 nas respostas.
+             * @example 0
+             */
+            reply_count: number;
+            /**
+             * @description Reação do solicitante ao comentário; anônimo → null.
+             * @enum {string|null}
+             */
+            viewer_reaction: "like" | "dislike" | null;
+            /** @description Se o solicitante é o autor (mostra o menu Editar/Excluir); anônimo → false. */
+            viewer_is_author: boolean;
+        };
+        CommentsPage: {
+            items: components["schemas"]["CommentResponse"][];
+            /** @description Cursor da próxima página; null na última. */
+            next_cursor: string | null;
+        };
+        CreateCommentDto: {
+            /** @description Texto puro; espaços nas pontas são removidos e as quebras de linha preservadas (1 a 2.000 caracteres). */
+            text: string;
+        };
+        UpdateCommentDto: {
+            /** @description Texto puro; espaços nas pontas são removidos e as quebras de linha preservadas (1 a 2.000 caracteres). */
+            text: string;
         };
         ApiErrorEnvelope: {
             /** @example 401 */
@@ -1373,7 +1662,10 @@ export interface operations {
     ChannelsController_getPublicChannel: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Opcional: `Bearer <access_token>`. Sem header → anônimo; token inválido ou expirado → 401. */
+                Authorization?: string;
+            };
             path: {
                 /** @description Nickname do canal (sem `@`) */
                 nickname: string;
@@ -1391,6 +1683,15 @@ export interface operations {
                     "application/json": components["schemas"]["ChannelPublicResponse"];
                 };
             };
+            /** @description Token presente mas inválido ou expirado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
             /** @description CHANNEL_NOT_FOUND */
             404: {
                 headers: {
@@ -1399,6 +1700,131 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorEnvelope"];
                 };
+            };
+        };
+    };
+    ChannelSubscriptionController_subscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Nickname do canal */
+                nickname: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionStateResponse"];
+                };
+            };
+            /** @description Token ausente, inválido ou expirado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description CHANNEL_NOT_FOUND — nickname inexistente */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description CANNOT_SUBSCRIBE_OWN_CHANNEL — o canal é do próprio usuário */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    ChannelSubscriptionController_unsubscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Nickname do canal */
+                nickname: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionStateResponse"];
+                };
+            };
+            /** @description Token ausente, inválido ou expirado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description CHANNEL_NOT_FOUND — nickname inexistente */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    MeSubscriptionsController_list: {
+        parameters: {
+            query?: {
+                /** @description Itens por página (1..50). */
+                limit?: number;
+                /** @description Cursor opaco devolvido em `next_cursor` pela página anterior. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscribedChannelsPage"];
+                };
+            };
+            /** @description VALIDATION_ERROR — `limit` inválido ou `cursor` malformado */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description Token ausente, inválido ou expirado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -2480,6 +2906,575 @@ export interface operations {
                 };
             };
             /** @description CHANNEL_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    SubscriptionFeedController_feed: {
+        parameters: {
+            query?: {
+                /** @description Itens por página (1..50). */
+                limit?: number;
+                /** @description Cursor opaco devolvido em `next_cursor` pela página anterior. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionFeedPage"];
+                };
+            };
+            /** @description VALIDATION_ERROR — `limit` inválido ou `cursor` malformado */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description Token ausente, inválido ou expirado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    VideoReactionsController_setReaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador público do vídeo (11 chars base64url) */
+                publicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetReactionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReactionStateResponse"];
+                };
+            };
+            /** @description VALIDATION_ERROR — `value` ausente ou fora do enum */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description Token ausente, inválido ou expirado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description VIDEO_NOT_FOUND — inexistente ou não publicado (inclusive para o dono) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description Too Many Requests — limite de 60 req/min da rota */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    VideoReactionsController_removeReaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador público do vídeo (11 chars base64url) */
+                publicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReactionStateResponse"];
+                };
+            };
+            /** @description Token ausente, inválido ou expirado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description VIDEO_NOT_FOUND — inexistente ou não publicado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description Too Many Requests — limite de 60 req/min da rota */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    CommentReactionsController_setReaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Id (uuid) do comentário ou resposta; malformado → 404 */
+                commentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetReactionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReactionStateResponse"];
+                };
+            };
+            /** @description VALIDATION_ERROR — `value` ausente ou fora do enum */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description Token ausente, inválido ou expirado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description COMMENT_NOT_FOUND — inexistente, id malformado ou vídeo não publicado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description Too Many Requests — limite de 60 req/min da rota */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    CommentReactionsController_removeReaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Id (uuid) do comentário ou resposta; malformado → 404 */
+                commentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReactionStateResponse"];
+                };
+            };
+            /** @description Token ausente, inválido ou expirado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description COMMENT_NOT_FOUND — inexistente, id malformado ou vídeo não publicado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description Too Many Requests — limite de 60 req/min da rota */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    VideoCommentsController_list: {
+        parameters: {
+            query?: {
+                /** @description Itens por página (1..50). */
+                limit?: number;
+                sort?: "latest" | "top";
+                /** @description Cursor opaco devolvido em `next_cursor` pela página anterior. */
+                cursor?: string;
+            };
+            header?: {
+                /** @description Opcional: `Bearer <access_token>`. Sem header → anônimo; token inválido ou expirado → 401. */
+                Authorization?: string;
+            };
+            path: {
+                /** @description Identificador público do vídeo (11 caracteres) */
+                publicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommentsPage"];
+                };
+            };
+            /** @description VALIDATION_ERROR — `sort`/`limit` inválidos ou `cursor` malformado/de outra ordenação */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description Token presente mas inválido ou expirado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description VIDEO_NOT_FOUND — inexistente ou não publicado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    VideoCommentsController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador público do vídeo (11 caracteres) */
+                publicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCommentDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommentResponse"];
+                };
+            };
+            /** @description VALIDATION_ERROR — `text` ausente, vazio ou longo demais */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description Token ausente, inválido ou expirado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description VIDEO_NOT_FOUND — inexistente ou não publicado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    CommentsController_listReplies: {
+        parameters: {
+            query?: {
+                /** @description Itens por página (1..50). */
+                limit?: number;
+                /** @description Cursor opaco devolvido em `next_cursor` pela página anterior. */
+                cursor?: string;
+            };
+            header?: {
+                /** @description Opcional: `Bearer <access_token>`. Sem header → anônimo; token inválido ou expirado → 401. */
+                Authorization?: string;
+            };
+            path: {
+                /** @description Id (uuid) do comentário; malformado → 404 */
+                commentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommentsPage"];
+                };
+            };
+            /** @description VALIDATION_ERROR — `limit` inválido ou `cursor` malformado */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description Token presente mas inválido ou expirado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description COMMENT_NOT_FOUND — inexistente, não é raiz ou vídeo não publicado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    CommentsController_reply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Id (uuid) do comentário; malformado → 404 */
+                commentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCommentDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommentResponse"];
+                };
+            };
+            /** @description VALIDATION_ERROR — `text` inválido */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description Token ausente, inválido ou expirado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description COMMENT_NOT_FOUND — inexistente, id malformado ou vídeo não publicado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    CommentsController_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Id (uuid) do comentário; malformado → 404 */
+                commentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Comentário excluído */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Token ausente, inválido ou expirado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description COMMENT_FORBIDDEN — o solicitante não é o autor */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description COMMENT_NOT_FOUND — inexistente, id malformado ou vídeo não publicado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    CommentsController_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Id (uuid) do comentário; malformado → 404 */
+                commentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCommentDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommentResponse"];
+                };
+            };
+            /** @description VALIDATION_ERROR — `text` inválido */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description Token ausente, inválido ou expirado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description COMMENT_FORBIDDEN — o solicitante não é o autor */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description COMMENT_NOT_FOUND — inexistente, id malformado ou vídeo não publicado */
             404: {
                 headers: {
                     [name: string]: unknown;
