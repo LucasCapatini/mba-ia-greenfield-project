@@ -75,4 +75,35 @@ describe("VideoCard", () => {
     const { container } = render(<VideoCard video={makeVideo({ thumbnail_url: null })} now={NOW} />);
     expect(container.querySelector("img")).toBeNull();
   });
+
+  describe("showAvatar (subscriptions feed — phase 06)", () => {
+    it("links the title to the video and the avatar + name to the channel, without nesting links", () => {
+      const { container } = render(<VideoCard video={makeVideo()} showAvatar now={NOW} />);
+
+      expect(screen.getByRole("link", { name: /React 19 Complete Crash Course/ })).toHaveAttribute(
+        "href",
+        "/watch/pub-01",
+      );
+      expect(screen.getByRole("link", { name: "Tech Mastery Plus" })).toHaveAttribute(
+        "href",
+        "/channel/tech_mastery",
+      );
+      expect(container.querySelector('[data-slot="channel-avatar"]')).toHaveTextContent("TM");
+      expect(container.querySelector("a a")).toBeNull();
+    });
+
+    it("keeps the duplicated thumbnail and avatar links out of the tab order", () => {
+      const { container } = render(<VideoCard video={makeVideo()} showAvatar now={NOW} />);
+
+      const hidden = container.querySelectorAll('a[aria-hidden="true"]');
+      expect(hidden).toHaveLength(2);
+      hidden.forEach((link) => expect(link).toHaveAttribute("tabindex", "-1"));
+    });
+
+    it("falls back to the plain card when the video has no channel", () => {
+      render(<VideoCard video={makeVideo({ channel: undefined })} showAvatar now={NOW} />);
+
+      expect(screen.getAllByRole("link")).toHaveLength(1);
+    });
+  });
 });

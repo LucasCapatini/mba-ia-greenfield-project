@@ -9,8 +9,10 @@ type ChannelHeaderProps = Omit<React.ComponentProps<"section">, "children"> & {
   name: string
   nickname: string
   videoCount: number
+  /** "N subscribers" na meta row (Fase 06). */
+  subscriberCount?: number
   description?: string | null
-  /** Header actions (Subscribe/notifications belong to phase 06 — empty in this phase). */
+  /** Header actions — the Subscribe button (phase 06); the bell 158:2691 is not rendered. */
   actions?: React.ReactNode
 }
 
@@ -22,6 +24,7 @@ function ChannelHeader({
   name,
   nickname,
   videoCount,
+  subscriberCount,
   description,
   actions,
   className,
@@ -42,6 +45,7 @@ function ChannelHeader({
           name={name}
           nickname={nickname}
           videoCount={videoCount}
+          subscriberCount={subscriberCount}
           description={description}
         />
         {actions ? <div className="flex shrink-0 items-center gap-4">{actions}</div> : null}

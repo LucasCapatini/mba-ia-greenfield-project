@@ -22,3 +22,11 @@ export function safeReturnTo(value: string | string[] | undefined | null): strin
     return "/"
   }
 }
+
+/**
+ * Link de login que volta para `path` depois de autenticar (social-interactions/TD-10). As barras
+ * ficam legíveis (`/login?returnTo=/watch/abc`), como o `proxy.ts` do estúdio gera.
+ */
+export function loginHref(path: string): string {
+  return `/login?returnTo=${encodeURIComponent(path).replaceAll("%2F", "/")}`
+}
