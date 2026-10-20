@@ -26,6 +26,12 @@ export class OwnerVideosPage implements CountedCursorPage<VideoListItem> {
   total: number;
 }
 
+/** `GET /videos/{publicId}/related` — lista fechada, sem `next_cursor` (watch-page/TD-04). */
+export class RelatedVideosResponse {
+  @ApiProperty({ type: [VideoCardItem] })
+  items: VideoCardItem[];
+}
+
 /** `GET /channels/{nickname}/videos`. */
 export class ChannelVideosPage implements CursorPage<VideoCardItem> {
   @ApiProperty({ type: [VideoCardItem] })

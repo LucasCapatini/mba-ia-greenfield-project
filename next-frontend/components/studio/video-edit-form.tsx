@@ -86,6 +86,8 @@ type VideoEditFormProps = Omit<React.ComponentProps<"form">, "children" | "onSub
   origin: string
   /** Signed stream URL for the preview (only when `ready`). */
   streamUrl?: string | null
+  /** ISO expiry of `streamUrl`; the preview player renews the URL after it. */
+  streamExpiresAt?: string | null
   /** Replaces the default "Cancel" button (e.g. the upload screen's cancel-with-dialog). */
   cancelAction?: React.ReactNode
   /**
@@ -110,6 +112,7 @@ function VideoEditForm({
   categories,
   origin,
   streamUrl = null,
+  streamExpiresAt = null,
   cancelAction,
   pollProcessing = true,
   className,
@@ -337,7 +340,9 @@ function VideoEditForm({
           preview={
             <VideoPreview
               title={video.title}
+              publicId={video.public_id}
               streamUrl={streamUrl}
+              expiresAt={streamExpiresAt}
               posterUrl={video.thumbnail_url}
               durationSeconds={video.duration_seconds}
             />

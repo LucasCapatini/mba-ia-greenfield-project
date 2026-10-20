@@ -1022,6 +1022,159 @@
         ]
       }
     },
+    "/videos/{publicId}/related": {
+      "get": {
+        "description": "Leitura pública com autenticação opcional; o vídeo de origem segue a regra de visibilidade de `GET /videos/{publicId}`. Devolve até `limit` vídeos `published` + `public` + `ready` (nunca unlisted nem o próprio vídeo): primeiro os da mesma categoria por publicação decrescente, completados pelos públicos mais recentes das demais categorias, sem repetir (watch-page/TD-04). Lista fechada, sem `next_cursor`.",
+        "operationId": "VideosController_getRelated",
+        "parameters": [
+          {
+            "name": "publicId",
+            "required": true,
+            "in": "path",
+            "description": "Identificador público do vídeo (11 chars base64url)",
+            "schema": {
+              "example": "dQw4w9WgXcQ",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Quantidade de sugestões (1..24).",
+            "schema": {
+              "minimum": 1,
+              "maximum": 24,
+              "default": 12,
+              "type": "number"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Opcional: `Bearer <access_token>`. Sem header → anônimo; token inválido ou expirado → 401.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sugestões",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelatedVideosResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR — limit fora de 1..24 ou não inteiro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token presente mas inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "VIDEO_NOT_FOUND — inexistente ou rascunho de terceiro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Sugestões da watch page",
+        "tags": [
+          "videos"
+        ]
+      }
+    },
+    "/videos/{publicId}/views": {
+      "post": {
+        "description": "Disparado pelo player após 10 s de reprodução acumulada (watch-page/TD-01). Leitura pública com autenticação opcional e a mesma regra de visibilidade de `GET /videos/{publicId}`. Responde 204 sempre que o vídeo é legível; só incrementa `view_count` para vídeo `published`, quando o solicitante não é o dono e na primeira visualização do espectador no dia UTC — usuário autenticado pelo id, anônimo por um hash de IP real + User-Agent (watch-page/TD-02).",
+        "operationId": "VideosController_recordView",
+        "parameters": [
+          {
+            "name": "publicId",
+            "required": true,
+            "in": "path",
+            "description": "Identificador público do vídeo (11 chars base64url)",
+            "schema": {
+              "example": "dQw4w9WgXcQ",
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Forwarded-For",
+            "in": "header",
+            "description": "IP do visitante, enviado pelo BFF. Só é considerado quando a conexão vem de um proxy confiável (TRUST_PROXY, watch-page/TD-03).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Opcional: `Bearer <access_token>`. Sem header → anônimo; token inválido ou expirado → 401.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Visualização processada (contada ou não)"
+          },
+          "401": {
+            "description": "Token presente mas inválido ou expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "VIDEO_NOT_FOUND — inexistente ou rascunho de terceiro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests — limite do throttler global por IP real (corpo padrão do @nestjs/throttler)"
+          }
+        },
+        "summary": "Registra uma visualização",
+        "tags": [
+          "videos"
+        ]
+      }
+    },
     "/videos/{publicId}/publish": {
       "post": {
         "description": "Ação dedicada (só o dono). Exige processing_status = ready e título não vazio; grava published_at só na primeira publicação. Idempotente: já publicado → 200 sem alteração.",
@@ -2346,6 +2499,23 @@
           "upload"
         ]
       },
+      "VideoCardChannel": {
+        "type": "object",
+        "properties": {
+          "nickname": {
+            "type": "string",
+            "example": "tech_mastery"
+          },
+          "name": {
+            "type": "string",
+            "example": "Tech Mastery Plus"
+          }
+        },
+        "required": [
+          "nickname",
+          "name"
+        ]
+      },
       "VideoResponse": {
         "type": "object",
         "properties": {
@@ -2490,6 +2660,14 @@
             "type": "string",
             "nullable": true,
             "description": "ISO-8601"
+          },
+          "channel": {
+            "description": "Canal dono do vídeo (nickname e nome públicos) — a watch page o exibe sob o título (Fase 05).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/VideoCardChannel"
+              }
+            ]
           }
         },
         "required": [
@@ -2518,7 +2696,8 @@
           "comment_count",
           "published_at",
           "created_at",
-          "processed_at"
+          "processed_at",
+          "channel"
         ]
       },
       "PlaybackResponse": {
@@ -2547,6 +2726,61 @@
           "download_url",
           "thumbnail_url",
           "expires_at"
+        ]
+      },
+      "VideoCardItem": {
+        "type": "object",
+        "properties": {
+          "public_id": {
+            "type": "string",
+            "example": "dQw4w9WgXcQ"
+          },
+          "title": {
+            "type": "string"
+          },
+          "thumbnail_url": {
+            "type": "string",
+            "nullable": true,
+            "description": "URL pública e estável da thumbnail (customizada ou automática), sem assinatura, com `?v=` para cache-busting (TD-10); null enquanto não existe."
+          },
+          "duration_seconds": {
+            "type": "number",
+            "nullable": true
+          },
+          "view_count": {
+            "type": "integer"
+          },
+          "published_at": {
+            "type": "string",
+            "nullable": true,
+            "description": "ISO-8601"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/VideoCardChannel"
+          }
+        },
+        "required": [
+          "public_id",
+          "title",
+          "thumbnail_url",
+          "duration_seconds",
+          "view_count",
+          "published_at",
+          "channel"
+        ]
+      },
+      "RelatedVideosResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VideoCardItem"
+            }
+          }
+        },
+        "required": [
+          "items"
         ]
       },
       "UpdateVideoDto": {
@@ -2892,64 +3126,6 @@
           "items",
           "next_cursor",
           "total"
-        ]
-      },
-      "VideoCardChannel": {
-        "type": "object",
-        "properties": {
-          "nickname": {
-            "type": "string",
-            "example": "tech_mastery"
-          },
-          "name": {
-            "type": "string",
-            "example": "Tech Mastery Plus"
-          }
-        },
-        "required": [
-          "nickname",
-          "name"
-        ]
-      },
-      "VideoCardItem": {
-        "type": "object",
-        "properties": {
-          "public_id": {
-            "type": "string",
-            "example": "dQw4w9WgXcQ"
-          },
-          "title": {
-            "type": "string"
-          },
-          "thumbnail_url": {
-            "type": "string",
-            "nullable": true,
-            "description": "URL pública e estável da thumbnail (customizada ou automática), sem assinatura, com `?v=` para cache-busting (TD-10); null enquanto não existe."
-          },
-          "duration_seconds": {
-            "type": "number",
-            "nullable": true
-          },
-          "view_count": {
-            "type": "integer"
-          },
-          "published_at": {
-            "type": "string",
-            "nullable": true,
-            "description": "ISO-8601"
-          },
-          "channel": {
-            "$ref": "#/components/schemas/VideoCardChannel"
-          }
-        },
-        "required": [
-          "public_id",
-          "title",
-          "thumbnail_url",
-          "duration_seconds",
-          "view_count",
-          "published_at",
-          "channel"
         ]
       },
       "ChannelVideosPage": {

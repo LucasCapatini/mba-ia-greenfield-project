@@ -6,6 +6,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Channel } from '../channels/entities/channel.entity';
 import appConfig from '../config/app.config';
+import authConfig from '../config/auth.config';
 import databaseConfig from '../config/database.config';
 import queueConfig from '../config/queue.config';
 import storageConfig from '../config/storage.config';
@@ -56,6 +57,7 @@ describe('VideosService (integration — DB + RustFS + pg-boss reais)', () => {
           isGlobal: true,
           load: [
             appConfig,
+            authConfig,
             databaseConfig,
             storageConfig,
             uploadConfig,
@@ -414,6 +416,20 @@ describe('VideosService (integration — DB + RustFS + pg-boss reais)', () => {
       });
       expect(republished.status).toBe('published');
       expect(republished.published_at?.toISOString()).toBe(first.published_at);
+    });
+
+    it('should expose the owning channel on a published video read without the relation loaded', async () => {
+      const draft = await seedDraft('ready');
+      await service.publish(draft);
+      const stored = await videoRepository.findOneByOrFail({ id: draft.id });
+
+      const response = await service.getVideo(stored);
+
+      expect(response.status).toBe('published');
+      expect(response.channel).toEqual({
+        nickname: 'owner_int',
+        name: 'Owner',
+      });
     });
 
     it('should leave the row untouched when publishing a video still processing', async () => {

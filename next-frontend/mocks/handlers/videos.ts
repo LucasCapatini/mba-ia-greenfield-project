@@ -10,9 +10,11 @@ import {
   STORAGE_PUBLIC_ORIGIN,
   buildUnprocessedVideo,
   thumbnailUrl,
+  toVideoCardItem,
 } from "../factories/videos";
 import {
   READS_UNTIL_READY,
+  STORAGE_DOWN_ID,
   createVideoEntry,
   studioStore,
   type UploadEntry,
@@ -36,6 +38,8 @@ type PresignPartsOk =
   paths["/videos/{publicId}/upload/parts"]["post"]["responses"][200]["content"]["application/json"];
 type UploadStateOk =
   paths["/videos/{publicId}/upload"]["get"]["responses"][200]["content"]["application/json"];
+type RelatedOk =
+  paths["/videos/{publicId}/related"]["get"]["responses"][200]["content"]["application/json"];
 type UploadCompletedOk =
   paths["/videos/{publicId}/upload/complete"]["post"]["responses"][202]["content"]["application/json"];
 
@@ -51,7 +55,13 @@ const OTHER_CHANNEL_ID = "other-channel-01";
 export const NEW_UPLOAD_ID = "new-upload-id";
 
 export const PART_SIZE = 5_242_880;
+// `GET /videos/{id}/related`: padrão e teto de `limit` (watch-page/TD-04).
+const RELATED_DEFAULT_LIMIT = 12;
+const RELATED_MAX_LIMIT = 24;
 const UPLOAD_EXPIRES_AT = "2026-10-02T12:00:00.000Z";
+// Playback URLs stay valid in the fixtures: the watch page player renews an expired URL before
+// playing, and the E2E runs against the real clock.
+const PLAYBACK_EXPIRES_AT = "2099-01-01T00:00:00.000Z";
 
 const videoNotFound = () => apiError(404, "VIDEO_NOT_FOUND", "Video not found");
 const videoForbidden = () =>
@@ -79,6 +89,63 @@ function resolveVideo(
   }
   const entry = studioStore().videos.get(publicId);
   return entry ? { entry } : { error: videoNotFound() };
+}
+
+/**
+ * Regra de leitura pública (video-channel-management/TD-07): todo vídeo do store é do canal
+ * do usuário logado, então com `Bearer` lê qualquer status; anônimo só lê `published`.
+ */
+function resolveReadable(
+  publicId: string,
+  request: Request,
+): { entry: VideoEntry } | { error: Response } {
+  const found = resolveVideo(publicId, "read");
+  if ("error" in found || isOwner(request)) {
+    return found;
+  }
+  return found.entry.video.status === "published"
+    ? found
+    : { error: videoNotFound() };
+}
+
+function isOwner(request: Request): boolean {
+  return (request.headers.get("authorization") ?? "").startsWith("Bearer ");
+}
+
+/** Resposta de `VideoResponse` com o canal atual do store (o nickname pode ter mudado). */
+function present(entry: VideoEntry): VideoOk {
+  const { channel } = studioStore();
+  return {
+    ...entry.video,
+    channel: { nickname: channel.nickname, name: channel.name },
+  };
+}
+
+/** Mesma seleção do backend: só `published` + `public` + `ready`, a mesma categoria primeiro. */
+function relatedTo(origin: VideoEntry, limit: number): RelatedOk {
+  const { channel, videos } = studioStore();
+  const categoryId = origin.video.category?.id ?? null;
+  const byRecency = (a: VideoEntry, b: VideoEntry) =>
+    (b.video.published_at ?? "").localeCompare(a.video.published_at ?? "");
+  const eligible = [...videos.values()]
+    .filter(
+      (entry) =>
+        !entry.hidden &&
+        entry !== origin &&
+        entry.video.status === "published" &&
+        entry.video.visibility === "public" &&
+        entry.video.processing_status === "ready",
+    )
+    .sort(byRecency);
+  const same = categoryId
+    ? eligible.filter((entry) => entry.video.category?.id === categoryId)
+    : [];
+  const others = eligible.filter((entry) => !same.includes(entry));
+  return {
+    items: [...same, ...others]
+      .slice(0, limit)
+      .map((entry) => toVideoCardItem(entry.video, channel)),
+  };
 }
 
 function markReady(entry: VideoEntry): void {
@@ -188,14 +255,66 @@ export const handlers = [
   }),
 
   // GET /videos/:publicId — avança `processing` → `ready` nos vídeos que têm leituras pendentes
-  http.get<VideoParams>(`${env.API_URL}/videos/:publicId`, ({ params }) => {
-    const found = resolveVideo(params.publicId, "read");
-    if ("error" in found) {
-      return found.error;
-    }
-    advanceProcessing(found.entry);
-    return HttpResponse.json<VideoOk>(found.entry.video);
-  }),
+  http.get<VideoParams>(
+    `${env.API_URL}/videos/:publicId`,
+    ({ params, request }) => {
+      const found = resolveReadable(params.publicId, request);
+      if ("error" in found) {
+        return found.error;
+      }
+      advanceProcessing(found.entry);
+      return HttpResponse.json<VideoOk>(present(found.entry));
+    },
+  ),
+
+  // GET /videos/:publicId/related — sugestões da watch page, lista fechada `{ items }`
+  http.get<VideoParams>(
+    `${env.API_URL}/videos/:publicId/related`,
+    ({ params, request }) => {
+      const raw = new URL(request.url).searchParams.get("limit");
+      const limit = raw === null ? RELATED_DEFAULT_LIMIT : Number(raw);
+      if (!Number.isInteger(limit) || limit < 1 || limit > RELATED_MAX_LIMIT) {
+        return apiError(
+          400,
+          "VALIDATION_ERROR",
+          `limit must be an integer between 1 and ${RELATED_MAX_LIMIT}`,
+        );
+      }
+      const found = resolveReadable(params.publicId, request);
+      if ("error" in found) {
+        return found.error;
+      }
+      return HttpResponse.json<RelatedOk>(relatedTo(found.entry, limit));
+    },
+  ),
+
+  // POST /videos/:publicId/views — 204 sempre; conta 1x por espectador anônimo em vídeo publicado
+  http.post<VideoParams>(
+    `${env.API_URL}/videos/:publicId/views`,
+    ({ params, request }) => {
+      const found = resolveReadable(params.publicId, request);
+      if ("error" in found) {
+        return found.error;
+      }
+      const { entry } = found;
+      // O dono (qualquer `Bearer` no fake) não conta, como no backend.
+      const viewer = request.headers.get("x-forwarded-for") ?? "anonymous";
+      const key = `${params.publicId}|${viewer}`;
+      const { countedViews } = studioStore();
+      if (
+        entry.video.status === "published" &&
+        !isOwner(request) &&
+        !countedViews.has(key)
+      ) {
+        countedViews.add(key);
+        entry.video = {
+          ...entry.video,
+          view_count: entry.video.view_count + 1,
+        };
+      }
+      return new HttpResponse(null, { status: 204 });
+    },
+  ),
 
   // PATCH /videos/:publicId
   http.patch<VideoParams>(
@@ -233,7 +352,7 @@ export const handlers = [
         visibility: body.visibility ?? video.visibility,
         category,
       };
-      return HttpResponse.json<VideoOk>(found.entry.video);
+      return HttpResponse.json<VideoOk>(present(found.entry));
     },
   ),
 
@@ -257,10 +376,17 @@ export const handlers = [
   // GET /videos/:publicId/playback
   http.get<VideoParams>(
     `${env.API_URL}/videos/:publicId/playback`,
-    ({ params }) => {
-      const found = resolveVideo(params.publicId, "read");
+    ({ params, request }) => {
+      const found = resolveReadable(params.publicId, request);
       if ("error" in found) {
         return found.error;
+      }
+      if (params.publicId === STORAGE_DOWN_ID) {
+        return apiError(
+          503,
+          "STORAGE_UNAVAILABLE",
+          "Object storage is unavailable",
+        );
       }
       const { video } = found.entry;
       if (video.processing_status !== "ready") {
@@ -275,7 +401,7 @@ export const handlers = [
         stream_url: `${source}?X-Amz-Signature=stream`,
         download_url: `${source}?X-Amz-Signature=download`,
         thumbnail_url: video.thumbnail_url,
-        expires_at: UPLOAD_EXPIRES_AT,
+        expires_at: PLAYBACK_EXPIRES_AT,
       });
     },
   ),
@@ -312,7 +438,7 @@ export const handlers = [
         status: "published",
         published_at: video.published_at ?? FIXTURE_NOW,
       };
-      return HttpResponse.json<VideoOk>(found.entry.video);
+      return HttpResponse.json<VideoOk>(present(found.entry));
     },
   ),
 
@@ -329,7 +455,7 @@ export const handlers = [
         return found.error;
       }
       found.entry.video = { ...found.entry.video, status: "draft" };
-      return HttpResponse.json<VideoOk>(found.entry.video);
+      return HttpResponse.json<VideoOk>(present(found.entry));
     },
   ),
 
@@ -346,7 +472,7 @@ export const handlers = [
         return found.error;
       }
       bumpThumbnail(found.entry, true);
-      return HttpResponse.json<VideoOk>(found.entry.video);
+      return HttpResponse.json<VideoOk>(present(found.entry));
     },
   ),
 

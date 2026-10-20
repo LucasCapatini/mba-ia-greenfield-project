@@ -4,6 +4,9 @@ import {
   buildChannel,
   buildOwnerVideos,
   buildUnprocessedVideo,
+  buildVideo,
+  daysAgo,
+  findCategory,
 } from "./factories/videos";
 
 /**
@@ -37,10 +40,18 @@ type StudioState = {
   channel: Channel;
   /** Nicknames que o canal já usou — respondem 404 depois da troca. */
   retiredNicknames: Set<string>;
+  /** `publicId|espectador` já contados por `POST /videos/{id}/views` (dedup do backend). */
+  countedViews: Set<string>;
 };
 
 /** Leituras em `processing` antes de `ready` (`becomes-ready-02` e uploads concluídos). */
 export const READS_UNTIL_READY = 2;
+
+// Fixtures da watch page (spec `watch`), fora da listagem do painel e da página do canal.
+/** Publicado e `unlisted`: abre por link, nunca aparece nas sugestões. */
+export const UNLISTED_ID = "unlisted-01";
+/** Publicado cujo `GET /videos/{id}/playback` responde 503 `STORAGE_UNAVAILABLE`. */
+export const STORAGE_DOWN_ID = "storage-down-id";
 
 function entry(video: Video, extra: Partial<VideoEntry> = {}): VideoEntry {
   return {
@@ -74,10 +85,37 @@ function initialState(): StudioState {
       { hidden: true },
     ),
   );
+  videos.set(
+    UNLISTED_ID,
+    entry(
+      buildVideo({
+        public_id: UNLISTED_ID,
+        title: "Aula não listada",
+        status: "published",
+        visibility: "unlisted",
+        category: findCategory("music"),
+        published_at: daysAgo(0),
+      }),
+      { hidden: true },
+    ),
+  );
+  videos.set(
+    STORAGE_DOWN_ID,
+    entry(
+      buildVideo({
+        public_id: STORAGE_DOWN_ID,
+        title: "Storage fora do ar",
+        status: "published",
+        published_at: daysAgo(0),
+      }),
+      { hidden: true },
+    ),
+  );
   return {
     videos,
     channel: buildChannel(),
     retiredNicknames: new Set<string>(),
+    countedViews: new Set<string>(),
   };
 }
 

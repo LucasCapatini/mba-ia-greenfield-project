@@ -4,6 +4,7 @@ import { Category } from '../categories/entities/category.entity';
 import { Channel } from '../channels/entities/channel.entity';
 import { User } from '../users/entities/user.entity';
 import { VideoUpload } from '../videos/entities/video-upload.entity';
+import { VideoView } from '../videos/entities/video-view.entity';
 import { Video } from '../videos/entities/video.entity';
 
 /**
@@ -20,4 +21,5 @@ export const ENTITIES = [
   VerificationToken,
   Video,
   VideoUpload,
+  VideoView,
 ];

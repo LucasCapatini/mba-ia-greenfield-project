@@ -132,6 +132,21 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  /**
+   * Agenda jobs recorrentes de uma fila por expressão cron, no fuso UTC. Idempotente: reagendar
+   * o mesmo nome sobrescreve o agendamento (watch-page/TD-02 — limpeza diária de `video_views`).
+   */
+  async schedule<Q extends QueueName>(
+    queue: Q,
+    cron: string,
+    data: QueuePayloads[Q],
+  ): Promise<void> {
+    await this.boss.schedule(queue, cron, data, {
+      ...QUEUE_SEND_DEFAULTS[queue],
+      tz: 'UTC',
+    });
+  }
+
   /** Desregistra os consumidores de uma fila (encerramento/isolamento de testes). */
   async offWork(queue: QueueName): Promise<void> {
     await this.boss.offWork(queue, { wait: true });

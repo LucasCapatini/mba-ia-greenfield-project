@@ -2,6 +2,7 @@ import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import appConfig from '../config/app.config';
+import authConfig from '../config/auth.config';
 import databaseConfig from '../config/database.config';
 import queueConfig from '../config/queue.config';
 import storageConfig from '../config/storage.config';
@@ -22,6 +23,7 @@ describe('VideosModule', () => {
           isGlobal: true,
           load: [
             appConfig,
+            authConfig,
             databaseConfig,
             storageConfig,
             uploadConfig,

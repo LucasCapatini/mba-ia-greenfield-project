@@ -42,6 +42,11 @@ export class ChannelsService {
       .findOne({ where: { user_id: userId } });
   }
 
+  /** Canal pelo id (ex.: o dono de um vídeo, `videos.channel_id`); `null` quando não existe. */
+  async findById(id: string): Promise<Channel | null> {
+    return this.dataSource.getRepository(Channel).findOne({ where: { id } });
+  }
+
   /** Leitura pública por nickname; `null` quando não existe. */
   async findByNickname(nickname: string): Promise<Channel | null> {
     return this.dataSource

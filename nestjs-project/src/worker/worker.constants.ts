@@ -33,3 +33,14 @@ export const VIDEO_DELETE_WORK_OPTIONS = {
   batchSize: 5,
   pollingIntervalSeconds: 2,
 } as const;
+
+/** `video-views.cleanup` (watch-page/TD-02, Revisions 2026-10-19): todo dia às 03:00 UTC. */
+export const VIDEO_VIEWS_CLEANUP_CRON = '0 3 * * *';
+
+/** Linhas com `window_start` anterior a esta quantidade de dias (UTC) são apagadas. */
+export const VIDEO_VIEWS_RETENTION_DAYS = 2;
+
+export const VIDEO_VIEWS_CLEANUP_WORK_OPTIONS = {
+  batchSize: 1,
+  pollingIntervalSeconds: 30,
+} as const;

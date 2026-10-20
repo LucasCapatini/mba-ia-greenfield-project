@@ -78,6 +78,14 @@ export type UpdateVideoInput =
 export type VideoPlayback =
   paths["/videos/{publicId}/playback"]["get"]["responses"][200]["content"]["application/json"];
 
+// Sugestões da watch page — lista fechada `{ items }`, sem cursor (watch-page/TD-04).
+export type RelatedVideos =
+  paths["/videos/{publicId}/related"]["get"]["responses"][200]["content"]["application/json"];
+
+export type RelatedVideosQuery = NonNullable<
+  paths["/videos/{publicId}/related"]["get"]["parameters"]["query"]
+>;
+
 // Upload (Fase 03) — sessão multipart presignada
 export type CreateVideoInput =
   paths["/videos"]["post"]["requestBody"]["content"]["application/json"];

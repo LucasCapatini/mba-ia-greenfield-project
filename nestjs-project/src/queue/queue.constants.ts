@@ -9,6 +9,8 @@ export const QUEUE_NAMES = {
   UPLOAD_EXPIRE: 'upload.expire',
   /** Remoção dos objetos de um vídeo excluído (hard delete) — video-channel-management/TD-09. */
   VIDEO_DELETE: 'video.delete',
+  /** Limpeza diária dos baldes vencidos de `video_views` (cron, UTC) — watch-page/TD-02. */
+  VIDEO_VIEWS_CLEANUP: 'video-views.cleanup',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -40,10 +42,14 @@ export interface VideoDeletePayload {
   thumbnailKeys: string[];
 }
 
+/** Job agendado sem dados: o handler apaga tudo o que venceu no momento em que roda. */
+export type VideoViewsCleanupPayload = Record<string, never>;
+
 export interface QueuePayloads {
   [QUEUE_NAMES.VIDEO_PROCESS]: VideoProcessPayload;
   [QUEUE_NAMES.UPLOAD_EXPIRE]: UploadExpirePayload;
   [QUEUE_NAMES.VIDEO_DELETE]: VideoDeletePayload;
+  [QUEUE_NAMES.VIDEO_VIEWS_CLEANUP]: VideoViewsCleanupPayload;
 }
 
 /** Chaves singleton: um job ativo por vídeo em cada fila (idempotência, TD-11/TD-12). */
@@ -80,6 +86,12 @@ export const QUEUE_SEND_DEFAULTS: Readonly<
   [QUEUE_NAMES.VIDEO_DELETE]: {
     retryLimit: 3,
     retryDelay: 30,
+    retryBackoff: true,
+    expireInSeconds: 300,
+  },
+  [QUEUE_NAMES.VIDEO_VIEWS_CLEANUP]: {
+    retryLimit: 3,
+    retryDelay: 300,
     retryBackoff: true,
     expireInSeconds: 300,
   },

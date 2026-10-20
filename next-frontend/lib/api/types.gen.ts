@@ -332,6 +332,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/videos/{publicId}/related": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sugestões da watch page
+         * @description Leitura pública com autenticação opcional; o vídeo de origem segue a regra de visibilidade de `GET /videos/{publicId}`. Devolve até `limit` vídeos `published` + `public` + `ready` (nunca unlisted nem o próprio vídeo): primeiro os da mesma categoria por publicação decrescente, completados pelos públicos mais recentes das demais categorias, sem repetir (watch-page/TD-04). Lista fechada, sem `next_cursor`.
+         */
+        get: operations["VideosController_getRelated"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/videos/{publicId}/views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Registra uma visualização
+         * @description Disparado pelo player após 10 s de reprodução acumulada (watch-page/TD-01). Leitura pública com autenticação opcional e a mesma regra de visibilidade de `GET /videos/{publicId}`. Responde 204 sempre que o vídeo é legível; só incrementa `view_count` para vídeo `published`, quando o solicitante não é o dono e na primeira visualização do espectador no dia UTC — usuário autenticado pelo id, anônimo por um hash de IP real + User-Agent (watch-page/TD-02).
+         */
+        post: operations["VideosController_recordView"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/videos/{publicId}/publish": {
         parameters: {
             query?: never;
@@ -655,6 +695,12 @@ export interface components {
             processing_status: "uploading" | "processing" | "ready" | "failed";
             upload: components["schemas"]["UploadSessionResponse"];
         };
+        VideoCardChannel: {
+            /** @example tech_mastery */
+            nickname: string;
+            /** @example Tech Mastery Plus */
+            name: string;
+        };
         VideoResponse: {
             /** @example dQw4w9WgXcQ */
             public_id: string;
@@ -715,6 +761,8 @@ export interface components {
             created_at: string;
             /** @description ISO-8601 */
             processed_at: string | null;
+            /** @description Canal dono do vídeo (nickname e nome públicos) — a watch page o exibe sob o título (Fase 05). */
+            channel: components["schemas"]["VideoCardChannel"];
         };
         PlaybackResponse: {
             /** @description GET pré-assinado do vídeo; o storage atende `Range` (206). */
@@ -725,6 +773,21 @@ export interface components {
             thumbnail_url: string | null;
             /** @description Validade das URLs (ISO-8601), now + PLAYBACK_URL_TTL. */
             expires_at: string;
+        };
+        VideoCardItem: {
+            /** @example dQw4w9WgXcQ */
+            public_id: string;
+            title: string;
+            /** @description URL pública e estável da thumbnail (customizada ou automática), sem assinatura, com `?v=` para cache-busting (TD-10); null enquanto não existe. */
+            thumbnail_url: string | null;
+            duration_seconds: number | null;
+            view_count: number;
+            /** @description ISO-8601 */
+            published_at: string | null;
+            channel: components["schemas"]["VideoCardChannel"];
+        };
+        RelatedVideosResponse: {
+            items: components["schemas"]["VideoCardItem"][];
         };
         UpdateVideoDto: {
             /** @description Título exibido (1..100 caracteres após trim). */
@@ -836,24 +899,6 @@ export interface components {
             next_cursor: string | null;
             /** @description Total de vídeos que atendem aos filtros (ignora o cursor). */
             total: number;
-        };
-        VideoCardChannel: {
-            /** @example tech_mastery */
-            nickname: string;
-            /** @example Tech Mastery Plus */
-            name: string;
-        };
-        VideoCardItem: {
-            /** @example dQw4w9WgXcQ */
-            public_id: string;
-            title: string;
-            /** @description URL pública e estável da thumbnail (customizada ou automática), sem assinatura, com `?v=` para cache-busting (TD-10); null enquanto não existe. */
-            thumbnail_url: string | null;
-            duration_seconds: number | null;
-            view_count: number;
-            /** @description ISO-8601 */
-            published_at: string | null;
-            channel: components["schemas"]["VideoCardChannel"];
         };
         ChannelVideosPage: {
             items: components["schemas"]["VideoCardItem"][];
@@ -1669,6 +1714,113 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorEnvelope"];
                 };
+            };
+        };
+    };
+    VideosController_getRelated: {
+        parameters: {
+            query?: {
+                /** @description Quantidade de sugestões (1..24). */
+                limit?: number;
+            };
+            header?: {
+                /** @description Opcional: `Bearer <access_token>`. Sem header → anônimo; token inválido ou expirado → 401. */
+                Authorization?: string;
+            };
+            path: {
+                /** @description Identificador público do vídeo (11 chars base64url) */
+                publicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sugestões */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelatedVideosResponse"];
+                };
+            };
+            /** @description VALIDATION_ERROR — limit fora de 1..24 ou não inteiro */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description Token presente mas inválido ou expirado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description VIDEO_NOT_FOUND — inexistente ou rascunho de terceiro */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    VideosController_recordView: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description IP do visitante, enviado pelo BFF. Só é considerado quando a conexão vem de um proxy confiável (TRUST_PROXY, watch-page/TD-03). */
+                "X-Forwarded-For"?: string;
+                /** @description Opcional: `Bearer <access_token>`. Sem header → anônimo; token inválido ou expirado → 401. */
+                Authorization?: string;
+            };
+            path: {
+                /** @description Identificador público do vídeo (11 chars base64url) */
+                publicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Visualização processada (contada ou não) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Token presente mas inválido ou expirado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description VIDEO_NOT_FOUND — inexistente ou rascunho de terceiro */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description Too Many Requests — limite do throttler global por IP real (corpo padrão do @nestjs/throttler) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

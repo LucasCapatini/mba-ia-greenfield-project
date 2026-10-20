@@ -5,12 +5,17 @@ import { cn } from "@/lib/utils"
 import { formatDuration } from "@/lib/format"
 import { ImageIcon } from "@/components/icons/image-icon"
 import { PlayIcon } from "@/components/icons/play-icon"
+import { VideoPlayer } from "@/components/watch/video-player"
 
 type VideoPreviewProps = Omit<React.ComponentProps<"div">, "children"> & {
   /** Video title, used as the accessible name of the player. */
   title: string
+  /** The player renews the signed URL through `/api/videos/{publicId}/playback` when it expires. */
+  publicId: string
   /** Signed playback URL from `GET /videos/{publicId}/playback`; only when `ready`. */
   streamUrl?: string | null
+  /** ISO expiry of `streamUrl`. */
+  expiresAt?: string | null
   posterUrl?: string | null
   durationSeconds?: number | null
 }
@@ -18,36 +23,43 @@ type VideoPreviewProps = Omit<React.ComponentProps<"div">, "children"> & {
 /**
  * Figma CardVideoConfig › Video (I156:3122;156:3089): black 166px-tall box with top radius-2,
  * centered play glyph, image glyph top-left and the time bottom-right (white caption). With a
- * stream URL it becomes a native `<video>`; the full player is phase 05.
+ * stream URL it becomes the watch page `VideoPlayer` (phase 05, own controls) without view
+ * registration: the owner never generates views (watch-page/TD-01).
  */
 function VideoPreview({
   title,
+  publicId,
   streamUrl,
+  expiresAt,
   posterUrl,
   durationSeconds,
   className,
   ...props
 }: VideoPreviewProps) {
   const duration = (durationSeconds == null ? null : formatDuration(durationSeconds)) ?? "0:00"
+  const playback = streamUrl && expiresAt ? { streamUrl, expiresAt } : null
 
   return (
     <div
       data-slot="video-preview"
-      data-state={streamUrl ? "playable" : "unavailable"}
+      data-state={playback ? "playable" : "unavailable"}
       className={cn(
         "relative h-41.5 w-full shrink-0 overflow-hidden rounded-t-[var(--radius-2)] bg-neutral-1000",
         className
       )}
       {...props}
     >
-      {streamUrl ? (
-        <video
-          src={streamUrl}
-          poster={posterUrl ?? undefined}
-          controls
-          preload="metadata"
+      {playback ? (
+        <VideoPlayer
+          key={publicId}
+          role="region"
           aria-label={`Preview of ${title}`}
-          className="size-full object-contain"
+          publicId={publicId}
+          streamUrl={playback.streamUrl}
+          expiresAt={playback.expiresAt}
+          posterUrl={posterUrl ?? null}
+          trackViews={false}
+          className="size-full rounded-none"
         />
       ) : (
         <>

@@ -30,6 +30,7 @@ import type {
   PresignedPartsResponse,
   UploadCompletedResponse,
   UploadStateResponse,
+  VideoCardChannel,
   VideoCreatedResponse,
   VideoResponse,
 } from './dto/video-response.dto';
@@ -416,6 +417,7 @@ export class VideosService {
       processed_at: video.processed_at
         ? video.processed_at.toISOString()
         : null,
+      channel: await this.resolveChannel(video),
     };
   }
 
@@ -552,6 +554,19 @@ export class VideosService {
 
   private get videoRepository(): Repository<Video> {
     return this.dataSource.getRepository(Video);
+  }
+
+  /**
+   * Canal dono do vídeo (resolução OQ-1 da Fase 05): usa a relação carregada por
+   * `VideosOwnership`; senão busca pelo `channel_id`. A FK garante que o canal existe.
+   */
+  private async resolveChannel(video: Video): Promise<VideoCardChannel> {
+    const channel =
+      video.channel ?? (await this.channelsService.findById(video.channel_id));
+    if (!channel) {
+      throw new Error(`Video ${video.id} has no channel`);
+    }
+    return { nickname: channel.nickname, name: channel.name };
   }
 
   private async resolveCategory(

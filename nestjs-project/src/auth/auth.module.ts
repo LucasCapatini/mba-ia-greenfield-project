@@ -4,13 +4,14 @@ import type { StringValue } from 'ms';
 import { JwtModule } from '@nestjs/jwt';
 import { APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import authConfig from '../config/auth.config';
 import { MailModule } from '../mail/mail.module';
 import { UsersModule } from '../users/users.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { ThrottlerBehindProxyGuard } from './guards/throttler-behind-proxy.guard';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { VerificationToken } from './entities/verification-token.entity';
 
@@ -32,7 +33,7 @@ import { VerificationToken } from './entities/verification-token.entity';
   providers: [
     AuthService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: ThrottlerBehindProxyGuard },
   ],
   exports: [AuthService, JwtModule],
 })
