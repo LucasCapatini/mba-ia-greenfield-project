@@ -4,6 +4,32 @@ Projeto da disciplina **Desenvolvimento de Aplicações de IA** do MBA de Engenh
 
 Este é um projeto greenfield desenvolvido para demonstrar como construir uma aplicação do zero utilizando IA de forma adequada no processo de desenvolvimento.
 
+## 🎯 Entrega do desafio — Fase 03: Upload e Processamento de Vídeos
+
+O desafio pede a **Fase 03** (backend: API, worker, infraestrutura e os artefatos do processo), conduzida com o Claude Code pelo workflow do projeto. Onde está cada critério de aceite:
+
+| Critério | Evidência |
+|---|---|
+| Decisões técnicas (fila, upload, streaming, processamento/thumbnail, ciclo de status) | [`docs/decisions/technical-decisions-phase-03-videos.md`](./docs/decisions/technical-decisions-phase-03-videos.md) — TD-01…TD-14 com opções, trade-offs, recomendação e decisão (fila: pg-boss, TD-04; upload: multipart pré-assinado direto no storage, TD-03; worker: segundo entrypoint, TD-05; FFmpeg/ffprobe, TD-06; status, TD-07; URL única, TD-08; streaming/download, TD-09) |
+| Pasta da fase | [`docs/phases/phase-03-videos/`](./docs/phases/phase-03-videos/) — `context.md`, `validation.md` (`status: clean`), `library-refs.md`, o plano `phase-03-videos.md` e `progress.md` (`completed`) |
+| Formato do plano | `phase-03-videos.md`: SIs `SI-03.1`…`SI-03.12`; Technical Specifications com Data Model, API Contracts, Authorization Matrix, Error Catalog e Events/Messages; Dependency Map; Deliverables |
+| Upload de até 10 GB sem travar a API, com rascunho ao iniciar | `POST /videos` cria o rascunho e abre o multipart; o navegador envia as partes direto ao storage por URLs pré-assinadas — nenhum byte passa pela API (`nestjs-project/src/videos/`, `src/storage/`) |
+| Processamento automático (metadados + thumbnail) | Job `video.process` na fila; o worker (`src/worker.ts` → `src/worker/video-processing.worker.ts`) roda `ffprobe` e `ffmpeg` lendo o vídeo por URL assinada |
+| URL única | `public_id` de 11 caracteres (`src/videos/public-id.util.ts`), coluna `unique` com nova tentativa em colisão |
+| Streaming e download | `GET /videos/{publicId}/playback` → URLs assinadas: `Range` → 206 para o streaming e `Content-Disposition: attachment` para o download |
+| Ciclo de status no banco | `src/videos/entities/video.entity.ts`: `status` (`draft`/`published`) e `processing_status` (`uploading` → `processing` → `ready`/`failed`, com código de erro) |
+| Storage, fila e worker no Compose | `nestjs-project/compose.yaml`: `rustfs` (S3-compatível) + `storage-init` (bucket), `video-worker`, e a fila pg-boss no próprio `db` (schema `pgboss`) |
+| Migration e entidade ligada ao canal | `src/database/migrations/1792352807074-CreateVideosAndVideoUploads.ts` (FK para `channels`) |
+| Testes verdes | unit, integração (banco, RustFS, pg-boss e ffmpeg reais) e e2e (`test/videos-*.e2e-spec.ts`) — `npm test -- --runInBand` e `npm run test:e2e`; também no CI (`.github/workflows/ci.yml`) |
+| Definition of Done | `npx tsc --noEmit` = 0 e `npm run lint` limpo, nos dois subprojetos |
+| Git Flow | branches `feature/*`, `bugfix/*` e `docs/*` a partir de `dev`, mescladas por Pull Request; `main` só recebe `dev` por PR (nenhum commit direto) |
+| CLAUDE.md com a seção de vídeos | [`nestjs-project/CLAUDE.md`](./nestjs-project/CLAUDE.md) (worker e pipelines, variáveis da Fase 03, roteiro manual do upload multipart) e o [`CLAUDE.md`](./CLAUDE.md) da raiz (arquitetura) |
+| IA observável | pipeline `/research → /plan-context → /plan-validate ⇄ /plan-resolve → /plan-build → /plan-test-specs → /implement` e a transcrição da sessão em [`_claude-sessions/16-fase-03-upload-processamento.txt`](./_claude-sessions/16-fase-03-upload-processamento.txt) |
+
+O object storage em dev é o **RustFS** (S3-compatível) em vez do MinIO citado no enunciado: com o MinIO community arquivado, o TD-01 avaliou as alternativas (inclusive o MinIO congelado) e manteve o código preso só à API S3 (TD-02), então o servidor de dev é substituível e a troca por S3 em produção vale do mesmo jeito.
+
+O projeto seguiu além da Fase 03 — gerenciamento de vídeos e canal (04), página de visualização (05), interações sociais (06) e página inicial, busca e ambiente de produção (07) —, descritos nas seções abaixo.
+
 ## Professor
 
 <a href="https://github.com/argentinaluiz">
