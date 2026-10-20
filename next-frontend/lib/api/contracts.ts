@@ -189,3 +189,11 @@ export type SubscribedChannel = SubscribedChannelsPage["items"][number];
 
 export type SubscriptionFeedPage =
   paths["/me/subscriptions/videos"]["get"]["responses"][200]["content"]["application/json"];
+
+// ─── Home e busca (Fase 07) ───────────────────────────────────────────────────
+
+// Listagem pública global (home-search-production/TD-01, TD-02): `category` (slug) e `q`.
+export type PublicVideosPage =
+  paths["/videos"]["get"]["responses"][200]["content"]["application/json"];
+
+export type PublicVideosQuery = NonNullable<paths["/videos"]["get"]["parameters"]["query"]>;

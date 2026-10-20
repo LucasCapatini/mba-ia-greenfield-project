@@ -157,15 +157,15 @@ function ChannelSettingsForm({ channel, className, ...props }: ChannelSettingsFo
         className={cn("flex flex-col", className)}
         {...props}
       >
-        <div className="flex w-full flex-col gap-4 px-8 pt-8 pb-8">
+        <div className="flex w-full flex-col gap-4 p-4 sm:p-8">
           <h2 className="text-h2 text-foreground">Basic Information</h2>
           {errors.root?.serverError?.message ? (
             <p role="alert" className="text-label-md text-destructive">
               {errors.root.serverError.message}
             </p>
           ) : null}
-          <div className="flex w-full items-start gap-5">
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex w-full flex-col items-start gap-5 md:flex-row">
+            <div className="flex w-full min-w-0 flex-1 flex-col gap-1">
               <Label htmlFor={handleId}>Channel handle</Label>
               <div className="relative w-full">
                 <span
@@ -190,7 +190,7 @@ function ChannelSettingsForm({ channel, className, ...props }: ChannelSettingsFo
                 Your unique identifier on StreamTube
               </p>
             </div>
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <div className="flex w-full min-w-0 flex-1 flex-col gap-1">
               <Label htmlFor={nameId}>Display name</Label>
               <Input
                 id={nameId}
@@ -230,12 +230,12 @@ function ChannelSettingsForm({ channel, className, ...props }: ChannelSettingsFo
           </div>
         </div>
 
-        <div className="flex w-full items-center justify-between gap-4 border-t border-border px-8 py-4">
+        <div className="flex w-full flex-col items-stretch gap-4 border-t border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8">
           <p className="flex items-center gap-1 text-caption text-muted-foreground">
             <AlarmIcon className="size-3" />
             Last updated: {formatDate(channel.updated_at)}
           </p>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center justify-end gap-6">
             <Button type="button" variant="outline" onClick={() => router.push("/studio/videos")}>
               Cancel
             </Button>

@@ -36,4 +36,19 @@ describe("SideNavItem", () => {
 
     expect(screen.getByRole("listitem")).toContainElement(screen.getByRole("link", { name: "Home" }));
   });
+
+  it.each(["row", "column"] as const)("marks the current route in the %s layout (expanded and mini)", (layout) => {
+    render(
+      <ul>
+        <SideNavItem href="/" label="Home" icon={<svg />} active layout={layout} />
+        <SideNavItem href="/feed/subscriptions" label="Subscriptions" icon={<svg />} layout={layout} />
+      </ul>,
+    );
+
+    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Subscriptions" })).not.toHaveAttribute("aria-current");
+    for (const item of screen.getAllByRole("listitem")) {
+      expect(item).toHaveAttribute("data-layout", layout);
+    }
+  });
 });

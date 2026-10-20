@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 StreamTube — a video sharing platform (YouTube-like). Users can upload, manage, and publish videos. Anonymous users can watch freely; social features (comments, subscriptions, likes) require authentication.
 
-Phases 01 (base config), 02 (auth: register → email confirmation → login → password reset, backend + frontend), 03 (video upload via presigned multipart, processing worker and playback URLs — backend) and 04 (video & channel management: categories, edit/publish, custom thumbnails, deletion, studio screens incl. the upload UI, public channel page — backend + frontend) and 05 (watch page: custom player with signed-URL renewal, deduplicated view count with daily cleanup, same-category suggestions, download, unlisted by direct link, anonymous access; real visitor IP behind the BFF via `TRUST_PROXY` — backend + frontend) and 06 (social interactions: likes/dislikes on videos and comments, comments with one level of replies, channel subscriptions with subscriber counts, the side nav with followed channels and the `/feed/subscriptions` feed; optimistic UI reconciled by the mutation response — backend + frontend) are done. Phase 07 (home/search) is planned. Full plan and phase scopes: [docs/project-plan.md](docs/project-plan.md).
+Phases 01 (base config), 02 (auth: register → email confirmation → login → password reset, backend + frontend), 03 (video upload via presigned multipart, processing worker and playback URLs — backend) and 04 (video & channel management: categories, edit/publish, custom thumbnails, deletion, studio screens incl. the upload UI, public channel page — backend + frontend) and 05 (watch page: custom player with signed-URL renewal, deduplicated view count with daily cleanup, same-category suggestions, download, unlisted by direct link, anonymous access; real visitor IP behind the BFF via `TRUST_PROXY` — backend + frontend) and 06 (social interactions: likes/dislikes on videos and comments, comments with one level of replies, channel subscriptions with subscriber counts, the side nav with followed channels and the `/feed/subscriptions` feed; optimistic UI reconciled by the mutation response — backend + frontend) are done. Phase 07 (home with category chips and infinite scroll, search by title or channel at `/results`, the responsive Figma shell — header, account menu, collapsible side nav and mobile drawer —, full-stack E2E, CI and production artifacts) is implemented; the real deploy is the repository owner's operational task ([docs/deploy/runbook.md](docs/deploy/runbook.md)). Full plan and phase scopes: [docs/project-plan.md](docs/project-plan.md).
 
 ## Repository Structure
 
@@ -16,6 +16,8 @@ Monorepo with two independently containerized subprojects, each with its own `co
 - `next-frontend/` — Frontend (Next.js 16 App Router, React 19, Tailwind v4, shadcn/ui). Strict BFF model. See `next-frontend/CLAUDE.md`.
 - `docs/` — project plan, technical decisions, phase/task planning artifacts, C4 diagram (`docs/diagrams/software-arch.mermaid`), design-system docs.
 - `scripts/sync-openapi.sh` — host-side helper that copies the backend spec to the frontend (see "OpenAPI contract chain").
+- `deploy/` — production on one VPS: `compose.yaml` (Caddy, web, api, worker, one-shot migrate, PostgreSQL), `Caddyfile`, `.env.example` (the real `.env` lives only on the VPS), `compose.local.yaml` (local validation with RustFS + Mailpit) and `backup.sh`. Runbook: `docs/deploy/runbook.md`.
+- `.github/workflows/` — `ci.yml` (jobs `backend`, `frontend`, `full-stack` inside the Compose containers), `deploy.yml` (push to `main`: gates → GHCR images → SSH deploy → smoke; manual rollback by `image_tag`) and `openapi-freshness.yml`.
 - `.claude/` — rules (path-scoped), custom skills (plan pipeline), subagents, hooks.
 - `_claude-sessions/` — archived transcripts of past Claude sessions; historical reference only, not instructions.
 - `FC Tube.fig`, `whiteboard.svg` — Figma design system source and project whiteboard (binary design assets).
@@ -31,6 +33,7 @@ See `docs/diagrams/software-arch.mermaid`. Key containers:
 - **Object Storage** (S3-compatible; RustFS in dev) → video files and thumbnails. The browser uploads parts and streams directly through presigned URLs; the API only orchestrates (`StorageModule`, two S3 clients: internal `S3_ENDPOINT` and browser-facing `S3_PUBLIC_ENDPOINT`). Thumbnails are the one exception to presigned reads: the bucket policy allows anonymous `GET` on `thumbnails/*` only (stable URLs); `videos/*` stays private.
 - **Message Queue** (pg-boss on the same PostgreSQL, schema `pgboss`) → jobs `video.process`, `upload.expire` and `video.delete` (`QueueModule`).
 - **Video Worker** (FFmpeg) → second entrypoint of `nestjs-project` (`src/worker.ts` → `WorkerModule`, compose service `video-worker`): consumes the queues, validates formats by probing the bytes, extracts metadata and thumbnails. It never imports `AppModule`. Details in `nestjs-project/CLAUDE.md`.
+- **Production** (`home-search-production/TD-08`–`TD-11`) → multi-stage images `nestjs-project/Dockerfile` (one image for `api`, `worker` and `migrate`, with ffmpeg) and `next-frontend/Dockerfile` (Next `output: "standalone"`), published to `ghcr.io/<owner>/streamtube-{api,web}:<sha>`; Caddy at the edge with automatic TLS overwrites `X-Forwarded-For`; AWS S3 and a transactional SMTP provider are external (`MAIL_USER`/`MAIL_PASSWORD`/`MAIL_SECURE`); migrations run compiled from `dist/` (`npm run migration:run:prod`).
 
 ### OpenAPI contract chain (backend → frontend)
 
@@ -80,6 +83,16 @@ npx playwright test                                    # or: npx playwright test
 ```
 
 Service ports: API `3000`, Swagger `/api/docs` (only with `SWAGGER_ENABLED=true`), PostgreSQL `5432` (`streamtube`/`streamtube`), Mailpit UI `8025`, frontend `3001`. The two stacks are separate Compose projects joined by the named Docker network `streamtube` (created by the backend stack, declared `external` by the frontend stack), so the frontend reaches the API at `http://nestjs-api:3000`. Start the backend first.
+
+```bash
+# Full-stack E2E (both real stacks, frontend build served WITHOUT MSW) — see next-frontend/CLAUDE.md → "Full-stack E2E"
+npx playwright test -c playwright.full-stack.config.ts            # from next-frontend/, on the host
+npx playwright test -c playwright.full-stack.config.ts --grep @smoke   # read-only smoke (also run after every deploy)
+
+# Production images and local validation of the production compose — see docs/deploy/runbook.md
+docker build -t streamtube-api nestjs-project && docker build -t streamtube-web next-frontend
+docker compose -f deploy/compose.yaml -f deploy/compose.local.yaml --env-file deploy/.env --profile local-validation up -d --build
+```
 
 ## Docker Networking
 
@@ -141,6 +154,8 @@ A change is only considered complete when **all** of the following pass, inside 
 4. Lint passes: `npm run lint`.
 5. If a backend contract changed, the OpenAPI chain was rerun and `types.gen.ts` is in sync.
 
+CI enforces the same gates (`.github/workflows/ci.yml`, `home-search-production/TD-07`): job `backend` (lint, tsc, unit + integration, e2e inside the Compose containers), job `frontend` (lint, tsc, Vitest, production build + Playwright `chromium` and `mobile` with server-side MSW) and, for pull requests to `main` and pushes to `dev`, job `full-stack` (both real stacks, `playwright.full-stack.config.ts`). `openapi-freshness` stays its own workflow (status check: its job, `openapi.json + types.gen.ts em sincronia`).
+
 If any of these fails, the task is not done — fix the underlying issue before declaring completion.
 
 ## Confidentiality (public repository)
@@ -160,6 +175,7 @@ This repository is public. It is **inadmissible** to cite, search, list or copy 
   - `main` — stable, production-ready code
   - `dev` — integration branch; all feature/bugfix/hotfix branches start from `dev` and merge back into `dev`
   - When `dev` is stable, it is merged into `main`
+- **Branch protection (configured by the repository owner on GitHub):** `main` requires the status checks `backend`, `frontend`, `full-stack` and `openapi.json + types.gen.ts em sincronia`; `dev` requires `backend`, `frontend` and `openapi.json + types.gen.ts em sincronia`. GitHub names a status check after the **job**, so the `openapi-freshness` workflow shows up as its job `openapi.json + types.gen.ts em sincronia`; a check only appears in the protection list after it has run once. A push to `main` runs `.github/workflows/deploy.yml` (gates → images on GHCR → deploy) — see `docs/deploy/runbook.md`.
 
 ## Testing Policy
 

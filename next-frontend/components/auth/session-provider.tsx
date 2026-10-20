@@ -6,6 +6,8 @@ export type SessionState = {
   userId: string
   email: string
   channelSlug: string
+  /** Channel display name — initials of the header avatar and the account menu (home-search-production/TD-05). */
+  channelName: string
   isLoggedIn: boolean
 }
 
@@ -13,6 +15,7 @@ const defaultSession: SessionState = {
   userId: "",
   email: "",
   channelSlug: "",
+  channelName: "",
   isLoggedIn: false,
 }
 

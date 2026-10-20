@@ -11,6 +11,8 @@ import type {
 type SubscriptionsContextValue = {
   /** Canais seguidos em ordem alfabética do nome (TD-08, Revisions 2026-10-20). */
   channels: SubscribedChannel[];
+  /** `false` quando a leitura do layout falhou — o menu omite a seção de canais. */
+  available: boolean;
   hasMore: boolean;
   loadingMore: boolean;
   /** Chamado pelo `SubscribeButton` só depois que o servidor confirma (TD-09). */
@@ -42,7 +44,8 @@ function merge(
 
 /**
  * Lista de canais seguidos compartilhada entre o "Subscribe" e o menu lateral
- * (social-interactions/TD-08, TD-09). Semeada pelo RSC do layout com `GET /me/subscriptions?limit=7`;
+ * (social-interactions/TD-08, TD-09). Semeada pelo RSC do layout `(app)` com `GET /me/subscriptions?limit=7`
+ * (home-search-production/TD-05 — o drawer da watch page usa a mesma lista);
  * `initial` nulo (leitura falhou) deixa a lista vazia e sem "Show more".
  */
 export function SubscriptionsProvider({
@@ -103,6 +106,7 @@ export function SubscriptionsProvider({
     <SubscriptionsContext
       value={{
         channels,
+        available: initial !== null,
         hasMore: cursor !== null,
         loadingMore,
         onChange,

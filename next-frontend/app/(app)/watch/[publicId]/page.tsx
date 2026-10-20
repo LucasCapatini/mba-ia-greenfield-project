@@ -104,7 +104,7 @@ export default async function WatchPage({ params }: WatchPageProps) {
   }
 
   return (
-    <main className="flex w-full flex-col gap-6 px-6 pt-6 pb-10 lg:flex-row">
+    <main className="flex w-full flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:flex-row">
       <div className="flex min-w-0 flex-1 flex-col gap-4">
         {player}
 

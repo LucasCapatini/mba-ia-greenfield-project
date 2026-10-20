@@ -1,61 +1,38 @@
 "use client"
 
-import * as React from "react"
-
 import type { VideoCardItem } from "@/lib/api/contracts"
-import { ChannelLoadMore } from "@/components/channel/channel-load-more"
+import { useCursorList, type CursorPage } from "@/hooks/use-cursor-list"
 import { ChannelVideoGrid } from "@/components/channel/channel-video-grid"
+import { InfiniteScrollSentinel } from "@/components/videos/infinite-scroll-sentinel"
 import { VideoCard } from "@/components/videos/video-card"
 
 type ChannelVideoListProps = {
-  /** Page delivered by the RSC (`GET /channels/{nickname}/videos`). */
-  items: VideoCardItem[]
-  /** Cursor of this page (`null` on the first page). */
-  cursor: string | null
-  nextCursor: string | null
-  /** Current order; a new one drops the accumulated pages (it needs a new keyset cursor). */
+  nickname: string
+  /** First page delivered by the RSC (`GET /channels/{nickname}/videos`). */
+  initial: CursorPage<VideoCardItem>
+  /** Current order. Mount the list with `key={sort}` so a new order starts over on its first page. */
   sort: string
   "aria-label"?: string
 }
 
-/** Previous cards + the cards the new page adds (by id, refreshed in place). */
-function merge(previous: VideoCardItem[], page: VideoCardItem[]): VideoCardItem[] {
-  const byId = new Map(page.map((item) => [item.public_id, item]))
-  const merged = previous.map((item) => byId.get(item.public_id) ?? item)
-  const known = new Set(previous.map((item) => item.public_id))
-  return [...merged, ...page.filter((item) => !known.has(item.public_id))]
-}
-
 /**
- * The channel's public video grid. "Load more" replaces the URL with `cursor=next_cursor`; the RSC
- * delivers that page and this list appends it to the cards already shown, while the order stays
- * the same (video-channel-management/TD-06).
+ * The channel's public video grid with infinite scroll (home-search-production/TD-04): the RSC
+ * delivers the first page and the sentinel below the grid fetches the following ones from
+ * `/api/channels/{nickname}/videos`, keeping the order — the URL never changes.
  */
-function ChannelVideoList({
-  items,
-  cursor,
-  nextCursor,
-  sort,
-  "aria-label": ariaLabel,
-}: ChannelVideoListProps) {
-  const [cards, setCards] = React.useState(items)
-  const [seenItems, setSeenItems] = React.useState(items)
-  const [seenSort, setSeenSort] = React.useState(sort)
-
-  // New RSC payload (Load more, a new order or navigation): adjust the cards during render.
-  if (items !== seenItems || sort !== seenSort) {
-    setSeenItems(items)
-    if (sort !== seenSort || cursor === null) {
-      setSeenSort(sort)
-      setCards(items)
-    } else {
-      setCards((current) => merge(current, items))
-    }
-  }
+function ChannelVideoList({ nickname, initial, sort, "aria-label": ariaLabel }: ChannelVideoListProps) {
+  const { items, nextCursor, loadMore, status } = useCursorList({
+    initial,
+    endpoint: `/api/channels/${encodeURIComponent(nickname)}/videos`,
+    query: { sort },
+  })
 
   return (
-    <ChannelVideoGrid aria-label={ariaLabel} footer={<ChannelLoadMore nextCursor={nextCursor} />}>
-      {cards.map((video) => (
+    <ChannelVideoGrid
+      aria-label={ariaLabel}
+      footer={<InfiniteScrollSentinel nextCursor={nextCursor} status={status} loadMore={loadMore} />}
+    >
+      {items.map((video) => (
         <VideoCard key={video.public_id} video={video} showChannel={false} />
       ))}
     </ChannelVideoGrid>
@@ -63,3 +40,4 @@ function ChannelVideoList({
 }
 
 export { ChannelVideoList }
+export type { ChannelVideoListProps }

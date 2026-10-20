@@ -41,6 +41,7 @@ export default async function RootLayout({
             userId: session.userId ?? "",
             email: session.email ?? "",
             channelSlug: session.channelSlug ?? "",
+            channelName: session.channelName ?? "",
             isLoggedIn: session.isLoggedIn ?? false,
           }}
         >

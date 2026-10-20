@@ -291,6 +291,23 @@ export const TECH_MASTERY: ChannelPublic = {
   viewer_subscribed: false,
 };
 
+/**
+ * Card publicado do canal `rock_club` com título acentuado — a busca da home casa "musica" sem
+ * acento (spec `search-results`). Só existe na listagem pública (`GET /videos`).
+ */
+export function buildRockClubCard(): VideoCardItem {
+  return toVideoCardItem(
+    buildVideo({
+      public_id: "rock-musica-01",
+      title: "Música ao vivo",
+      status: "published",
+      view_count: 4_200,
+      published_at: daysAgo(0),
+    }),
+    { nickname: "rock_club", name: "Rock Club" }
+  );
+}
+
 /** 24 vídeos publicados do `tech_mastery`, com `view_count` distintos (ordem de publicação). */
 export function buildTechMasteryCards(): VideoCardItem[] {
   return Array.from({ length: 24 }, (_, index) => {

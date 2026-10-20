@@ -37,11 +37,12 @@ function ChannelHeader({
       className={cn("relative w-full", className)}
       {...props}
     >
-      <ChannelBanner />
-      <ChannelAvatar name={name} className="absolute top-70 left-8" />
-      <div className="flex items-center gap-4 pt-6 pr-8 pl-46">
+      {/* Below `md`: shorter banner, smaller avatar and info stacked under it (TD-05, Revisions 2026-10-20). */}
+      <ChannelBanner className="h-32 md:h-80" />
+      <ChannelAvatar name={name} className="absolute top-20 left-4 size-24 md:top-70 md:left-8 md:size-32" />
+      <div className="flex flex-col items-start gap-4 px-4 pt-16 md:flex-row md:items-center md:pt-6 md:pr-8 md:pl-46">
         <ChannelInfo
-          className="flex-1"
+          className="w-full md:w-auto md:flex-1"
           name={name}
           nickname={nickname}
           videoCount={videoCount}

@@ -2,6 +2,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
+import { ThrottlerStorage, ThrottlerStorageService } from '@nestjs/throttler';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { DomainExceptionFilter } from '../src/common/filters/domain-exception.filter';
@@ -79,5 +80,14 @@ describe('categories (e2e)', () => {
       'slug',
       'sort_order',
     ]);
+  });
+
+  it('GET /categories allows 60 requests per minute per visitor, like the public listings', async () => {
+    app.get<ThrottlerStorageService>(ThrottlerStorage).storage.clear();
+    for (let i = 0; i < 60; i++) {
+      await request(app.getHttpServer()).get('/categories').expect(200);
+    }
+
+    await request(app.getHttpServer()).get('/categories').expect(429);
   });
 });

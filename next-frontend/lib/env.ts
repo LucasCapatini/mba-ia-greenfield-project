@@ -23,4 +23,8 @@ export const env = createEnv({
   },
 
   emptyStringAsUndefined: true,
+
+  // Only the production image build sets it (next-frontend/Dockerfile): API_URL and SESSION_PASSWORD
+  // are runtime variables there. Never set it for `next start`/dev — the server must validate.
+  skipValidation: process.env.SKIP_ENV_VALIDATION === "true",
 });

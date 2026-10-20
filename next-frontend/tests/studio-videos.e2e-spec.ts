@@ -46,7 +46,7 @@ test.describe("studio-videos", () => {
     // 1. Lista, filtros e paginação
 
     test("1.1 list-renders-with-total-and-states", async ({ page }) => {
-      await page.getByRole("link", { name: "Meus vídeos" }).click()
+      await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Your videos" }).click()
 
       await expect(page).toHaveURL(/\/studio\/videos$/)
       await expect(page.getByRole("heading", { level: 1, name: "Channel content" })).toBeVisible()

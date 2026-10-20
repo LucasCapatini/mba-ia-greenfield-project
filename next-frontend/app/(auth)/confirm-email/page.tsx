@@ -4,6 +4,7 @@ import {
 } from "@/components/auth/confirm-email-result"
 import { ResendConfirmationForm } from "@/components/auth/resend-confirmation-form"
 import { upstream } from "@/lib/api/upstream"
+import { clientHeaders } from "@/lib/api/client-headers"
 
 type SearchParams = Promise<{ token?: string | string[] }>
 
@@ -13,8 +14,10 @@ type SearchParams = Promise<{ token?: string | string[] }>
  * prefetch because the upstream is idempotent (saneamento-fase-02-e-infra/TD-03).
  */
 async function confirm(token: string): Promise<ConfirmEmailState> {
+  // The visitor's IP, so the throttler budgets each person instead of the whole BFF (watch-page/TD-03).
   const { error } = await upstream.GET("/auth/confirm-email", {
     params: { query: { token } },
+    headers: await clientHeaders(),
   })
 
   if (!error) return "success"

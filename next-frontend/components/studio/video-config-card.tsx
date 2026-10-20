@@ -50,7 +50,7 @@ function VideoConfigCard({
     <div
       data-slot="video-config-card"
       className={cn(
-        "flex w-82 shrink-0 flex-col overflow-hidden rounded-[var(--radius-3)] border border-border bg-card p-4",
+        "flex w-full shrink-0 flex-col md:w-82 overflow-hidden rounded-[var(--radius-3)] border border-border bg-card p-4",
         className
       )}
       {...props}

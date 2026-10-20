@@ -23,12 +23,12 @@ Na Fase 06 a página pública do canal (`/channel/{nickname}`) passa a mostrar "
 #### 1.1. side-nav-only-with-session
 
 **Covers AC:** #1
-**Source:** auto
+**Source:** manual
 **Last sync:** 2026-10-20T04:50:00Z
 
 **Steps:**
   1. Usuário anônimo navega para `/channel/tech_mastery`
-    - expect: nenhum `navigation` com nome "Main"; o conteúdo do canal aparece normalmente
+    - expect: um `navigation` "Main" só com "Home" e o convite "Sign in to see your subscriptions" (link "Sign in" → `/login?returnTo=/channel/tech_mastery`), sem "Subscriptions" nem "Your videos" (`home-search-production/TD-05`); o conteúdo do canal aparece normalmente
   2. Usuário faz login e navega para `/channel/tech_mastery`
     - expect: um `navigation` "Main" com os links "Home" (`/`), "Subscriptions" (`/feed/subscriptions`) e "Your videos" (`/studio/videos`) e sem "Liked videos"
     - expect: a seção "Subscriptions" lista "Tech Mastery" com link para `/channel/tech_mastery`

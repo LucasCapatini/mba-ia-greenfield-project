@@ -6,6 +6,7 @@ import {
   IsISO8601,
   IsOptional,
   IsString,
+  Length,
   Matches,
   Max,
   MaxLength,
@@ -19,6 +20,8 @@ import { IsNotBefore } from '../../common/validation/is-not-before.validator';
 import {
   RELATED_VIDEOS_DEFAULT_LIMIT,
   RELATED_VIDEOS_MAX_LIMIT,
+  SEARCH_QUERY_MAX_LENGTH,
+  SEARCH_QUERY_MIN_LENGTH,
   VIDEO_PROCESSING_STATUSES,
   VIDEO_STATUSES,
   VIDEO_VISIBILITIES,
@@ -137,3 +140,27 @@ export class ListChannelVideosDto extends CursorPageQuery {
 
 /** `GET /me/subscriptions/videos` — feed das inscrições, sempre do mais recente (TD-08). */
 export class ListSubscriptionFeedDto extends CursorPageQuery {}
+
+/**
+ * `GET /videos` — listagem pública global da home e da busca (home-search-production/TD-01,
+ * TD-02): sempre do mais recente ao mais antigo, inclusive com `q` (TD-03).
+ */
+export class ListPublicVideosDto extends CursorPageQuery {
+  /** `slug` da categoria; sem correspondência → 404 CATEGORY_NOT_FOUND. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  category?: string;
+
+  /**
+   * Termo de busca (2..100 caracteres após `trim`): casa por substring, sem acento nem caixa, o
+   * título do vídeo ou o nome/nickname do canal.
+   */
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @Length(SEARCH_QUERY_MIN_LENGTH, SEARCH_QUERY_MAX_LENGTH)
+  q?: string;
+}

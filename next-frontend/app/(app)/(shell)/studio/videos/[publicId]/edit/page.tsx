@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { notFound, redirect } from "next/navigation"
 
 import { upstream } from "@/lib/api/upstream"
+import { clientHeaders } from "@/lib/api/client-headers"
 import { getSession } from "@/lib/auth/session"
 import { requestOrigin } from "@/lib/request-origin"
 import { Card } from "@/components/ui/card"
@@ -20,11 +21,12 @@ type EditVideoPageProps = {
 export default async function EditVideoPage({ params }: EditVideoPageProps) {
   const { publicId } = await params
   const session = await getSession()
-  const auth = { Authorization: `Bearer ${session.accessToken}` }
+  const visitor = await clientHeaders()
+  const auth = { ...visitor, Authorization: `Bearer ${session.accessToken}` }
 
   const [videoResult, categoriesResult, origin] = await Promise.all([
     upstream.GET("/videos/{publicId}", { params: { path: { publicId } }, headers: auth }),
-    upstream.GET("/categories"),
+    upstream.GET("/categories", { headers: visitor }),
     requestOrigin(),
   ])
   if (videoResult.response.status === 401) {
@@ -48,9 +50,9 @@ export default async function EditVideoPage({ params }: EditVideoPageProps) {
   }
 
   return (
-    <main className="flex w-full flex-col gap-6 px-6 pt-8 pb-6">
+    <main className="flex w-full flex-col gap-6 px-4 pt-8 pb-6 sm:px-6">
       <h1 className="text-h1 text-foreground">Edit video</h1>
-      <Card data-slot="edit-video-card" className="w-full gap-6 p-8">
+      <Card data-slot="edit-video-card" className="w-full gap-6 p-4 sm:p-8">
         <VideoEditForm
           key={video.public_id}
           video={video}

@@ -11,6 +11,7 @@ import { SeedCategories1792416144429 } from './migrations/1792416144429-SeedCate
 import { ExtendVideosForPublishing1792416589954 } from './migrations/1792416589954-ExtendVideosForPublishing';
 import { CreateVideoViews1792458459333 } from './migrations/1792458459333-CreateVideoViews';
 import { CreateSocialInteractions1792472801299 } from './migrations/1792472801299-CreateSocialInteractions';
+import { AddVideoSearch1792518960632 } from './migrations/1792518960632-AddVideoSearch';
 
 const PUBLISHING_COLUMNS = [
   'title',
@@ -56,6 +57,13 @@ const MIGRATIONS = [
   ExtendVideosForPublishing1792416589954,
   CreateVideoViews1792458459333,
   CreateSocialInteractions1792472801299,
+  AddVideoSearch1792518960632,
+];
+
+const SEARCH_INDEXES = [
+  'IDX_channels_name_trgm',
+  'IDX_channels_nickname_trgm',
+  'IDX_videos_title_trgm',
 ];
 
 describe('Database migrations (integration)', () => {
@@ -322,6 +330,61 @@ describe('Database migrations (integration)', () => {
        WHERE table_schema = 'public' AND table_name = 'channels' AND column_name = 'subscriber_count'`,
     );
     expect(column).toMatchObject({ data_type: 'integer', column_default: '0' });
+  });
+
+  it('should create the search extensions, the immutable unaccent function and the trigram indexes', async () => {
+    const extensions = await dataSource.query<{ extname: string }[]>(
+      `SELECT extname FROM pg_extension WHERE extname IN ('pg_trgm', 'unaccent') ORDER BY extname`,
+    );
+    expect(extensions.map((row) => row.extname)).toEqual([
+      'pg_trgm',
+      'unaccent',
+    ]);
+
+    const [{ folded }] = await dataSource.query<{ folded: string }[]>(
+      `SELECT public.immutable_unaccent(lower('Música Programação')) AS folded`,
+    );
+    expect(folded).toBe('musica programacao');
+
+    const [{ provolatile }] = await dataSource.query<{ provolatile: string }[]>(
+      `SELECT provolatile FROM pg_proc WHERE proname = 'immutable_unaccent'`,
+    );
+    expect(provolatile).toBe('i');
+
+    const indexes = await dataSource.query<
+      { indexname: string; indexdef: string }[]
+    >(
+      `SELECT indexname, indexdef FROM pg_indexes
+       WHERE schemaname = 'public' AND indexname = ANY($1::text[])
+       ORDER BY indexname`,
+      [SEARCH_INDEXES],
+    );
+    expect(indexes.map((row) => row.indexname)).toEqual(SEARCH_INDEXES);
+    expect(
+      indexes.every((row) =>
+        /USING gin \(immutable_unaccent\(lower\(.*gin_trgm_ops\)/.test(
+          row.indexdef,
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it('should revert the video search migration', async () => {
+    await dataSource.undoLastMigration();
+
+    const indexes = await dataSource.query<{ indexname: string }[]>(
+      `SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = ANY($1::text[])`,
+      [SEARCH_INDEXES],
+    );
+    expect(indexes).toHaveLength(0);
+    const functions = await dataSource.query<{ proname: string }[]>(
+      `SELECT proname FROM pg_proc WHERE proname = 'immutable_unaccent'`,
+    );
+    expect(functions).toHaveLength(0);
+    const extensions = await dataSource.query<{ extname: string }[]>(
+      `SELECT extname FROM pg_extension WHERE extname IN ('pg_trgm', 'unaccent')`,
+    );
+    expect(extensions).toHaveLength(0);
   });
 
   it('should revert the social interactions migration', async () => {
