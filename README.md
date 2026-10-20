@@ -47,7 +47,7 @@ O projeto é um monorepo baseado em containers Docker. Cada subprojeto sobe sua 
 - **Email Service** (Mailpit) — captura os e-mails transacionais (confirmação de conta e recuperação de senha) em uma UI local.
 - **Video Worker** (FFmpeg) — segundo entrypoint do `nestjs-project` (`src/worker.ts`, serviço `video-worker`): consome os jobs da fila, valida o formato pelos bytes com `ffprobe`, extrai metadados e thumbnail com `ffmpeg` lendo o vídeo por URL assinada e marca o vídeo como `ready`/`failed`.
 - **Object Storage** (S3-compatível; RustFS em dev) — arquivos de vídeo e thumbnails. O navegador envia e lê direto do storage por URLs pré-assinadas (multipart, `Range`, download).
-- **Message Queue** (pg-boss sobre o PostgreSQL) — jobs `video.process` e `upload.expire`; sem broker adicional.
+- **Message Queue** (pg-boss sobre o PostgreSQL) — jobs `video.process`, `upload.expire`, `video.delete` e o agendado `video-views.cleanup` (diário, 03:00 UTC); sem broker adicional.
 
 O diagrama de arquitetura completo (C4) está em `docs/diagrams/software-arch.mermaid`.
 
@@ -291,7 +291,7 @@ mba-ia-greenfield-project/
 │   │   ├── phase-04-video-channel-management/ # Gerenciamento de vídeos e canal (backend + frontend) + drift report do Figma
 │   │   └── phase-05-watch-page/         # Página de visualização (backend + frontend) + drift report do Figma
 │   ├── tasks/                           # Trabalhos ad-hoc (mesmos artefatos das fases) — ex.: task-saneamento-fase-02-e-infra/
-│   ├── inventories/                     # Inventário de telas extraído do Figma (fases 02 e 04)
+│   ├── inventories/                     # Inventário de telas extraído do Figma (fases 02, 04 e 05)
 │   └── diagrams/
 │       ├── software-arch.mermaid        # Diagrama de arquitetura (C4)
 │       └── skills-workflow.mermaid      # Pipeline de skills de planejamento/implementação
@@ -370,7 +370,7 @@ git push -u origin feature/<slug>     # abra o PR para dev
 | **06** | Interações Sociais (Likes, Comentários, Inscrições) | ⏳ Planejada |
 | **07** | Página Inicial, Busca e Finalização | ⏳ Planejada |
 
-Detalhes completos em `docs/project-plan.md`. Pendências da Fase 02 (telas de confirmação/reset, logout, rede Docker compartilhada, CI do contrato OpenAPI) foram saneadas em `docs/tasks/task-saneamento-fase-02-e-infra/`. A Fase 03 entregou o backend (`docs/phases/phase-03-upload-processing/`) e a Fase 04 entregou o estúdio — upload, painel de vídeos, edição, configurações do canal — e a página pública do canal (`docs/phases/phase-04-video-channel-management/`). A dívida de lint do backend em specs/e2e das Fases 02/03 e a validação de nicknames reservados ou curtos no cadastro (`createChannel`) foram saneadas em `docs/tasks/task-saneamento-fase-04/`. Pendência conhecida da Fase 04: a reauditoria de um frame do Figma (154:1724) e do valor escuro do token `--progress-track`, quando a cota do MCP do Figma voltar. A Fase 05 entregou a página de visualização com player próprio, contagem de visualizações, sugestões e download (`docs/phases/phase-05-watch-page/`); a auditoria visual foi feita contra PNGs exportados do Figma, sem o MCP.
+Detalhes completos em `docs/project-plan.md`. Pendências da Fase 02 (telas de confirmação/reset, logout, rede Docker compartilhada, CI do contrato OpenAPI) foram saneadas em `docs/tasks/task-saneamento-fase-02-e-infra/`. A Fase 03 entregou o backend (`docs/phases/phase-03-upload-processing/`) e a Fase 04 entregou o estúdio — upload, painel de vídeos, edição, configurações do canal — e a página pública do canal (`docs/phases/phase-04-video-channel-management/`). A dívida de lint do backend em specs/e2e das Fases 02/03 e a validação de nicknames reservados ou curtos no cadastro (`createChannel`) foram saneadas em `docs/tasks/task-saneamento-fase-04/`. Pendência conhecida da Fase 04: a reauditoria de um frame do Figma (154:1724) e do valor escuro do token `--progress-track`, quando a cota do MCP do Figma voltar. A Fase 05 entregou a página de visualização com player próprio, contagem de visualizações, sugestões e download (`docs/phases/phase-05-watch-page/`); a auditoria visual foi feita contra PNGs exportados do Figma, sem o MCP. As pendências pequenas da Fase 05 foram resolvidas em `docs/tasks/task-manutencao-pos-fase-05/` (volume nomeado do banco, `ip_range` na rede `streamtube`, token tipográfico `--text-overlay-md`, `requestOrigin` único e procedimento seguro de install do shadcn); continua pendente o proxy reverso exigido para o deploy (`watch-page/TD-03`).
 
 ## 🤖 Processo com IA
 
