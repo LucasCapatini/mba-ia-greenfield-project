@@ -146,3 +146,46 @@ export type VideoCardItem = ChannelVideosPage["items"][number];
 export type UpdateVideoRequest = UpdateVideoInput & { publish?: boolean };
 
 export type VideoUpdateResult = { video: Video; published: boolean };
+
+// ─── Social (Fase 06) ─────────────────────────────────────────────────────────
+
+// `viewer_reaction` de vídeos e comentários (social-interactions/TD-01, TD-04).
+export type ReactionValue = NonNullable<Video["viewer_reaction"]>;
+
+// Estado resultante de `PUT|DELETE …/reaction` (vídeo e comentário — TD-03).
+export type ReactionState =
+  paths["/videos/{publicId}/reaction"]["put"]["responses"][200]["content"]["application/json"];
+
+export type SetReactionInput =
+  paths["/videos/{publicId}/reaction"]["put"]["requestBody"]["content"]["application/json"];
+
+// Estado resultante de `PUT|DELETE /channels/{nickname}/subscription` (TD-03).
+export type SubscriptionState =
+  paths["/channels/{nickname}/subscription"]["put"]["responses"][200]["content"]["application/json"];
+
+// Comentários (TD-05..TD-07): raízes paginadas e respostas sob demanda.
+export type CommentsPage =
+  paths["/videos/{publicId}/comments"]["get"]["responses"][200]["content"]["application/json"];
+
+export type Comment = CommentsPage["items"][number];
+
+export type CommentsQuery = NonNullable<
+  paths["/videos/{publicId}/comments"]["get"]["parameters"]["query"]
+>;
+
+export type CommentSort = NonNullable<CommentsQuery["sort"]>;
+
+export type CreateCommentInput =
+  paths["/videos/{publicId}/comments"]["post"]["requestBody"]["content"]["application/json"];
+
+export type UpdateCommentInput =
+  paths["/comments/{commentId}"]["patch"]["requestBody"]["content"]["application/json"];
+
+// Área de canais seguidos (TD-08): lista alfabética do menu lateral e feed.
+export type SubscribedChannelsPage =
+  paths["/me/subscriptions"]["get"]["responses"][200]["content"]["application/json"];
+
+export type SubscribedChannel = SubscribedChannelsPage["items"][number];
+
+export type SubscriptionFeedPage =
+  paths["/me/subscriptions/videos"]["get"]["responses"][200]["content"]["application/json"];

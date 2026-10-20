@@ -4,7 +4,8 @@ import { notFound } from "next/navigation"
 import { upstream } from "@/lib/api/upstream"
 import { getPublicChannel } from "@/lib/channel/get-channel"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ChannelHeader } from "@/components/channel/channel-header"
+import { ChannelSocialHeader } from "@/components/channel/channel-social-header"
+import { getSession } from "@/lib/auth/session"
 import { ChannelVideoList } from "@/components/channel/channel-video-list"
 import { ChannelVideoSort } from "@/components/channel/channel-video-sort"
 
@@ -40,9 +41,10 @@ async function listVideos(nickname: string, sort: ChannelSort, cursor: string | 
   })
 }
 
-// /channel/{nickname} — página pública do canal (Figma 155:1926). RSC anônimo
-// (video-channel-management/TD-07, TD-12); o 404 de nickname inexistente é resolvido no layout do
-// segmento, antes do streaming.
+// /channel/{nickname} — página pública do canal (Figma 155:1926). RSC com sessão opcional
+// (video-channel-management/TD-07, TD-12): a leitura do canal traz `subscriber_count` e
+// `viewer_subscribed` (social-interactions/TD-04); o dono não vê o Subscribe. O 404 de nickname
+// inexistente é resolvido no layout do segmento, antes do streaming.
 export default async function ChannelPage({ params, searchParams }: ChannelPageProps) {
   const { nickname } = await params
   const query = await searchParams
@@ -50,6 +52,7 @@ export default async function ChannelPage({ params, searchParams }: ChannelPageP
   if (!channel) {
     notFound()
   }
+  const session = await getSession()
 
   const requested = first(query.sort)
   let sort: ChannelSort = SORTS.find((value) => value === requested) ?? "latest"
@@ -67,11 +70,10 @@ export default async function ChannelPage({ params, searchParams }: ChannelPageP
 
   return (
     <main className="flex w-full flex-col gap-6 py-6">
-      <ChannelHeader
-        name={channel.name}
-        nickname={channel.nickname}
-        videoCount={channel.video_count}
-        description={channel.description}
+      <ChannelSocialHeader
+        channel={channel}
+        isLoggedIn={session.isLoggedIn}
+        isOwner={session.isLoggedIn && session.channelSlug === channel.nickname}
       />
       <Tabs defaultValue="videos">
         <TabsList variant="line" aria-label="Channel sections">

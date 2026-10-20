@@ -2,6 +2,10 @@ import { RefreshToken } from '../auth/entities/refresh-token.entity';
 import { VerificationToken } from '../auth/entities/verification-token.entity';
 import { Category } from '../categories/entities/category.entity';
 import { Channel } from '../channels/entities/channel.entity';
+import { Comment } from '../comments/entities/comment.entity';
+import { CommentReaction } from '../reactions/entities/comment-reaction.entity';
+import { VideoReaction } from '../reactions/entities/video-reaction.entity';
+import { Subscription } from '../subscriptions/entities/subscription.entity';
 import { User } from '../users/entities/user.entity';
 import { VideoUpload } from '../videos/entities/video-upload.entity';
 import { VideoView } from '../videos/entities/video-view.entity';
@@ -22,4 +26,8 @@ export const ENTITIES = [
   Video,
   VideoUpload,
   VideoView,
+  VideoReaction,
+  Comment,
+  CommentReaction,
+  Subscription,
 ];

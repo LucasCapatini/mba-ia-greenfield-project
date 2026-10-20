@@ -23,14 +23,14 @@ target_file: tests/watch.e2e-spec.ts
 #### 1.1. anonymous-sees-full-watch-page
 
 **Covers AC:** #1
-**Source:** auto
+**Source:** manual
 **Last sync:** 2026-10-20T00:09:00Z
 
 **Steps:**
   1. Usuário anônimo navega para `/watch/published-01`
     - expect: `<title>` contém o título do vídeo
     - expect: um `h1` com o título, o link do canal "Studio Canal" apontando para `/channel/studio_canal` e o avatar de iniciais
-    - expect: um elemento `video` com `poster` = thumbnail e os botões "Play", "Mute", "Enter full screen" e o slider de progresso; nenhum botão "Subscribe", "Like" ou campo de comentário; nenhum controle de legendas, configurações, miniplayer ou modo teatro
+    - expect: um elemento `video` com `poster` = thumbnail e os botões "Play", "Mute", "Enter full screen" e o slider de progresso; botões "Subscribe", "Like" e "Dislike" e o link "Sign in to comment" no lugar do campo de comentário (Fase 06 — `social-interactions/TD-04`, `TD-10`; antes: nenhum dos três); nenhum controle de legendas, configurações, miniplayer ou modo teatro
     - expect: o texto "N views • <tempo>" do bloco de descrição e o botão "Share"
     - expect: a sidebar com cards que linkam para `/watch/<public_id>` e não incluem `published-01`
 

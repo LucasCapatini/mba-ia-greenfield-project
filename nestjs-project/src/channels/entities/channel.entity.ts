@@ -25,6 +25,10 @@ export class Channel {
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
+  /** Contador denormalizado de `subscriptions`, ajustado na transação da inscrição (social-interactions/TD-02). */
+  @Column({ type: 'integer', default: 0 })
+  subscriber_count: number;
+
   @Column({ type: 'uuid', unique: true })
   user_id: string;
 

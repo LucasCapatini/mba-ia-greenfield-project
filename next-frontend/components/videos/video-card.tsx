@@ -5,6 +5,7 @@ import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { formatCompactNumber, formatRelativeTime } from "@/lib/format"
 import { VideoThumbnail } from "@/components/video/video-thumbnail"
+import { ChannelAvatar } from "@/components/channel/channel-avatar"
 
 /**
  * Card data for public listings. Mirrors the `VideoCardItem` wire shape planned for
@@ -28,7 +29,31 @@ type VideoCardProps = Omit<React.ComponentProps<"article">, "children"> & {
   variant?: "default" | "horizontal"
   /** Show the channel name line; off on the channel's own page, where it is redundant. */
   showChannel?: boolean
+  /**
+   * `default` variant only: channel initials avatar beside the text column, avatar and name linking
+   * to `/channel/{nickname}` (subscriptions feed — Figma Home 143:948, phase 06 resolution OQ-5).
+   */
+  showAvatar?: boolean
   now?: Date
+}
+
+/** 16:9 thumbnail of the `default` variant (decorative — the title names the watch link). */
+function DefaultThumbnail({ video }: { video: VideoCardData }) {
+  return (
+    <div className="relative aspect-video w-full overflow-hidden rounded-[var(--radius-4)] bg-muted">
+      {video.thumbnail_url ? (
+        // Browser-facing S3 URL (TD-10): the Next optimizer in the container cannot reach it.
+        <Image
+          src={video.thumbnail_url}
+          alt=""
+          fill
+          unoptimized
+          sizes="(min-width: 640px) 266px, 100vw"
+          className="object-cover"
+        />
+      ) : null}
+    </div>
+  )
 }
 
 function VideoCardMeta({ video, now }: { video: VideoCardData; now?: Date }) {
@@ -59,6 +84,7 @@ function VideoCard({
   video,
   variant = "default",
   showChannel = true,
+  showAvatar = false,
   now,
   className,
   ...props
@@ -105,25 +131,62 @@ function VideoCard({
     )
   }
 
+  if (showAvatar && video.channel) {
+    const channelHref = `/channel/${video.channel.nickname}`
+    const watchHref = `/watch/${video.public_id}`
+    // Separate links (watch / channel): a link cannot contain another. The thumbnail and the avatar
+    // duplicate the title and name links, so they stay out of the tab order and the a11y tree.
+    return (
+      <article
+        data-slot="video-card"
+        data-variant="default"
+        data-avatar="true"
+        className={cn("flex w-full flex-col gap-4", className)}
+        {...props}
+      >
+        <Link href={watchHref} tabIndex={-1} aria-hidden="true" className="block">
+          <DefaultThumbnail video={video} />
+        </Link>
+        <div className="flex gap-3">
+          <Link href={channelHref} tabIndex={-1} aria-hidden="true" className="shrink-0">
+            <ChannelAvatar
+              name={video.channel.name}
+              aria-hidden="true"
+              className="size-10 [&_[data-slot=avatar-fallback]]:text-label-md"
+            />
+          </Link>
+          <div className="flex min-w-0 flex-col gap-2">
+            <Link
+              href={watchHref}
+              className="group rounded-[var(--radius-2)] outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <h3 title={video.title} className="line-clamp-2 text-body-lg text-foreground group-hover:underline">
+                {video.title}
+              </h3>
+            </Link>
+            <div className="flex flex-col gap-0.5 text-body-lg text-muted-foreground">
+              <Link
+                href={channelHref}
+                data-slot="video-card-channel"
+                className="w-fit truncate rounded-[var(--radius-2)] outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                {video.channel.name}
+              </Link>
+              <VideoCardMeta video={video} now={now} />
+            </div>
+          </div>
+        </div>
+      </article>
+    )
+  }
+
   return (
     <article data-slot="video-card" data-variant="default" className={cn("w-full", className)} {...props}>
       <Link
         href={`/watch/${video.public_id}`}
         className="group flex flex-col gap-4 rounded-[var(--radius-4)] outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       >
-        <div className="relative aspect-video w-full overflow-hidden rounded-[var(--radius-4)] bg-muted">
-          {video.thumbnail_url ? (
-            // Browser-facing S3 URL (TD-10): the Next optimizer in the container cannot reach it.
-            <Image
-              src={video.thumbnail_url}
-              alt=""
-              fill
-              unoptimized
-              sizes="(min-width: 640px) 266px, 100vw"
-              className="object-cover"
-            />
-          ) : null}
-        </div>
+        <DefaultThumbnail video={video} />
         <div className="flex min-w-0 flex-col gap-2">
           <h3
             title={video.title}

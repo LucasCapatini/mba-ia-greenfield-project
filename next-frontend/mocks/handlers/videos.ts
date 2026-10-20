@@ -21,6 +21,13 @@ import {
   type VideoEntry,
 } from "../store";
 import { apiError, requireBearer } from "./_http";
+import {
+  channelView,
+  invalidReaction,
+  isSignedIn,
+  reactionDelta,
+  readReactionValue,
+} from "./_social";
 
 type VideoOk =
   paths["/videos/{publicId}"]["get"]["responses"][200]["content"]["application/json"];
@@ -42,6 +49,9 @@ type RelatedOk =
   paths["/videos/{publicId}/related"]["get"]["responses"][200]["content"]["application/json"];
 type UploadCompletedOk =
   paths["/videos/{publicId}/upload/complete"]["post"]["responses"][202]["content"]["application/json"];
+
+type ReactionStateOk =
+  paths["/videos/{publicId}/reaction"]["put"]["responses"][200]["content"]["application/json"];
 
 type VideoParams = { publicId: string };
 
@@ -88,7 +98,13 @@ function resolveVideo(
     return { error: access === "read" ? videoNotFound() : videoForbidden() };
   }
   const entry = studioStore().videos.get(publicId);
-  return entry ? { entry } : { error: videoNotFound() };
+  if (!entry) {
+    return { error: videoNotFound() };
+  }
+  // Vídeo de outro canal (`tech_mastery`): lê como público, nunca muta.
+  return entry.owner && access === "write"
+    ? { error: videoForbidden() }
+    : { entry };
 }
 
 /**
@@ -112,12 +128,26 @@ function isOwner(request: Request): boolean {
   return (request.headers.get("authorization") ?? "").startsWith("Bearer ");
 }
 
-/** Resposta de `VideoResponse` com o canal atual do store (o nickname pode ter mudado). */
-function present(entry: VideoEntry): VideoOk {
-  const { channel } = studioStore();
+/**
+ * Resposta de `VideoResponse` com o canal dono atual (o nickname do store pode ter mudado) e o
+ * estado do espectador (Fase 06). Sem `request` (respostas do estúdio) sai como anônimo, como no
+ * backend.
+ */
+function present(entry: VideoEntry, request?: Request): VideoOk {
+  const viewerRequest = request ?? new Request(env.API_URL);
+  const owner = channelView(
+    entry.owner ?? studioStore().channel.nickname,
+    viewerRequest,
+  );
+  if (!owner) {
+    throw new Error(`Fixture video ${entry.video.public_id} has no channel`);
+  }
   return {
     ...entry.video,
-    channel: { nickname: channel.nickname, name: channel.name },
+    viewer_reaction: isSignedIn(viewerRequest)
+      ? (studioStore().social.videoReactions.get(entry.video.public_id) ?? null)
+      : null,
+    channel: owner.channel,
   };
 }
 
@@ -263,7 +293,7 @@ export const handlers = [
         return found.error;
       }
       advanceProcessing(found.entry);
-      return HttpResponse.json<VideoOk>(present(found.entry));
+      return HttpResponse.json<VideoOk>(present(found.entry, request));
     },
   ),
 
@@ -604,4 +634,64 @@ export const handlers = [
       );
     },
   ),
+
+  // PUT /videos/:publicId/reaction — set-state idempotente; só `published` (TD-03)
+  http.put<VideoParams>(
+    `${env.API_URL}/videos/:publicId/reaction`,
+    async ({ params, request }) => {
+      const unauthorized = requireBearer(request);
+      if (unauthorized) {
+        return unauthorized;
+      }
+      const value = await readReactionValue(request);
+      if (value === null) {
+        return invalidReaction();
+      }
+      return writeVideoReaction(params.publicId, value);
+    },
+  ),
+
+  // DELETE /videos/:publicId/reaction — sem reação, mesmo estado sem efeito
+  http.delete<VideoParams>(
+    `${env.API_URL}/videos/:publicId/reaction`,
+    ({ params, request }) => {
+      const unauthorized = requireBearer(request);
+      return unauthorized ?? writeVideoReaction(params.publicId, null);
+    },
+  ),
 ];
+
+/**
+ * Aplica a reação do usuário do store e devolve o `ReactionState` (TD-02/TD-03). Rascunho ou
+ * processamento → 404, inclusive para o dono (TD-03, Revisions 2026-10-20).
+ */
+function writeVideoReaction(
+  publicId: string,
+  next: "like" | "dislike" | null,
+): Response {
+  const found = resolveVideo(publicId, "read");
+  if ("error" in found) {
+    return found.error;
+  }
+  const { entry } = found;
+  if (entry.video.status !== "published") {
+    return videoNotFound();
+  }
+  const reactions = studioStore().social.videoReactions;
+  const delta = reactionDelta(reactions.get(publicId) ?? null, next);
+  if (next === null) {
+    reactions.delete(publicId);
+  } else {
+    reactions.set(publicId, next);
+  }
+  entry.video = {
+    ...entry.video,
+    like_count: entry.video.like_count + delta.like,
+    dislike_count: entry.video.dislike_count + delta.dislike,
+  };
+  return HttpResponse.json<ReactionStateOk>({
+    viewer_reaction: next,
+    like_count: entry.video.like_count,
+    dislike_count: entry.video.dislike_count,
+  });
+}

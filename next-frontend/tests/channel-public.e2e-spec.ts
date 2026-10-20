@@ -30,8 +30,9 @@ test.describe("channel-public", () => {
     await expect(page.getByText("@tech_mastery")).toBeVisible()
     await expect(page.getByText("24 videos")).toBeVisible()
     await expect(page.getByText("Tutoriais de tecnologia")).toBeVisible()
-    await expect(page.getByRole("button", { name: /subscribe/i })).toHaveCount(0)
-    await expect(page.getByText(/subscribers/i)).toHaveCount(0)
+    // Fase 06 (social-interactions/TD-04): o anônimo vê o Subscribe e a contagem de inscritos.
+    await expect(page.getByRole("button", { name: "Subscribe" })).toHaveAttribute("aria-pressed", "false")
+    await expect(page.getByText("1.2K subscribers")).toBeVisible()
 
     await expect(cards(page)).toHaveCount(20)
     await expect(page.getByRole("tab", { name: "Videos" })).toHaveAttribute("aria-selected", "true")

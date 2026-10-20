@@ -44,3 +44,16 @@ export class ChannelVideosPage implements CursorPage<VideoCardItem> {
   })
   next_cursor: string | null;
 }
+
+/** `GET /me/subscriptions/videos` — feed das inscrições (social-interactions/TD-08). */
+export class SubscriptionFeedPage implements CursorPage<VideoCardItem> {
+  @ApiProperty({ type: [VideoCardItem] })
+  items: VideoCardItem[];
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Cursor da próxima página; `null` na última.',
+  })
+  next_cursor: string | null;
+}

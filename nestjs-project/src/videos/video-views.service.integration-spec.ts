@@ -1,6 +1,6 @@
 import type { ConfigType } from '@nestjs/config';
 import { DataSource, EntityManager, Repository } from 'typeorm';
-import { ChannelsService } from '../channels/channels.service';
+import { createChannelsService } from '../test/channels-service';
 import { Channel } from '../channels/entities/channel.entity';
 import type authConfig from '../config/auth.config';
 import {
@@ -32,7 +32,7 @@ describe('VideoViewsService (integration — DB real)', () => {
     viewRepository = dataSource.getRepository(VideoView);
     service = new VideoViewsService(
       dataSource,
-      new ChannelsService(dataSource),
+      createChannelsService(dataSource),
       {
         jwtSecret: 'integration-secret',
       } as ConfigType<typeof authConfig>,

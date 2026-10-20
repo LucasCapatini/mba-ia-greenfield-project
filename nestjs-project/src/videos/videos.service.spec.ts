@@ -2,6 +2,8 @@ import { Test } from '@nestjs/testing';
 import { DataSource, QueryFailedError } from 'typeorm';
 import { CategoriesService } from '../categories/categories.service';
 import { ChannelsService } from '../channels/channels.service';
+import { VideoReactionsService } from '../reactions/video-reactions.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import uploadConfig from '../config/upload.config';
 import { QUEUE_NAMES } from '../queue/queue.constants';
 import { type QueueDatabase, QueueService } from '../queue/queue.service';
@@ -115,6 +117,7 @@ describe('VideosService', () => {
         id: 'channel-1',
         nickname: 'canal_dono',
         name: 'Canal do Dono',
+        subscriber_count: 4,
       }),
     };
     categories = { findById: jest.fn().mockResolvedValue(null) };
@@ -143,6 +146,14 @@ describe('VideosService', () => {
         ThumbnailProcessor,
         { provide: StorageService, useValue: storage },
         { provide: QueueService, useValue: queue },
+        {
+          provide: VideoReactionsService,
+          useValue: { findViewerReaction: jest.fn().mockResolvedValue(null) },
+        },
+        {
+          provide: SubscriptionsService,
+          useValue: { isSubscribed: jest.fn().mockResolvedValue(false) },
+        },
         {
           provide: uploadConfig.KEY,
           useValue: {
@@ -585,7 +596,7 @@ describe('VideosService', () => {
         upload: null,
       }) as unknown as Video;
 
-    it('should map the loaded channel relation to { nickname, name } without querying again', async () => {
+    it('should map the loaded channel relation to VideoChannel without querying it again', async () => {
       const video = readyVideo();
       Object.assign(video, {
         channel_id: 'channel-9',
@@ -594,6 +605,7 @@ describe('VideosService', () => {
           nickname: 'tech_mastery',
           name: 'Tech Mastery',
           description: 'not exposed',
+          subscriber_count: 1200,
         },
       });
 
@@ -602,7 +614,10 @@ describe('VideosService', () => {
       expect(result.channel).toEqual({
         nickname: 'tech_mastery',
         name: 'Tech Mastery',
+        subscriber_count: 1200,
+        viewer_subscribed: false,
       });
+      expect(result.viewer_reaction).toBeNull();
       expect(channels.findById).not.toHaveBeenCalled();
     });
 
@@ -616,6 +631,8 @@ describe('VideosService', () => {
       expect(result.channel).toEqual({
         nickname: 'canal_dono',
         name: 'Canal do Dono',
+        subscriber_count: 4,
+        viewer_subscribed: false,
       });
     });
 
