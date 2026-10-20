@@ -60,7 +60,8 @@ Os dois subprojetos têm stacks Docker **separadas**. Suba primeiro o backend, r
 ```bash
 cd nestjs-project
 
-# Cria o .env a partir do exemplo (inclui FRONTEND_URL, destino dos links de e-mail, e as chaves S3_* do storage)
+# Cria o .env a partir do exemplo (inclui FRONTEND_URL, destino dos links de e-mail, as chaves S3_* do storage e
+# TRUST_PROXY, o IP fixo do next-frontend na rede streamtube — a API só confia no X-Forwarded-For vindo dele)
 cp .env.example .env
 
 # Sobe API, banco, Mailpit, RustFS (storage), storage-init (cria o bucket e libera leitura anônima só em thumbnails/*) e o video-worker
@@ -163,7 +164,7 @@ Política: lint limpo nos dois subprojetos. No backend o script roda com `--max-
 
 ## ✅ Funcionalidades implementadas
 
-As Fases **01 — Configuração base**, **02 — Autenticação**, **03 — Upload e processamento** e **04 — Gerenciamento de vídeos e canal** estão concluídas. A Fase 03 entregou o backend (API + worker); as telas de upload chegaram com o estúdio da Fase 04.
+As Fases **01 — Configuração base**, **02 — Autenticação**, **03 — Upload e processamento**, **04 — Gerenciamento de vídeos e canal** e **05 — Página de visualização** estão concluídas. A Fase 03 entregou o backend (API + worker); as telas de upload chegaram com o estúdio da Fase 04.
 
 ### Autenticação (Fase 02)
 
@@ -247,7 +248,27 @@ Telas e Route Handlers BFF (`next-frontend`):
 - O `AppHeader` ganhou, para usuários autenticados, os atalhos "Meus vídeos" (`/studio/videos`) e "Meu canal" (`/studio/channel`); toasts de sucesso/erro via Sonner.
 - Todo `/studio/**` é protegido por `proxy.ts` (Proxy do Next 16), que redireciona anônimos para `/login?returnTo=…`; o estado do upload sobrevive à navegação dentro do estúdio (`UploadProvider`).
 - `app/api/videos/**` e `app/api/channel` — proxy same-origin para a API. Leituras acontecem em Server Components; mutações passam pelo BFF e chamam `router.refresh()`.
-- Os cards de vídeo já apontam para `/watch/{publicId}`, a página de visualização da Fase 05 (até lá, a rota responde 404).
+- Os cards de vídeo apontam para `/watch/{publicId}`, a página de visualização da Fase 05.
+
+### Página de visualização do vídeo (Fase 05)
+
+Página pública `/watch/{publicId}` com player próprio, descrição, sugestões e download, aberta a visitantes anônimos. Decisões em `docs/decisions/technical-decisions-watch-page.md`.
+
+- **Player:** `<video>` nativo com controles próprios (play/pause, volume, barra de progresso com buffer, tempo e tela cheia). Quando a URL assinada expira, o player pede uma nova pelo BFF e retoma do mesmo ponto. O preview do estúdio usa o mesmo player, sem registrar visualização.
+- **Visualizações:** contam após 10 s de reprodução acumulada (ou o fim de um vídeo mais curto), uma vez por carregamento da página. A API deduplica por espectador e por dia UTC — usuário logado pelo id, anônimo por um hash de IP + User-Agent — e não conta o dono nem rascunhos. O job agendado `video-views.cleanup` (03:00 UTC) apaga os registros de dedup vencidos.
+- **IP real do visitante:** como toda requisição chega à API pelo BFF, o `next-frontend` tem IP fixo na rede `streamtube` e a API só confia no `X-Forwarded-For` vindo dele (`TRUST_PROXY`). O throttler global passa a contar por visitante.
+- **Sugestões:** até 12 vídeos públicos, publicados e prontos — primeiro da mesma categoria, completados pelos mais recentes; vídeos `unlisted` abrem só pelo link direto e nunca aparecem em sugestões.
+- **Página:** título, canal (link para `/channel/{nickname}`), Share (copia o link), menu "⋮" com Download, descrição recolhida em 3 linhas com "…more"/"Show less" e a sidebar. Vídeo inexistente ou rascunho alheio → página de não encontrado; o dono vê o status no lugar do player enquanto o vídeo processa; com o storage indisponível aparece "Try again".
+
+Endpoints da API (`nestjs-project`; públicos com auth opcional):
+
+| Método & Rota | Descrição |
+|---------------|-----------|
+| `GET /videos/{publicId}` | Passa a trazer o canal do vídeo (`channel: { nickname, name }`) |
+| `POST /videos/{publicId}/views` | Registra uma visualização (204; conta só na primeira do espectador no dia) |
+| `GET /videos/{publicId}/related` | Sugestões da sidebar (`limit` 1..24, padrão 12), lista fechada sem cursor |
+
+Route Handlers BFF (`next-frontend`): `GET /api/videos/{publicId}/playback` (o player renova a URL) e `POST /api/videos/{publicId}/views`; ambos enviam a sessão só quando ela existe e repassam IP e User-Agent do visitante.
 
 ## 🛠️ Estrutura do Projeto
 
@@ -267,7 +288,8 @@ mba-ia-greenfield-project/
 │   │   ├── phase-02-auth/               # Auth (backend)
 │   │   ├── phase-02-auth-frontend/      # Auth (frontend)
 │   │   ├── phase-03-upload-processing/  # Upload multipart, worker e playback (backend)
-│   │   └── phase-04-video-channel-management/ # Gerenciamento de vídeos e canal (backend + frontend) + drift report do Figma
+│   │   ├── phase-04-video-channel-management/ # Gerenciamento de vídeos e canal (backend + frontend) + drift report do Figma
+│   │   └── phase-05-watch-page/         # Página de visualização (backend + frontend) + drift report do Figma
 │   ├── tasks/                           # Trabalhos ad-hoc (mesmos artefatos das fases) — ex.: task-saneamento-fase-02-e-infra/
 │   ├── inventories/                     # Inventário de telas extraído do Figma (fases 02 e 04)
 │   └── diagrams/
@@ -283,10 +305,10 @@ mba-ia-greenfield-project/
 │   │   ├── channels/                    # Canal 1:1 por usuário (nickname do e-mail); /channels/me e página pública
 │   │   ├── categories/                  # Categorias de vídeo (GET /categories)
 │   │   ├── mail/                        # Envio de e-mails (templates Handlebars; links usam FRONTEND_URL)
-│   │   ├── videos/                      # Upload multipart, estado, playback, edição/publicação, thumbnail, exclusão e listagens
+│   │   ├── videos/                      # Upload multipart, estado, playback, edição/publicação, thumbnail, exclusão, listagens, visualizações e sugestões
 │   │   ├── storage/                     # StorageModule: clientes S3 (interno e público) e presigner
 │   │   ├── queue/                       # QueueModule: pg-boss sobre o PostgreSQL
-│   │   ├── worker/                      # WorkerModule: jobs video.process (ffmpeg), upload.expire e video.delete
+│   │   ├── worker/                      # WorkerModule: jobs video.process (ffmpeg), upload.expire, video.delete e video-views.cleanup (cron)
 │   │   ├── worker.ts                    # Segundo entrypoint (processo video-worker)
 │   │   ├── common/                      # Filtros, pipes, exceptions de domínio e paginação por cursor
 │   │   ├── config/                      # Configs namespaced (Joi)
@@ -300,11 +322,11 @@ mba-ia-greenfield-project/
 ├── next-frontend/                       # Frontend (Next.js 16, App Router)
 │   ├── app/
 │   │   ├── (auth)/                      # signup, login, forgot-password, reset-password, confirm-email, resend-confirmation
-│   │   ├── (app)/                       # Área da aplicação (layout com AppHeader): home, studio/** e channel/[nickname]
+│   │   ├── (app)/                       # Área da aplicação (layout com AppHeader): home, studio/**, channel/[nickname] e watch/[publicId]
 │   │   └── api/                         # Route Handlers BFF (proxy same-origin para a API): auth/**, videos/** e channel
-│   ├── components/                      # auth, layout (AppHeader), upload, studio, channel, video(s), UI (shadcn) e ícones
-│   ├── hooks/                           # Hooks (useSession, useProcessingPoll)
-│   ├── lib/                             # env, api (openapi-fetch + types.gen.ts + helper do BFF), auth/session, upload (cliente multipart)
+│   ├── components/                      # auth, layout (AppHeader), upload, studio, channel, video(s), watch (player e página), UI (shadcn) e ícones
+│   ├── hooks/                           # Hooks (useSession, useProcessingPoll, useMediaState, useViewRegistration)
+│   ├── lib/                             # env, api (openapi-fetch + types.gen.ts + BFF com sessão opcional + publicRead), auth/session, upload (cliente multipart)
 │   ├── mocks/                           # MSW (handlers + server; também usado server-side via instrumentation.ts)
 │   ├── specs/                           # Test specs (*.plan.md) que originam os E2E
 │   ├── tests/                           # E2E (Playwright)
@@ -344,11 +366,11 @@ git push -u origin feature/<slug>     # abra o PR para dev
 | **02** | Cadastro, Login e Gerenciamento de Conta | ✅ Concluída |
 | **03** | Upload e Processamento de Vídeos | ✅ Concluída (backend: API + worker; telas na Fase 04) |
 | **04** | Gerenciamento de Vídeos e Canal | ✅ Concluída (backend + frontend) |
-| **05** | Página de Visualização do Vídeo | ⏳ Planejada |
+| **05** | Página de Visualização do Vídeo | ✅ Concluída (backend + frontend) |
 | **06** | Interações Sociais (Likes, Comentários, Inscrições) | ⏳ Planejada |
 | **07** | Página Inicial, Busca e Finalização | ⏳ Planejada |
 
-Detalhes completos em `docs/project-plan.md`. Pendências da Fase 02 (telas de confirmação/reset, logout, rede Docker compartilhada, CI do contrato OpenAPI) foram saneadas em `docs/tasks/task-saneamento-fase-02-e-infra/`. A Fase 03 entregou o backend (`docs/phases/phase-03-upload-processing/`) e a Fase 04 entregou o estúdio — upload, painel de vídeos, edição, configurações do canal — e a página pública do canal (`docs/phases/phase-04-video-channel-management/`). A dívida de lint do backend em specs/e2e das Fases 02/03 e a validação de nicknames reservados ou curtos no cadastro (`createChannel`) foram saneadas em `docs/tasks/task-saneamento-fase-04/`. Pendência conhecida da Fase 04: a reauditoria de um frame do Figma (154:1724) e do valor escuro do token `--progress-track`, quando a cota do MCP do Figma voltar.
+Detalhes completos em `docs/project-plan.md`. Pendências da Fase 02 (telas de confirmação/reset, logout, rede Docker compartilhada, CI do contrato OpenAPI) foram saneadas em `docs/tasks/task-saneamento-fase-02-e-infra/`. A Fase 03 entregou o backend (`docs/phases/phase-03-upload-processing/`) e a Fase 04 entregou o estúdio — upload, painel de vídeos, edição, configurações do canal — e a página pública do canal (`docs/phases/phase-04-video-channel-management/`). A dívida de lint do backend em specs/e2e das Fases 02/03 e a validação de nicknames reservados ou curtos no cadastro (`createChannel`) foram saneadas em `docs/tasks/task-saneamento-fase-04/`. Pendência conhecida da Fase 04: a reauditoria de um frame do Figma (154:1724) e do valor escuro do token `--progress-track`, quando a cota do MCP do Figma voltar. A Fase 05 entregou a página de visualização com player próprio, contagem de visualizações, sugestões e download (`docs/phases/phase-05-watch-page/`); a auditoria visual foi feita contra PNGs exportados do Figma, sem o MCP.
 
 ## 🤖 Processo com IA
 

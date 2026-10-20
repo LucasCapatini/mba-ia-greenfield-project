@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 StreamTube — a video sharing platform (YouTube-like). Users can upload, manage, and publish videos. Anonymous users can watch freely; social features (comments, subscriptions, likes) require authentication.
 
-Phases 01 (base config), 02 (auth: register → email confirmation → login → password reset, backend + frontend), 03 (video upload via presigned multipart, processing worker and playback URLs — backend) and 04 (video & channel management: categories, edit/publish, custom thumbnails, deletion, studio screens incl. the upload UI, public channel page — backend + frontend) are done. Phases 05–07 (watch page, social, home/search) are planned. Full plan and phase scopes: [docs/project-plan.md](docs/project-plan.md).
+Phases 01 (base config), 02 (auth: register → email confirmation → login → password reset, backend + frontend), 03 (video upload via presigned multipart, processing worker and playback URLs — backend) and 04 (video & channel management: categories, edit/publish, custom thumbnails, deletion, studio screens incl. the upload UI, public channel page — backend + frontend) and 05 (watch page: custom player with signed-URL renewal, deduplicated view count with daily cleanup, same-category suggestions, download, unlisted by direct link, anonymous access; real visitor IP behind the BFF via `TRUST_PROXY` — backend + frontend) are done. Phases 06–07 (social, home/search) are planned. Full plan and phase scopes: [docs/project-plan.md](docs/project-plan.md).
 
 ## Repository Structure
 
