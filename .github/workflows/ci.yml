@@ -114,7 +114,10 @@ jobs:
           cache-dependency-path: next-frontend/package-lock.json
 
       - name: Playwright (chromium + mobile)
+        # The compose overlays a named volume on node_modules; Docker created that mount point on the
+        # host as root, so hand it back to the runner user before the host-side install.
         run: |
+          [ -d node_modules ] && sudo chown "$(id -u):$(id -g)" node_modules
           npm ci
           npx playwright install --with-deps chromium
           npx playwright test
@@ -176,7 +179,10 @@ jobs:
 
       - name: Full-stack journeys + smoke
         working-directory: next-frontend
+        # The compose overlays a named volume on node_modules; Docker created that mount point on the
+        # host as root, so hand it back to the runner user before the host-side install.
         run: |
+          [ -d node_modules ] && sudo chown "$(id -u):$(id -g)" node_modules
           npm ci
           npx playwright install --with-deps chromium
           npx playwright test -c playwright.full-stack.config.ts
