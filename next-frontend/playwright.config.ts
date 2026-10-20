@@ -22,5 +22,12 @@ export default defineConfig({
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
     },
+    // Phone profile (home-search-production/TD-06): only the responsive specs, so the suite is not
+    // run twice. `npx playwright test --project=mobile`.
+    {
+      name: "mobile",
+      testMatch: "**/shell-responsive.e2e-spec.ts",
+      use: { ...devices["Pixel 7"] },
+    },
   ],
 });
