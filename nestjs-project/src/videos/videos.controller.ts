@@ -27,18 +27,20 @@ import {
   ApiTags,
   getSchemaPath,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { JwtPayload } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { OptionalUser } from '../auth/decorators/optional-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { ApiErrorEnvelope } from '../common/openapi/api-error-envelope.dto';
+import { READ_THROTTLE } from '../common/throttling/read-throttle';
 import { NonEmptyBodyPipe } from '../common/pipes/non-empty-body.pipe';
 import { CompleteUploadDto } from './dto/complete-upload.dto';
 import { CreateVideoDto } from './dto/create-video.dto';
-import { RelatedVideosQuery } from './dto/list-videos.dto';
+import { ListPublicVideosDto, RelatedVideosQuery } from './dto/list-videos.dto';
 import { PresignPartsDto } from './dto/presign-parts.dto';
 import { UpdateVideoDto } from './dto/update-video.dto';
-import { RelatedVideosResponse } from './dto/video-pages.dto';
+import { PublicVideosPage, RelatedVideosResponse } from './dto/video-pages.dto';
 import {
   PlaybackResponse,
   PresignedPartsResponse,
@@ -54,6 +56,7 @@ import {
 import { VideoViewsService } from './video-views.service';
 import { VideosListingService } from './videos-listing.service';
 import { VideosOwnership } from './videos-ownership';
+import { LISTING_THROTTLE } from './videos.constants';
 import { VideosService } from './videos.service';
 
 const errorEnvelope = { $ref: getSchemaPath(ApiErrorEnvelope) };
@@ -126,6 +129,11 @@ export class VideosController {
 
   @Public()
   @Get(':publicId')
+  @Throttle(READ_THROTTLE)
+  @ApiResponse({
+    status: 429,
+    description: 'Too Many Requests — limite de 60 req/min por visitante',
+  })
   @ApiOperation({
     summary: 'Estado e metadados do vídeo',
     description:
@@ -164,6 +172,11 @@ export class VideosController {
 
   @Public()
   @Get(':publicId/playback')
+  @Throttle(READ_THROTTLE)
+  @ApiResponse({
+    status: 429,
+    description: 'Too Many Requests — limite de 60 req/min por visitante',
+  })
   @ApiOperation({
     summary: 'URLs de reprodução e download',
     description:
@@ -205,7 +218,52 @@ export class VideosController {
   }
 
   @Public()
+  @Get()
+  @Throttle(LISTING_THROTTLE)
+  @ApiOperation({
+    summary: 'Listagem pública da home e da busca',
+    description:
+      'Vídeos `published` + `public` + `ready` de todos os canais (unlisted e rascunhos nunca aparecem, nem para o dono), do mais recente ao mais antigo, em cursor keyset. `category` filtra pelo slug; `q` (2..100 caracteres após trim) casa por substring, sem acento nem caixa, o título do vídeo ou o nome/nickname do canal, mantendo a ordem cronológica (home-search-production/TD-01, TD-02, TD-03). Autenticação opcional; limite próprio de 60 req/min por visitante.',
+  })
+  @ApiHeader(optionalBearerHeader)
+  @ApiResponse({
+    status: 200,
+    description: 'Página de vídeos',
+    type: PublicVideosPage,
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'VALIDATION_ERROR — `q` fora de 2..100 caracteres, `limit` fora de 1..50 ou `cursor` inválido',
+    schema: errorEnvelope,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Token presente mas inválido ou expirado',
+    schema: errorEnvelope,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'CATEGORY_NOT_FOUND — `category` sem slug correspondente',
+    schema: errorEnvelope,
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too Many Requests — limite de 60 req/min por visitante',
+  })
+  async listPublic(
+    @Query() query: ListPublicVideosDto,
+  ): Promise<PublicVideosPage> {
+    return this.listing.listPublic(query);
+  }
+
+  @Public()
   @Get(':publicId/related')
+  @Throttle(READ_THROTTLE)
+  @ApiResponse({
+    status: 429,
+    description: 'Too Many Requests — limite de 60 req/min por visitante',
+  })
   @ApiOperation({
     summary: 'Sugestões da watch page',
     description:

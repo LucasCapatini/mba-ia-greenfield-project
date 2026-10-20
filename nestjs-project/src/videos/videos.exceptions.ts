@@ -89,6 +89,21 @@ export class CategoryNotFoundException extends DomainException {
   }
 }
 
+/**
+ * Filtro `GET /videos?category=<slug>` sem categoria correspondente (home-search-production/TD-01):
+ * mesmo código de `CategoryNotFoundException`, mas 404 — aqui o slug identifica o recurso
+ * filtrado, não um campo inválido do corpo de uma edição.
+ */
+export class CategorySlugNotFoundException extends DomainException {
+  constructor(slug: string) {
+    super(
+      VIDEO_ERROR_CODES.CATEGORY_NOT_FOUND,
+      404,
+      `Category "${slug}" does not exist`,
+    );
+  }
+}
+
 /** Publicar exige `processing_status = ready` e título não vazio (TD-02). */
 export class VideoNotPublishableException extends DomainException {
   constructor(reason: string) {

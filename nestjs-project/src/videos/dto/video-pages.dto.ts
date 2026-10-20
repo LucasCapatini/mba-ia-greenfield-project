@@ -45,6 +45,19 @@ export class ChannelVideosPage implements CursorPage<VideoCardItem> {
   next_cursor: string | null;
 }
 
+/** `GET /videos` — listagem pública da home e da busca (home-search-production/TD-01, TD-02). */
+export class PublicVideosPage implements CursorPage<VideoCardItem> {
+  @ApiProperty({ type: [VideoCardItem] })
+  items: VideoCardItem[];
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Cursor da próxima página; `null` na última.',
+  })
+  next_cursor: string | null;
+}
+
 /** `GET /me/subscriptions/videos` — feed das inscrições (social-interactions/TD-08). */
 export class SubscriptionFeedPage implements CursorPage<VideoCardItem> {
   @ApiProperty({ type: [VideoCardItem] })
