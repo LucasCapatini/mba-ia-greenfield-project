@@ -1,5 +1,6 @@
 import "server-only";
 
+import { clientHeaders, type ClientHeaders } from "@/lib/api/client-headers";
 import type { ApiErrorEnvelope } from "@/lib/api/contracts";
 import { withRefresh } from "@/lib/auth/refresh";
 import { getSession } from "@/lib/auth/session";
@@ -8,6 +9,9 @@ import { getSession } from "@/lib/auth/session";
 type UpstreamResult = { data?: unknown; error?: unknown; response: Response };
 
 export type SessionHeaders = { Authorization: string };
+
+/** Leituras públicas: o `Bearer` só vai quando há sessão; os headers do visitante sempre. */
+export type OptionalSessionHeaders = ClientHeaders & { Authorization?: string };
 
 function errorResponse(statusCode: number, error: string, message: string): Response {
   return Response.json(
@@ -45,6 +49,31 @@ export async function withSession(
     const { accessToken } = await getSession();
     return passThrough(await call({ Authorization: `Bearer ${accessToken}` }));
   });
+}
+
+/**
+ * Chamada pública com autenticação opcional (video-channel-management/TD-07). Sem sessão → upstream
+ * anônimo. Com sessão → `Bearer` + refresh single-flight como em `withSession`; se o refresh
+ * falha (sessão destruída) a chamada é refeita anônima e devolve a resposta pública. Sempre
+ * repassa IP e `User-Agent` do visitante (watch-page/TD-03).
+ */
+export async function withOptionalSession(
+  call: (headers: OptionalSessionHeaders) => Promise<UpstreamResult>
+): Promise<Response> {
+  const client = await clientHeaders();
+  const anonymous = async () => passThrough(await call(client));
+  const session = await getSession();
+  if (!session.isLoggedIn) {
+    return anonymous();
+  }
+  const response = await withRefresh(async () => {
+    // Relido a cada tentativa: depois do refresh a sessão traz o access token novo.
+    const { accessToken } = await getSession();
+    return passThrough(await call({ ...client, Authorization: `Bearer ${accessToken}` }));
+  });
+  // 401 aqui = token recusado mesmo após o refresh: a requisição não foi processada, então
+  // repeti-la anônima é seguro (o guard do upstream recusa antes do handler).
+  return response.status === 401 ? anonymous() : response;
 }
 
 /** Corpo JSON da requisição do navegador; `null` quando não é JSON válido (vira 400). */
