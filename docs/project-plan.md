@@ -84,7 +84,7 @@ Upload de arquivos grandes sem travar o sistema, processamento automático do v�
 
 **Entregáveis:** upload de até 10GB funcional, processamento automático do vídeo, streaming funcionando, URLs únicas geradas.
 
-_Status (2026-10-18): concluída no backend — `docs/phases/phase-03-upload-processing/` (RustFS + multipart pré-assinado, pg-boss, worker como segundo entrypoint com ffprobe/ffmpeg, endpoints de upload/estado/playback, contrato OpenAPI sincronizado). Sem telas nesta fase: a UI de upload entrou na Fase 04 com o estúdio do canal._
+_Status (2026-10-18): concluída no backend — `docs/phases/phase-03-videos/` (RustFS + multipart pré-assinado, pg-boss, worker como segundo entrypoint com ffprobe/ffmpeg, endpoints de upload/estado/playback, contrato OpenAPI sincronizado). Sem telas nesta fase: a UI de upload entrou na Fase 04 com o estúdio do canal._
 
 ---
 

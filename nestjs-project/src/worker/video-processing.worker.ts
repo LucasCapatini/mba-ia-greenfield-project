@@ -41,7 +41,7 @@ function describe(err: unknown): string {
   return err instanceof Error ? `${err.name}: ${err.message}` : String(err);
 }
 
-// Consumidor de `video.process` (phase-03-upload-processing/TD-06, TD-11, TD-14): lê o vídeo por
+// Consumidor de `video.process` (phase-03-videos/TD-06, TD-11, TD-14): lê o vídeo por
 // URL interna assinada (sem download), valida a allowlist pelos bytes, extrai metadados e thumbnail
 // e conclui por transições guardadas (`WHERE processing_status = 'processing'`), idempotentes em
 // entregas repetidas. Contexto de background: o handler loga; só relança o que deve ser retentado.

@@ -1,4 +1,4 @@
-// Generated from specs/videos-create.plan.md (SI-03.5 — phase-03-upload-processing).
+// Generated from specs/videos-create.plan.md (SI-03.5 — phase-03-videos).
 // One describe per spec; one test per scenario; group headings kept as comments.
 import type { S3Client } from '@aws-sdk/client-s3';
 import { INestApplication, ValidationPipe } from '@nestjs/common';

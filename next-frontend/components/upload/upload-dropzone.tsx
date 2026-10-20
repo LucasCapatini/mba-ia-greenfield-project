@@ -12,7 +12,7 @@ import { useUploads } from "@/components/upload/upload-provider"
 
 export type UploadDropzoneState = "idle" | "dragging" | "creating" | "error"
 
-// Client-side mirror of `POST /videos` (phase-03-upload-processing/TD-03, TD-14).
+// Client-side mirror of `POST /videos` (phase-03-videos/TD-03, TD-14).
 const ACCEPTED_TYPES = ["video/mp4", "video/webm"] as const
 const ACCEPT = ACCEPTED_TYPES.join(",")
 export const MAX_VIDEO_BYTES = 10 * 1024 ** 3

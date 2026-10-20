@@ -59,7 +59,7 @@ services:
       migrate:
         condition: service_completed_successfully
 
-  # Second entrypoint of the same image (phase-03-upload-processing/TD-05). Node runs directly so
+  # Second entrypoint of the same image (phase-03-videos/TD-05). Node runs directly so
   # SIGTERM reaches it and the queue stops gracefully (see nestjs-project/CLAUDE.md).
   worker:
     image: *api-image

@@ -3,7 +3,7 @@ import { mkdir, readFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-// Fixtures de vídeo geradas pelo próprio ffmpeg da imagem (phase-03-upload-processing/TD-13):
+// Fixtures de vídeo geradas pelo próprio ffmpeg da imagem (phase-03-videos/TD-13):
 // nada binário no repositório, 2 s de `testsrc` + tom senoidal, cacheadas em os.tmpdir() por
 // processo de testes. Só suítes de integração/E2E as usam (exigem o ffmpeg do container).
 

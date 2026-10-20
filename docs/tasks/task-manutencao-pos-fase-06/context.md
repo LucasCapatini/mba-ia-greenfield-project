@@ -135,7 +135,7 @@ _No current-scope TDs._
 
 ### video-channel-management/TD-02
 
-**Recommendation:** é a extensão natural do eixo de publicação decidido em `phase-03-upload-processing/TD-07`, preserva a visibilidade ao despublicar e fornece a coluna de ordenação/tempo que o painel e TD-06 precisam. Regra de negócio a fixar junto: publicar exige `ready` + título; editar título/descrição/categoria/visibilidade é permitido em qualquer `processing_status`.
+**Recommendation:** é a extensão natural do eixo de publicação decidido em `phase-03-videos/TD-07`, preserva a visibilidade ao despublicar e fornece a coluna de ordenação/tempo que o painel e TD-06 precisam. Regra de negócio a fixar junto: publicar exige `ready` + título; editar título/descrição/categoria/visibilidade é permitido em qualquer `processing_status`.
 **Libraries:** —
 
 ### video-channel-management/TD-03
@@ -173,7 +173,7 @@ _No current-scope TDs._
 
 ### video-channel-management/TD-09
 
-**Recommendation:** reaproveita o padrão transacional "linha + job na mesma transação" de `phase-03-upload-processing/TD-11` e garante que os bytes sejam liberados sem bloquear a resposta nem espalhar um filtro `deleted_at` por todas as fases seguintes. Option B só compensa se o produto pedir lixeira.
+**Recommendation:** reaproveita o padrão transacional "linha + job na mesma transação" de `phase-03-videos/TD-11` e garante que os bytes sejam liberados sem bloquear a resposta nem espalhar um filtro `deleted_at` por todas as fases seguintes. Option B só compensa se o produto pedir lixeira.
 **Libraries:** —
 
 ### video-channel-management/TD-10
@@ -234,7 +234,7 @@ _No current-scope TDs._
 
 ### watch-page/TD-06
 
-**Recommendation:** o `public_id` já cumpre o requisito de URL curta e única (`phase-03-upload-processing/TD-08`), o path já está implementado e testado em cinco pontos e ainda não há links em produção que justifiquem um alias; a divergência é só textual no Figma e se resolve registrando-a no `/screen-inventory 5`.
+**Recommendation:** o `public_id` já cumpre o requisito de URL curta e única (`phase-03-videos/TD-08`), o path já está implementado e testado em cinco pontos e ainda não há links em produção que justifiquem um alias; a divergência é só textual no Figma e se resolve registrando-a no `/screen-inventory 5`.
 **Libraries:** —
 
 ### watch-page/TD-07

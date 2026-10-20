@@ -10,7 +10,7 @@ type DownloadMenuItemProps = Omit<React.ComponentProps<typeof DropdownMenuItem>,
 
 /**
  * "Download" entry of the watch page "⋮" menu. The storage answers the signed URL with
- * `Content-Disposition: attachment` (phase-03-upload-processing/TD-09), so a plain navigation
+ * `Content-Disposition: attachment` (phase-03-videos/TD-09), so a plain navigation
  * downloads the file; anyone who can read the video gets the URL, anonymous included (TD-08).
  */
 function DownloadMenuItem({ downloadUrl, ...props }: DownloadMenuItemProps) {

@@ -24,7 +24,7 @@ import type {
 } from '../videos.constants';
 import { VideoUpload } from './video-upload.entity';
 
-// Aggregate editorial do vídeo (phase-03-upload-processing/TD-07, Option B): dois eixos de estado
+// Aggregate editorial do vídeo (phase-03-videos/TD-07, Option B): dois eixos de estado
 // independentes — `status` (publicação: draft → published, video-channel-management/TD-02) e
 // `processing_status` (uploading → processing → ready | failed) — mais os metadados extraídos
 // pelo worker, os campos editoriais (título, descrição, categoria, visibilidade, thumbnail

@@ -47,7 +47,7 @@ export interface PresignGetOptions {
   public?: boolean;
 }
 
-// Única porta de saída para o object storage (phase-03-upload-processing/TD-02, TD-03, TD-09).
+// Única porta de saída para o object storage (phase-03-videos/TD-02, TD-03, TD-09).
 // Nenhum byte de vídeo passa por aqui: a API só orquestra metadados do multipart e assina URLs;
 // o único upload feito pelo backend é a thumbnail (putObject, TD-06).
 @Injectable()
@@ -69,7 +69,7 @@ export class StorageService {
   /**
    * URL pública e estável (sem assinatura) de um objeto legível anonimamente pela bucket policy —
    * hoje só `thumbnails/*` (video-channel-management/TD-10). Path-style com o endpoint do
-   * navegador (phase-03-upload-processing/TD-02). Para qualquer outro prefixo, use presign.
+   * navegador (phase-03-videos/TD-02). Para qualquer outro prefixo, use presign.
    */
   publicUrl(key: string): string {
     const path = key.split('/').map(encodeURIComponent).join('/');

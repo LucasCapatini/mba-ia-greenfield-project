@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto';
 
-// Identificador público do vídeo (phase-03-upload-processing/TD-08): 11 caracteres no alfabeto
+// Identificador público do vídeo (phase-03-videos/TD-08): 11 caracteres no alfabeto
 // URL-safe [A-Za-z0-9_-] (64 bits de entropia — mesmo formato dos IDs do YouTube), gerado no
 // pré-cadastro e usado na URL pública e como prefixo das chaves no storage. A PK continua UUID;
 // colisões (~1e-19 por inserção) são tratadas pelo serviço com retry por SAVEPOINT.

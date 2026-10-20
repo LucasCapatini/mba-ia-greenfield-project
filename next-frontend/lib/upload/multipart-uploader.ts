@@ -8,7 +8,7 @@ import type {
 
 /**
  * Cliente do protocolo multipart da Fase 03 no navegador (video-channel-management/TD-11;
- * phase-03-upload-processing/TD-03). As chamadas à API passam pelo BFF (`/api/videos/**`); só os
+ * phase-03-videos/TD-03). As chamadas à API passam pelo BFF (`/api/videos/**`); só os
  * `PUT` das partes vão direto às URLs presignadas do storage (`S3_PUBLIC_ENDPOINT`) — a única
  * exceção ao Strict BFF.
  */

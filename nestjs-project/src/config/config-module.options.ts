@@ -13,7 +13,7 @@ import swaggerConfig from './swagger.config';
 import uploadConfig from './upload.config';
 
 // Opções compartilhadas pelos dois entrypoints (API em `AppModule`, worker em `WorkerModule`),
-// para que ambos leiam o mesmo `.env` com o mesmo schema Joi (phase-03-upload-processing/TD-05).
+// para que ambos leiam o mesmo `.env` com o mesmo schema Joi (phase-03-videos/TD-05).
 // O schema é único de propósito: o worker também exige JWT_SECRET/MAIL_* mesmo sem usá-los —
 // um `.env` válido para a API é válido para o worker, e vice-versa (ver CLAUDE.md).
 export const configModuleOptions: ConfigModuleOptions = {

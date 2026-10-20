@@ -568,7 +568,7 @@ _Bootstrap (`SI-04.0.k`, sintetizadas dos marcadores `(new)` dos UI Contracts) �
 
 **Technical actions:**
 
-1. Estender o `storage-init` em `nestjs-project/compose.yaml` com `put-bucket-policy` (`Principal: "*"`, `s3:GetObject`, `Resource: arn:aws:s3:::$S3_BUCKET/thumbnails/*`), idempotente, com log "storage-init: policy pública de thumbnails aplicada" (per `video-channel-management/TD-10`; `phase-03-upload-processing/TD-10`).
+1. Estender o `storage-init` em `nestjs-project/compose.yaml` com `put-bucket-policy` (`Principal: "*"`, `s3:GetObject`, `Resource: arn:aws:s3:::$S3_BUCKET/thumbnails/*`), idempotente, com log "storage-init: policy pública de thumbnails aplicada" (per `video-channel-management/TD-10`; `phase-03-videos/TD-10`).
 2. Criar `StorageService.publicUrl(key)` → `${S3_PUBLIC_ENDPOINT}/${S3_BUCKET}/${key}` (path-style, per `phase-03/TD-02`) e `VideosService.thumbnailUrl(video)` → `publicUrl(custom_thumbnail_key ?? thumbnail_key) + '?v=' + updated_at epoch`, ou `null` (per `### API Contracts → Shapes compartilhados`).
 3. Substituir `presignThumbnail` em `getVideo`/`getPlayback` pela URL estável; registrar em `nestjs-project/CLAUDE.md` o smoke test (`curl -sI $S3_PUBLIC_ENDPOINT/$S3_BUCKET/thumbnails/x/auto.jpg` → 200/404 sem credenciais; `…/videos/x/source` → 403) e o fallback para URL pré-assinada se a policy falhar no RustFS (per `TD-10`).
 
@@ -699,7 +699,7 @@ _Bootstrap (`SI-04.0.k`, sintetizadas dos marcadores `(new)` dos UI Contracts) �
 
 **Technical actions:**
 
-1. Estender `VideosService` com `deleteVideo(video)`: se há `VideoUpload` `active`, `storage.abortMultipartUpload` (tolera `NoSuchUpload`); em `dataSource.transaction`: `DELETE` do `Video` (a sessão cai em cascata) e `queue.send('video.delete', payload de ### Events/Messages, { singletonKey: 'video-delete:<videoId>', retryLimit: 3, retryBackoff: true })` com o `EntityManager` adaptado à opção `db` como no `completeUpload` (per `video-channel-management/TD-09`; `phase-03-upload-processing/TD-11`).
+1. Estender `VideosService` com `deleteVideo(video)`: se há `VideoUpload` `active`, `storage.abortMultipartUpload` (tolera `NoSuchUpload`); em `dataSource.transaction`: `DELETE` do `Video` (a sessão cai em cascata) e `queue.send('video.delete', payload de ### Events/Messages, { singletonKey: 'video-delete:<videoId>', retryLimit: 3, retryBackoff: true })` com o `EntityManager` adaptado à opção `db` como no `completeUpload` (per `video-channel-management/TD-09`; `phase-03-videos/TD-11`).
 2. Adicionar `DELETE /videos/:publicId` (204) ao `VideosController` com `loadOwned` e decorators Swagger (per `### API Contracts`; `nestjs-controllers.md`).
 3. Criar `src/worker/video-deletion.worker.ts` (handler de `video.delete`: `deleteObject` para `storageKey` e cada `thumbnailKeys[]`, tolerando `NoSuchKey`; outro erro relança; na última tentativa loga `video.delete failed` com as chaves restantes) e registrá-lo no `WorkerModule`; adicionar o nome da fila em `queue.constants.ts` (per `TD-09`; `phase-03/TD-05`).
 4. Documentar em `nestjs-project/CLAUDE.md` o pipeline de `video.delete` e a pendência operacional (objetos completos não têm lifecycle) (per `TD-09`).
@@ -840,7 +840,7 @@ _Bootstrap (`SI-04.0.k`, sintetizadas dos marcadores `(new)` dos UI Contracts) �
 
 **Technical actions:**
 
-1. Criar `lib/upload/multipart-uploader.ts`: `startUpload({ file, created: VideoCreatedResponse })` → fatia por `part_size`, pede URLs em lotes de até 100 a `POST /api/videos/{publicId}/upload/parts`, faz `PUT` direto em cada `url` (`S3_PUBLIC_ENDPOINT`) com pool de 4 concorrentes, coleta `ETag`, retry com backoff (3×) por parte, repede o lote quando a URL expira (403), e ao fim chama `POST /api/videos/{publicId}/upload/complete`; expõe `progress` (bytes enviados/total), `cancel()` (`AbortController`) e `resume()` via `GET /api/videos/{publicId}/upload` (pula `uploaded_parts`) (per `video-channel-management/TD-11`; `phase-03-upload-processing/TD-03`).
+1. Criar `lib/upload/multipart-uploader.ts`: `startUpload({ file, created: VideoCreatedResponse })` → fatia por `part_size`, pede URLs em lotes de até 100 a `POST /api/videos/{publicId}/upload/parts`, faz `PUT` direto em cada `url` (`S3_PUBLIC_ENDPOINT`) com pool de 4 concorrentes, coleta `ETag`, retry com backoff (3×) por parte, repede o lote quando a URL expira (403), e ao fim chama `POST /api/videos/{publicId}/upload/complete`; expõe `progress` (bytes enviados/total), `cancel()` (`AbortController`) e `resume()` via `GET /api/videos/{publicId}/upload` (pula `uploaded_parts`) (per `video-channel-management/TD-11`; `phase-03-videos/TD-03`).
 2. Implementar `components/upload/upload-provider.tsx` (`"use client"`; contexto com `uploads: Map<publicId, { file, progress, status, error }>`; `start`, `cancel`, `resume`; `beforeunload` só enquanto há upload `uploading`) e o hook `useUpload(publicId)` (per `TD-11`; Setup de `### Frontend Runtime`).
 3. Registrar o cliente em `next-frontend/CLAUDE.md` § Architecture (exceção explícita ao Strict BFF: só os `PUT` das partes vão ao storage).
 
@@ -1419,7 +1419,7 @@ E2E for the page (page-level routing, anonymous rendering, 404, sort, load more)
 
 ### Data Model
 
-_Entidades novas ou modificadas nesta fase. PK continua UUID (regra de entidades); `public_id` é a chave externa (per `phase-03-upload-processing/TD-08`). Migrations TypeORM em `src/database/migrations/` (`synchronize` off)._
+_Entidades novas ou modificadas nesta fase. PK continua UUID (regra de entidades); `public_id` é a chave externa (per `phase-03-videos/TD-08`). Migrations TypeORM em `src/database/migrations/` (`synchronize` off)._
 
 #### Category (nova — per `video-channel-management/TD-01`)
 
@@ -1782,7 +1782,7 @@ Público (`@Public()`, sem auth). Só vídeos `status = published` e `visibility
 
 **Request body:** `PresignPartsDto` *(derived: project contract source — fields per source; not re-spelled)*
 
-**Response 200 (FE-facing):** `PresignedPartsResponse` — pass-through; as `parts[].url` apontam para `S3_PUBLIC_ENDPOINT` e o navegador faz `PUT` direto nelas (exceção explícita ao Strict BFF, per `phase-03-upload-processing/TD-03`) *(derived: project contract source; reshape: none)*
+**Response 200 (FE-facing):** `PresignedPartsResponse` — pass-through; as `parts[].url` apontam para `S3_PUBLIC_ENDPOINT` e o navegador faz `PUT` direto nelas (exceção explícita ao Strict BFF, per `phase-03-videos/TD-03`) *(derived: project contract source; reshape: none)*
 
 **Error responses (FE-facing):**
 - 400 VALIDATION_ERROR, 403 VIDEO_FORBIDDEN, 404 VIDEO_NOT_FOUND, 409 UPLOAD_NOT_ACTIVE, 503 STORAGE_UNAVAILABLE: pass-through *(derived: project contract source)*
@@ -1979,7 +1979,7 @@ _Envelope `{ statusCode, error, message }` herdado de `phase-02-auth/TD-07` (`Do
 
 ### Events/Messages
 
-_Fila pg-boss no PostgreSQL (schema `pgboss`), consumida pelo `video-worker` (per `phase-03-upload-processing/TD-04`, `TD-05`). Os jobs `video.process` e `upload.expire` da Fase 03 permanecem inalterados; esta fase acrescenta um job._
+_Fila pg-boss no PostgreSQL (schema `pgboss`), consumida pelo `video-worker` (per `phase-03-videos/TD-04`, `TD-05`). Os jobs `video.process` e `upload.expire` da Fase 03 permanecem inalterados; esta fase acrescenta um job._
 
 #### video.delete
 
@@ -1991,8 +1991,8 @@ _Fila pg-boss no PostgreSQL (schema `pgboss`), consumida pelo `video-worker` (pe
 
 _O payload carrega as chaves porque a linha de `videos` já foi removida quando o job roda (hard delete, per `video-channel-management/TD-09`); `thumbnailKeys` lista só as chaves não nulas no momento da exclusão._
 
-**Producer:** `VideosService.deleteVideo` — `queue.send('video.delete', payload, { singletonKey: 'video-delete:<videoId>', retryLimit: 3, retryBackoff: true })` na **mesma transação** do `DELETE` da linha (opção `db` do pg-boss, como no `complete` da Fase 03) (per `video-channel-management/TD-09`, `phase-03-upload-processing/TD-11`)
-**Consumer:** `VideoDeletionWorker` em `src/worker/video-deletion.worker.ts`, registrado no `WorkerModule` (per `phase-03-upload-processing/TD-05`)
+**Producer:** `VideosService.deleteVideo` — `queue.send('video.delete', payload, { singletonKey: 'video-delete:<videoId>', retryLimit: 3, retryBackoff: true })` na **mesma transação** do `DELETE` da linha (opção `db` do pg-boss, como no `complete` da Fase 03) (per `video-channel-management/TD-09`, `phase-03-videos/TD-11`)
+**Consumer:** `VideoDeletionWorker` em `src/worker/video-deletion.worker.ts`, registrado no `WorkerModule` (per `phase-03-videos/TD-05`)
 **Trigger:** `DELETE /videos/{publicId}` confirmado (COMMIT); se existia sessão multipart `active`, o `AbortMultipartUpload` ocorre antes, de forma síncrona, na própria requisição
 **Delivery semantics:** at-least-once; handler idempotente — `deleteObject` tolera `NoSuchKey`; outros erros de storage relançam para o retry do pg-boss; na última tentativa loga `video.delete failed` com as chaves restantes (a lifecycle do bucket não cobre objetos completos — fica como pendência operacional documentada no `nestjs-project/CLAUDE.md`) (per `video-channel-management/TD-09`)
 
@@ -2318,7 +2318,7 @@ _Fonte: `docs/inventories/screen-inventory-phase-04-video-channel-management.md`
 | `STORAGE_UNAVAILABLE` | Toast com retry |
 | `UNAUTHORIZED` | Redirect `/login?returnTo=/studio/upload` |
 
-**Client-side validation mirror:** _(source: contrato de `POST /videos` da Fase 03 — `phase-03-upload-processing/TD-03`, `TD-14`)_
+**Client-side validation mirror:** _(source: contrato de `POST /videos` da Fase 03 — `phase-03-videos/TD-03`, `TD-14`)_
 - `content_type`: `video/mp4 | video/webm`
 - `size_bytes`: 1..10 GiB
 - `original_filename`: 1..255 chars
