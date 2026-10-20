@@ -21,7 +21,9 @@ import {
   type VideoDeletePayload,
 } from '../queue/queue.constants';
 import { QueueService } from '../queue/queue.service';
+import { VideoReactionsService } from '../reactions/video-reactions.service';
 import { StorageService } from '../storage/storage.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import type { CompletedPartDto } from './dto/complete-upload.dto';
 import type { CreateVideoDto } from './dto/create-video.dto';
 import type { UpdateVideoDto } from './dto/update-video.dto';
@@ -30,7 +32,7 @@ import type {
   PresignedPartsResponse,
   UploadCompletedResponse,
   UploadStateResponse,
-  VideoCardChannel,
+  VideoChannel,
   VideoCreatedResponse,
   VideoResponse,
 } from './dto/video-response.dto';
@@ -95,6 +97,8 @@ export class VideosService {
     private readonly storage: StorageService,
     private readonly queue: QueueService,
     private readonly thumbnailProcessor: ThumbnailProcessor,
+    private readonly videoReactions: VideoReactionsService,
+    private readonly subscriptions: SubscriptionsService,
     @Inject(uploadConfig.KEY)
     private readonly upload: ConfigType<typeof uploadConfig>,
   ) {}
@@ -383,9 +387,16 @@ export class VideosService {
   /**
    * Estado, metadados e campos editoriais do vídeo (Fase 03 TD-06/TD-07/TD-11; Fase 04 TD-02,
    * TD-04, TD-05). A categoria vem da relação carregada (`VideosOwnership.loadOwned`); se o
-   * chamador não a carregou, é buscada pelo `category_id`.
+   * chamador não a carregou, é buscada pelo `category_id`. `viewerId` preenche o estado do
+   * espectador (social-interactions/TD-04) em `GET /videos/{publicId}`; as respostas do estúdio
+   * (edição, publicação, thumbnail) não o passam e saem com `null`/`false`.
    */
-  async getVideo(video: Video): Promise<VideoResponse> {
+  async getVideo(video: Video, viewerId?: string): Promise<VideoResponse> {
+    const [category, channel, viewerReaction] = await Promise.all([
+      this.resolveCategory(video),
+      this.resolveChannel(video, viewerId),
+      this.videoReactions.findViewerReaction(video.id, viewerId),
+    ]);
     return {
       public_id: video.public_id,
       status: video.status,
@@ -394,7 +405,7 @@ export class VideosService {
       processing_error: video.processing_error,
       title: video.title,
       description: video.description,
-      category: await this.resolveCategory(video),
+      category,
       original_filename: video.original_filename,
       content_type: video.content_type,
       size_bytes: video.size_bytes,
@@ -417,7 +428,8 @@ export class VideosService {
       processed_at: video.processed_at
         ? video.processed_at.toISOString()
         : null,
-      channel: await this.resolveChannel(video),
+      viewer_reaction: viewerReaction,
+      channel,
     };
   }
 
@@ -558,15 +570,27 @@ export class VideosService {
 
   /**
    * Canal dono do vídeo (resolução OQ-1 da Fase 05): usa a relação carregada por
-   * `VideosOwnership`; senão busca pelo `channel_id`. A FK garante que o canal existe.
+   * `VideosOwnership`; senão busca pelo `channel_id`. A FK garante que o canal existe. Desde a
+   * Fase 06 leva `subscriber_count` e `viewer_subscribed` (social-interactions/TD-04).
    */
-  private async resolveChannel(video: Video): Promise<VideoCardChannel> {
+  private async resolveChannel(
+    video: Video,
+    viewerId: string | undefined,
+  ): Promise<VideoChannel> {
     const channel =
       video.channel ?? (await this.channelsService.findById(video.channel_id));
     if (!channel) {
       throw new Error(`Video ${video.id} has no channel`);
     }
-    return { nickname: channel.nickname, name: channel.name };
+    return {
+      nickname: channel.nickname,
+      name: channel.name,
+      subscriber_count: channel.subscriber_count,
+      viewer_subscribed: await this.subscriptions.isSubscribed(
+        viewerId,
+        channel.id,
+      ),
+    };
   }
 
   private async resolveCategory(

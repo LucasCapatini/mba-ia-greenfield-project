@@ -23,7 +23,7 @@ describe('VideoViewsService', () => {
   let service: VideoViewsService;
   let channels: { findByUserId: jest.Mock };
   let execute: jest.Mock;
-  let manager: { createQueryBuilder: jest.Mock; increment: jest.Mock };
+  let manager: { createQueryBuilder: jest.Mock; query: jest.Mock };
   let transaction: jest.Mock;
 
   beforeEach(async () => {
@@ -35,7 +35,7 @@ describe('VideoViewsService', () => {
     }
     manager = {
       createQueryBuilder: jest.fn().mockReturnValue(builder),
-      increment: jest.fn().mockResolvedValue(undefined),
+      query: jest.fn().mockResolvedValue(undefined),
     };
     transaction = jest.fn((cb: (m: typeof manager) => Promise<unknown>) =>
       cb(manager),
@@ -82,11 +82,10 @@ describe('VideoViewsService', () => {
     const counted = await service.record(publishedVideo(), ANON, DAY_1);
 
     expect(counted).toBe(true);
-    expect(manager.increment).toHaveBeenCalledWith(
-      expect.anything(),
-      { id: 'video-1' },
-      'view_count',
-      1,
+    expect(manager.query).toHaveBeenCalledTimes(1);
+    expect(manager.query).toHaveBeenCalledWith(
+      expect.stringContaining('"view_count" = "view_count" + 1'),
+      ['video-1'],
     );
   });
 
@@ -96,7 +95,7 @@ describe('VideoViewsService', () => {
     const counted = await service.record(publishedVideo(), ANON, DAY_1);
 
     expect(counted).toBe(false);
-    expect(manager.increment).not.toHaveBeenCalled();
+    expect(manager.query).not.toHaveBeenCalled();
   });
 
   it('should key authenticated viewers by user id', () => {

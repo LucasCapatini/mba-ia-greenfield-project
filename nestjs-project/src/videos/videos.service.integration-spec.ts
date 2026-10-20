@@ -12,8 +12,10 @@ import queueConfig from '../config/queue.config';
 import storageConfig from '../config/storage.config';
 import uploadConfig from '../config/upload.config';
 import { QueueService } from '../queue/queue.service';
+import { VideoReactionsService } from '../reactions/video-reactions.service';
 import { S3_INTERNAL_CLIENT } from '../storage/storage.constants';
 import { StorageService } from '../storage/storage.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import {
   ALL_ENTITIES,
   cleanAllTables,
@@ -25,6 +27,7 @@ import {
   deterministicBuffer,
   putPart,
 } from '../test/storage';
+import { seedUserWithChannel, seedVideo } from '../test/social-fixtures';
 import { videoFixture } from '../test/video-fixtures';
 import { User } from '../users/entities/user.entity';
 import { VideoUpload } from './entities/video-upload.entity';
@@ -85,6 +88,7 @@ describe('VideosService (integration — DB + RustFS + pg-boss reais)', () => {
       await abortAllMultipart(client, process.env.S3_BUCKET!, key);
       await cleanPrefix(client, process.env.S3_BUCKET!, key);
     }
+    await cleanAllTables(dataSource);
     await module.close();
   });
 
@@ -429,7 +433,10 @@ describe('VideosService (integration — DB + RustFS + pg-boss reais)', () => {
       expect(response.channel).toEqual({
         nickname: 'owner_int',
         name: 'Owner',
+        subscriber_count: 0,
+        viewer_subscribed: false,
       });
+      expect(response.viewer_reaction).toBeNull();
     });
 
     it('should leave the row untouched when publishing a video still processing', async () => {
@@ -444,6 +451,49 @@ describe('VideosService (integration — DB + RustFS + pg-boss reais)', () => {
       expect(stored.published_at).toBeNull();
     });
   });
+  describe('viewer state (Fase 06 — social-interactions/TD-04)', () => {
+    async function publishedWithFan() {
+      const owner = await dataSource
+        .getRepository(Channel)
+        .findOneByOrFail({ user_id: user.id });
+      const video = await seedVideo(dataSource, owner);
+      const { user: fan } = await seedUserWithChannel(dataSource, 'vs_fan');
+      return { owner, video, fan };
+    }
+
+    it('should fill viewer_reaction and viewer_subscribed for the viewer who reacted and subscribed', async () => {
+      const { owner, video, fan } = await publishedWithFan();
+      await module
+        .get(VideoReactionsService)
+        .set(video.public_id, fan.id, 'like');
+      await module.get(SubscriptionsService).subscribe(fan.id, owner.nickname);
+      const stored = await videoRepository.findOneByOrFail({ id: video.id });
+
+      const response = await service.getVideo(stored, fan.id);
+
+      expect(response.viewer_reaction).toBe('like');
+      expect(response.like_count).toBe(1);
+      expect(response.channel).toEqual({
+        nickname: owner.nickname,
+        name: owner.name,
+        subscriber_count: 1,
+        viewer_subscribed: true,
+      });
+    });
+
+    it('should give an anonymous reader null/false with the subscriber_count from channels', async () => {
+      const { owner, video, fan } = await publishedWithFan();
+      await module.get(SubscriptionsService).subscribe(fan.id, owner.nickname);
+      const stored = await videoRepository.findOneByOrFail({ id: video.id });
+
+      const response = await service.getVideo(stored);
+
+      expect(response.viewer_reaction).toBeNull();
+      expect(response.channel.subscriber_count).toBe(1);
+      expect(response.channel.viewer_subscribed).toBe(false);
+    });
+  });
+
   describe('custom thumbnail (Fase 04 — RustFS real)', () => {
     async function seedReadyVideo(publicId: string): Promise<Video> {
       const channel = await dataSource

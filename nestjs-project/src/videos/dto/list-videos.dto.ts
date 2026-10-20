@@ -37,8 +37,9 @@ const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const DATE_MESSAGE = 'must be a date in the YYYY-MM-DD format';
 
 // Paginação keyset compartilhada (video-channel-management/TD-06). Query strings chegam como
-// texto: `@Type(() => Number)` converte `limit` antes do `@IsInt`.
-class CursorPageQuery {
+// texto: `@Type(() => Number)` converte `limit` antes do `@IsInt`. Exportada para as listagens de
+// comentários e inscrições (Fase 06), que seguem o mesmo contrato de `limit`/`cursor`.
+export class CursorPageQuery {
   /** Itens por página (1..50). */
   @ApiPropertyOptional({
     minimum: 1,
@@ -133,3 +134,6 @@ export class ListChannelVideosDto extends CursorPageQuery {
   @IsIn(CHANNEL_VIDEO_SORTS)
   sort: ChannelVideoSort = 'latest';
 }
+
+/** `GET /me/subscriptions/videos` — feed das inscrições, sempre do mais recente (TD-08). */
+export class ListSubscriptionFeedDto extends CursorPageQuery {}

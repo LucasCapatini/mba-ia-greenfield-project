@@ -279,7 +279,9 @@ describe('channels-me', () => {
       'description',
       'name',
       'nickname',
+      'subscriber_count',
       'video_count',
+      'viewer_subscribed',
     ]);
     expect(JSON.stringify(body)).not.toContain('@example.com');
 

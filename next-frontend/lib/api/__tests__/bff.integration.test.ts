@@ -76,6 +76,7 @@ async function login(accessToken: string) {
     userId: "u1",
     email: "viewer@example.com",
     channelSlug: "viewer",
+    channelName: "",
   });
 }
 

@@ -1,5 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { CategoryResponse } from '../../categories/dto/category-response.dto';
+import {
+  REACTION_VALUES,
+  type ReactionValue,
+} from '../../reactions/reactions.constants';
 import { VIDEO_CONTAINERS, type VideoContainer } from '../video-formats';
 import {
   VIDEO_PROCESSING_ERRORS,
@@ -152,6 +156,21 @@ export class VideoCardChannel {
   name: string;
 }
 
+/**
+ * Canal embutido no `VideoResponse` (social-interactions/TD-04): os dados públicos do card mais a
+ * contagem de inscritos e se o solicitante segue o canal. As listagens continuam com
+ * `VideoCardChannel`.
+ */
+export class VideoChannel extends VideoCardChannel {
+  @ApiProperty({ type: 'integer', example: 1200 })
+  subscriber_count: number;
+
+  @ApiProperty({
+    description: 'Se o solicitante segue o canal; anônimo → false.',
+  })
+  viewer_subscribed: boolean;
+}
+
 export class VideoResponse {
   @ApiProperty({ example: 'dQw4w9WgXcQ' })
   public_id: string;
@@ -257,11 +276,19 @@ export class VideoResponse {
   processed_at: string | null;
 
   @ApiProperty({
-    type: VideoCardChannel,
+    enum: REACTION_VALUES,
+    nullable: true,
     description:
-      'Canal dono do vídeo (nickname e nome públicos) — a watch page o exibe sob o título (Fase 05).',
+      'Reação do solicitante ao vídeo (social-interactions/TD-04); anônimo → null.',
   })
-  channel: VideoCardChannel;
+  viewer_reaction: ReactionValue | null;
+
+  @ApiProperty({
+    type: VideoChannel,
+    description:
+      'Canal dono do vídeo — a watch page o exibe sob o título (Fase 05) com a contagem de inscritos e o estado do botão Subscribe (Fase 06).',
+  })
+  channel: VideoChannel;
 }
 
 /** Linha do painel do dono (`GET /channels/me/videos`). */

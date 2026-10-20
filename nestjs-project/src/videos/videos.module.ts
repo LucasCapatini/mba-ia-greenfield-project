@@ -3,8 +3,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { CategoriesModule } from '../categories/categories.module';
 import { ChannelsModule } from '../channels/channels.module';
 import { QueueModule } from '../queue/queue.module';
+import { ReactionsModule } from '../reactions/reactions.module';
 import { StorageModule } from '../storage/storage.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { ChannelVideosController } from './channel-videos.controller';
+import { SubscriptionFeedController } from './subscription-feed.controller';
 import { VideoUpload } from './entities/video-upload.entity';
 import { VideoView } from './entities/video-view.entity';
 import { ThumbnailUploadInterceptor } from './thumbnail-upload.interceptor';
@@ -18,7 +21,8 @@ import { VideosService } from './videos.service';
 
 // Domínio de vídeo (Fase 03): pré-cadastro, orquestração do multipart, leitura e playback.
 // Importa StorageModule (S3), QueueModule (pg-boss, só `send` aqui), ChannelsModule (canal do dono)
-// e CategoriesModule (categoria do vídeo — Fase 04).
+// e CategoriesModule (categoria do vídeo — Fase 04). ReactionsModule e SubscriptionsModule dão o
+// estado do espectador do `GET /videos/{publicId}` (social-interactions/TD-04, Fase 06).
 @Module({
   imports: [
     TypeOrmModule.forFeature([Video, VideoUpload, VideoView]),
@@ -26,8 +30,14 @@ import { VideosService } from './videos.service';
     QueueModule,
     ChannelsModule,
     CategoriesModule,
+    ReactionsModule,
+    SubscriptionsModule,
   ],
-  controllers: [VideosController, ChannelVideosController],
+  controllers: [
+    VideosController,
+    ChannelVideosController,
+    SubscriptionFeedController,
+  ],
   providers: [
     VideosService,
     VideosOwnership,

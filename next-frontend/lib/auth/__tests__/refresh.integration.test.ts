@@ -27,6 +27,7 @@ const SEED_SESSION = {
   userId: "user-1",
   email: "alice@example.com",
   channelSlug: "alice",
+  channelName: "Alice",
 };
 
 beforeEach(async () => {
@@ -71,6 +72,8 @@ describe("withRefresh", () => {
     const session = await getSession();
     expect(session.accessToken).toBe("refreshed-at");
     expect(session.refreshToken).toBe("refreshed-rt");
+    expect(session.channelSlug).toBe("alice");
+    expect(session.channelName).toBe("Alice");
   });
 
   it("single-flight: two concurrent 401s trigger exactly one refresh", async () => {

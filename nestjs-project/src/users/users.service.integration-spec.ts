@@ -1,6 +1,6 @@
 import { DataSource, Repository } from 'typeorm';
 import { Channel } from '../channels/entities/channel.entity';
-import { ChannelsService } from '../channels/channels.service';
+import { createChannelsService } from '../test/channels-service';
 import {
   ALL_ENTITIES,
   cleanAllTables,
@@ -20,7 +20,7 @@ describe('UsersService (integration)', () => {
     await dataSource.initialize();
     userRepository = dataSource.getRepository(User);
     channelRepository = dataSource.getRepository(Channel);
-    const channelsService = new ChannelsService(dataSource);
+    const channelsService = createChannelsService(dataSource);
     usersService = new UsersService(userRepository, channelsService);
   });
 
@@ -70,7 +70,7 @@ describe('UsersService (integration)', () => {
     });
 
     it('compensates by deleting the user when channel creation fails irrecoverably', async () => {
-      const failingChannelsService = new ChannelsService(dataSource);
+      const failingChannelsService = createChannelsService(dataSource);
       jest
         .spyOn(failingChannelsService, 'createChannel')
         .mockRejectedValue(new Error('channel creation failed'));

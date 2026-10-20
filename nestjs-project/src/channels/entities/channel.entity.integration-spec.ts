@@ -89,6 +89,20 @@ describe('Channel entity (integration)', () => {
     expect(channel.description).toBeNull();
   });
 
+  it('should start a new channel with subscriber_count = 0', async () => {
+    const user = await createUser();
+    const saved = await channelRepository.save(
+      channelRepository.create({
+        name: 'Chan',
+        nickname: 'subs_chan',
+        user_id: user.id,
+      }),
+    );
+
+    const found = await channelRepository.findOneByOrFail({ id: saved.id });
+    expect(found.subscriber_count).toBe(0);
+  });
+
   it('should enforce one-to-one relation: one user_id per channel', async () => {
     const user = await createUser();
 

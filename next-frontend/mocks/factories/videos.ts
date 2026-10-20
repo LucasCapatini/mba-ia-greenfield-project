@@ -93,8 +93,15 @@ const baseVideo: Video = {
   published_at: null,
   created_at: FIXTURE_NOW,
   processed_at: FIXTURE_NOW,
+  // Estado do espectador (Fase 06): o handler recalcula a cada resposta.
+  viewer_reaction: null,
   // Canal do usuário logado (`buildChannel`); o handler reprojeta o atual a cada resposta.
-  channel: { nickname: "studio_canal", name: "Studio Canal" },
+  channel: {
+    nickname: "studio_canal",
+    name: "Studio Canal",
+    subscriber_count: 0,
+    viewer_subscribed: false,
+  },
 };
 
 /** Vídeo `ready` com thumbnail automática `?v=1` (sobrescreva o que o cenário precisa). */
@@ -254,13 +261,21 @@ export const buildChannel = (overrides: Partial<Channel> = {}): Channel => ({
   ...overrides,
 });
 
-export function toChannelPublic(channel: Channel): ChannelPublic {
+/** Projeção pública do canal do store; inscritos e estado do espectador vêm do store social. */
+export function toChannelPublic(
+  channel: Channel,
+  social: Pick<ChannelPublic, "subscriber_count" | "viewer_subscribed"> = {
+    subscriber_count: 0,
+    viewer_subscribed: false,
+  },
+): ChannelPublic {
   return {
     nickname: channel.nickname,
     name: channel.name,
     description: channel.description,
     video_count: channel.video_count,
     created_at: channel.created_at,
+    ...social,
   };
 }
 
@@ -271,6 +286,9 @@ export const TECH_MASTERY: ChannelPublic = {
   description: "Tutoriais de tecnologia",
   video_count: 24,
   created_at: "2025-03-10T09:00:00.000Z",
+  // Inclui o usuário do store, que começa seguindo o canal (Fase 06).
+  subscriber_count: 1_200,
+  viewer_subscribed: false,
 };
 
 /** 24 vídeos publicados do `tech_mastery`, com `view_count` distintos (ordem de publicação). */

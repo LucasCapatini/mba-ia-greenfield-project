@@ -43,7 +43,7 @@ function percent({ uploadedBytes, totalBytes }: UploadProgress): number {
 
 /**
  * Estado dos uploads multipart do estúdio (video-channel-management/TD-11): montado uma vez em
- * `app/(app)/studio/layout.tsx`, sobrevive à navegação entre as telas de `/studio/**` — o envio
+ * `app/(app)/(shell)/studio/layout.tsx`, sobrevive à navegação entre as telas de `/studio/**` — o envio
  * continua e o progresso segue disponível ao voltar. Avisa no `beforeunload` só enquanto há envio
  * em andamento (recarregar a página interrompe o envio; a tela oferece retomar).
  */
@@ -161,7 +161,7 @@ function UploadProvider({ children }: { children: React.ReactNode }) {
 function useUploads(): UploadContextValue {
   const context = React.useContext(UploadContext)
   if (!context) {
-    throw new Error("useUpload must be used inside <UploadProvider> (app/(app)/studio/layout.tsx)")
+    throw new Error("useUpload must be used inside <UploadProvider> (app/(app)/(shell)/studio/layout.tsx)")
   }
   return context
 }

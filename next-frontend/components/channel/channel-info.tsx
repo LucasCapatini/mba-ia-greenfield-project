@@ -8,6 +8,8 @@ type ChannelInfoProps = Omit<React.ComponentProps<"div">, "children"> & {
   nickname: string
   /** Public videos (`video_count`: published + public). */
   videoCount: number
+  /** Inscritos (`subscriber_count`, social-interactions/TD-04); omitido não renderiza o trecho. */
+  subscriberCount?: number
   description?: string | null
 }
 
@@ -15,15 +17,20 @@ function formatVideoCount(count: number): string {
   return `${formatCompactNumber(count)} ${count === 1 ? "video" : "videos"}`
 }
 
+function formatSubscriberCount(count: number): string {
+  return `${formatCompactNumber(count)} ${count === 1 ? "subscriber" : "subscribers"}`
+}
+
 /**
  * Figma "channel info" (156:3515): name as the page `<h1>` (text-h1), meta row
- * "@nickname • N videos" (body-lg, muted) and the description (body-md, muted). The subscriber
- * count of the design belongs to phase 06 and is not rendered.
+ * "@nickname • N subscribers • N videos" (body-lg, muted) and the description (body-md, muted).
+ * The subscriber count arrived in phase 06 (social-interactions/TD-04).
  */
 function ChannelInfo({
   name,
   nickname,
   videoCount,
+  subscriberCount,
   description,
   className,
   ...props
@@ -34,6 +41,12 @@ function ChannelInfo({
       <p className="flex flex-wrap items-center gap-2 py-0.5 text-body-lg text-muted-foreground">
         <span data-slot="channel-info-nickname">@{nickname}</span>{" "}
         <span aria-hidden="true">•</span>{" "}
+        {subscriberCount === undefined ? null : (
+          <>
+            <span data-slot="channel-info-subscribers">{formatSubscriberCount(subscriberCount)}</span>{" "}
+            <span aria-hidden="true">•</span>{" "}
+          </>
+        )}
         <span data-slot="channel-info-videos">{formatVideoCount(videoCount)}</span>
       </p>
       {description ? (
@@ -45,5 +58,5 @@ function ChannelInfo({
   )
 }
 
-export { ChannelInfo, formatVideoCount }
+export { ChannelInfo, formatSubscriberCount, formatVideoCount }
 export type { ChannelInfoProps }

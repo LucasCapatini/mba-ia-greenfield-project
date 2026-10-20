@@ -92,6 +92,45 @@ describe("POST /api/auth/login", () => {
     expect(cookieMap.has("streamtube_session")).toBe(true);
   });
 
+  it("stores the user's channel nickname as channelSlug and its name as channelName (phase 06)", async () => {
+    const authorizations: (string | null)[] = [];
+    server.events.on("request:start", ({ request }) => {
+      if (new URL(request.url).pathname === "/channels/me") {
+        authorizations.push(request.headers.get("authorization"));
+      }
+    });
+
+    const res = await POST(makeRequest({ email: "alice@example.com", password: "pw" }));
+
+    expect(res.status).toBe(200);
+    const { getSession } = await import("@/lib/auth/session");
+    const session = await getSession();
+    expect(session.channelSlug).toBe("studio_canal");
+    expect(session.channelName).toBe("Studio Canal");
+    expect(authorizations).toEqual(["Bearer fixture-access-token"]);
+    server.events.removeAllListeners();
+  });
+
+  it("still logs in with an empty channelSlug and channelName when the channel read fails", async () => {
+    server.use(
+      http.get(`${env.API_URL}/channels/me`, () =>
+        HttpResponse.json(
+          { statusCode: 500, error: "INTERNAL", message: "boom" },
+          { status: 500 }
+        )
+      )
+    );
+
+    const res = await POST(makeRequest({ email: "alice@example.com", password: "pw" }));
+
+    expect(res.status).toBe(200);
+    const { getSession } = await import("@/lib/auth/session");
+    const session = await getSession();
+    expect(session.isLoggedIn).toBe(true);
+    expect(session.channelSlug).toBe("");
+    expect(session.channelName).toBe("");
+  });
+
   it("returns 401 without setting cookie for invalid credentials (reserved trigger uses badrequest@ — upstream override for 401)", async () => {
     server.use(
       http.post(`${env.API_URL}/auth/login`, () =>
