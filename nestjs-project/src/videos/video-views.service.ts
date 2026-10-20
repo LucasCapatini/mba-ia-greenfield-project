@@ -23,7 +23,8 @@ export function utcDay(now: Date): string {
 /**
  * Registro de visualização (watch-page/TD-01, TD-02). Conta só vídeos `published`, nunca o dono do
  * canal, e no máximo uma vez por espectador e dia UTC: `INSERT … ON CONFLICT DO NOTHING` em
- * `video_views` e, só se a linha entrou, `view_count + 1` na mesma transação. O espectador anônimo
+ * `video_views` e, só se a linha entrou, `view_count + 1` na mesma transação e por SQL direto (regra
+ * "Contadores" do `nestjs-project/CLAUDE.md` — sem tocar `updated_at`). O espectador anônimo
  * é um HMAC do dia + IP + User-Agent — o IP nunca é persistido em claro e a chave muda a cada dia.
  */
 @Injectable()
@@ -66,7 +67,11 @@ export class VideoViewsService {
         .execute();
       const inserted = (result.raw as unknown[]).length > 0;
       if (inserted) {
-        await manager.increment(Video, { id: video.id }, 'view_count', 1);
+        // SQL direto: `increment` do TypeORM moveria `updated_at`, que versiona o `?v=` da thumbnail.
+        await manager.query(
+          'UPDATE "videos" SET "view_count" = "view_count" + 1 WHERE "id" = $1',
+          [video.id],
+        );
       }
       return inserted;
     });

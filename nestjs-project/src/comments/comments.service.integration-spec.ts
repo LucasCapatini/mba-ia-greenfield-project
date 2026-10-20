@@ -36,6 +36,7 @@ describe('CommentsService (integration)', () => {
   }, 30000);
 
   afterAll(async () => {
+    await cleanAllTables(dataSource);
     await close();
   });
 

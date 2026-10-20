@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { toast } from "sonner"
 
 import type { ApiErrorEnvelope } from "@/lib/api/contracts"
+import { loginHref } from "@/lib/auth/return-to"
 import { Button } from "@/components/ui/button"
 import { StarsIcon } from "@/components/icons/stars-icon"
 import { FieldError } from "@/components/auth/field-error"
@@ -53,7 +54,7 @@ function ThumbnailUploadButton({ publicId, hasCustomThumbnail }: ThumbnailUpload
       }
       const response = await fetch(`/api/videos/${publicId}/thumbnail`, { method, body })
       if (response.status === 401) {
-        router.push(`/login?returnTo=${encodeURIComponent(pathname)}`)
+        router.push(loginHref(pathname))
         return
       }
       if (!response.ok) {

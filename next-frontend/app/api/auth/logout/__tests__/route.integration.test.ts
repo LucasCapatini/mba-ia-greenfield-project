@@ -30,6 +30,7 @@ beforeEach(async () => {
     userId: "u1",
     email: "alice@example.com",
     channelSlug: "alice",
+    channelName: "",
   });
 });
 

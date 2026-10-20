@@ -120,16 +120,37 @@ describe('VideoViewsService (integration — DB real)', () => {
     expect(await viewRepository.countBy({ video_id: video.id })).toBe(0);
   });
 
+  it('should not touch updated_at when counting a view', async () => {
+    const before = await videoRepository.findOneByOrFail({ id: video.id });
+
+    await expect(service.record(video, ANON, NOW)).resolves.toBe(true);
+
+    const after = await videoRepository.findOneByOrFail({ id: video.id });
+    expect(after.view_count).toBe(1);
+    expect(after.updated_at.getTime()).toBe(before.updated_at.getTime());
+  });
+
   it('should leave neither the view nor the counter when the increment fails', async () => {
-    const increment = jest
-      .spyOn(EntityManager.prototype, 'increment')
-      .mockRejectedValueOnce(new Error('increment failed'));
+    // Só o UPDATE do contador falha; qualquer outra consulta segue o caminho real do
+    // `EntityManager.query` (delegar à conexão com o queryRunner da transação).
+    const query = jest
+      .spyOn(EntityManager.prototype, 'query')
+      .mockImplementation(async function (
+        this: EntityManager,
+        sql: string,
+        parameters?: unknown[],
+      ): Promise<unknown> {
+        if (sql.startsWith('UPDATE "videos"')) {
+          throw new Error('increment failed');
+        }
+        return this.connection.query(sql, parameters, this.queryRunner);
+      });
 
     await expect(service.record(video, ANON, NOW)).rejects.toThrow(
       'increment failed',
     );
 
-    increment.mockRestore();
+    query.mockRestore();
     expect(await viewCount()).toBe(0);
     expect(await viewRepository.countBy({ video_id: video.id })).toBe(0);
   });

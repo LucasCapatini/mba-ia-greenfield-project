@@ -9,6 +9,8 @@ export interface SessionData {
   userId: string;
   email: string;
   channelSlug: string;
+  /** Nome do canal — iniciais do avatar do campo de comentário. Cookies anteriores não o têm. */
+  channelName: string;
   isLoggedIn: boolean;
 }
 
@@ -35,6 +37,7 @@ export async function setSession(data: Omit<SessionData, "isLoggedIn">) {
   session.userId = data.userId;
   session.email = data.email;
   session.channelSlug = data.channelSlug;
+  session.channelName = data.channelName;
   session.isLoggedIn = true;
   await session.save();
 }

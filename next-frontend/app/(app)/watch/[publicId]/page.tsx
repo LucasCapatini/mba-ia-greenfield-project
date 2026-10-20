@@ -159,8 +159,10 @@ export default async function WatchPage({ params }: WatchPageProps) {
             commentCount={video.comment_count}
             initialPage={comments?.data ?? null}
             isLoggedIn={session.isLoggedIn}
-            // A sessão guarda só o nickname do canal: as iniciais do avatar saem dele.
-            viewerName={session.isLoggedIn && session.channelSlug ? session.channelSlug : undefined}
+            // Iniciais do avatar a partir do nome do canal; sessões anteriores ao campo usam o nickname.
+            viewerName={
+              session.isLoggedIn ? session.channelName || session.channelSlug || undefined : undefined
+            }
           />
         ) : null}
       </div>

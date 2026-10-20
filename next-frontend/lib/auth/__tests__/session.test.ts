@@ -27,6 +27,7 @@ const SAMPLE: Parameters<typeof setSession>[0] = {
   userId: "user-1",
   email: "alice@example.com",
   channelSlug: "alice-channel",
+  channelName: "Alice Channel",
 };
 
 describe("lib/auth/session", () => {
@@ -48,6 +49,7 @@ describe("lib/auth/session", () => {
     expect(session.userId).toBe(SAMPLE.userId);
     expect(session.email).toBe(SAMPLE.email);
     expect(session.channelSlug).toBe(SAMPLE.channelSlug);
+    expect(session.channelName).toBe(SAMPLE.channelName);
     expect(session.accessToken).toBe(SAMPLE.accessToken);
     expect(session.refreshToken).toBe(SAMPLE.refreshToken);
   });

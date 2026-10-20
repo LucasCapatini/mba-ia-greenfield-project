@@ -19,6 +19,7 @@ describe('CommentReaction entity (integration)', () => {
   });
 
   afterAll(async () => {
+    await cleanAllTables(dataSource);
     await dataSource.destroy();
   });
 

@@ -51,6 +51,7 @@ beforeEach(async () => {
     userId: "u1",
     email: "studio@example.com",
     channelSlug: "studio_canal",
+    channelName: "",
   });
   // Abre a sessão multipart de `new-upload-id` no store dos fixtures.
   const created = await createVideo(

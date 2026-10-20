@@ -67,6 +67,7 @@ async function login() {
     userId: "u1",
     email: "studio@example.com",
     channelSlug: "studio_canal",
+    channelName: "",
   });
 }
 

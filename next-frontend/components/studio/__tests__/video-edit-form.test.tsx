@@ -147,6 +147,19 @@ describe("<VideoEditForm />", () => {
     expect(toastError).not.toHaveBeenCalled()
   })
 
+  it("sends an expired session to login and back to the edit page, slashes readable", async () => {
+    const user = userEvent.setup()
+    mockPatch(() => new HttpResponse(null, { status: 401 }))
+    renderForm()
+
+    await user.type(screen.getByLabelText("Title"), "!")
+    await user.click(screen.getByRole("button", { name: "Save Changes" }))
+
+    await waitFor(() =>
+      expect(pushMock).toHaveBeenCalledWith("/login?returnTo=/studio/videos/vid-1/edit")
+    )
+  })
+
   it("returns to the panel with a toast when the video is gone", async () => {
     const user = userEvent.setup()
     mockPatch(() => envelope(404, "VIDEO_NOT_FOUND", "Video not found"))

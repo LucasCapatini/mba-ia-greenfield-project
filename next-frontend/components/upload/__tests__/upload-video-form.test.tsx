@@ -193,7 +193,7 @@ describe("<UploadVideoForm />", () => {
     await user.click(screen.getByRole("button", { name: "Save Changes" }))
 
     await waitFor(() =>
-      expect(pushMock).toHaveBeenCalledWith("/login?returnTo=%2Fstudio%2Fupload%2Fvid-1")
+      expect(pushMock).toHaveBeenCalledWith("/login?returnTo=/studio/upload/vid-1")
     )
   })
 

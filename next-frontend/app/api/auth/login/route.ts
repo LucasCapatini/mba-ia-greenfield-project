@@ -6,18 +6,21 @@ import { upstream } from "@/lib/api/upstream";
 import { setSession } from "@/lib/auth/session";
 
 /**
- * Nickname do canal do usuário para `session.channelSlug` — as páginas públicas o comparam com o
- * canal exibido para esconder o Subscribe do dono (social-interactions/TD-03). Falha na leitura não
- * impede o login: o slug fica vazio, como antes.
+ * Canal do usuário para a sessão: o nickname (`channelSlug`) as páginas públicas comparam com o
+ * canal exibido para esconder o Subscribe do dono (social-interactions/TD-03); o nome
+ * (`channelName`) dá as iniciais do avatar do campo de comentário. Falha na leitura não impede o
+ * login: os dois ficam vazios.
  */
-async function ownChannelSlug(accessToken: string): Promise<string> {
+async function ownChannel(
+  accessToken: string
+): Promise<{ channelSlug: string; channelName: string }> {
   try {
     const { data } = await upstream.GET("/channels/me", {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    return data?.nickname ?? "";
+    return { channelSlug: data?.nickname ?? "", channelName: data?.name ?? "" };
   } catch {
-    return "";
+    return { channelSlug: "", channelName: "" };
   }
 }
 
@@ -43,7 +46,7 @@ export async function POST(request: Request) {
     refreshToken: tokens.refresh_token ?? "",
     userId: "",
     email: body.email,
-    channelSlug: await ownChannelSlug(accessToken),
+    ...(await ownChannel(accessToken)),
   });
 
   // FE-facing body omits access_token / refresh_token (per API Contract).

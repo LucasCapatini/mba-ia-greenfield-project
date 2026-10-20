@@ -34,6 +34,7 @@ beforeEach(async () => {
     userId: "u1",
     email: "studio@example.com",
     channelSlug: "studio_canal",
+    channelName: "Studio Canal",
   });
 });
 
@@ -51,10 +52,22 @@ describe("PATCH /api/channel", () => {
     expect(cookieMap.get("streamtube_session")).not.toBe(before);
   });
 
-  it("keeps the session cookie untouched when the nickname does not change", async () => {
+  it("rewrites channelName in the session when the channel name changes", async () => {
     const before = cookieMap.get("streamtube_session");
 
     const res = await PATCH(patchRequest({ name: "Outro nome" }));
+
+    expect(res.status).toBe(200);
+    const session = await getSession();
+    expect(session.channelName).toBe("Outro nome");
+    expect(session.channelSlug).toBe("studio_canal");
+    expect(cookieMap.get("streamtube_session")).not.toBe(before);
+  });
+
+  it("keeps the session cookie untouched when neither the nickname nor the name changes", async () => {
+    const before = cookieMap.get("streamtube_session");
+
+    const res = await PATCH(patchRequest({ name: "Studio Canal" }));
 
     expect(res.status).toBe(200);
     expect(cookieMap.get("streamtube_session")).toBe(before);

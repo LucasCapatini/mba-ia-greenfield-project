@@ -49,8 +49,9 @@ function SideNavSubscriptions() {
                 >
                   <ChannelAvatar
                     name={channel.name}
+                    size="sm"
                     aria-hidden="true"
-                    className="size-6 shrink-0 [&_[data-slot=avatar-fallback]]:text-helper"
+                    className="shrink-0"
                   />
                   <span className="truncate">{channel.name}</span>
                 </Link>
