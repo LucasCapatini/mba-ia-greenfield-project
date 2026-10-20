@@ -315,7 +315,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Listagem pública da home e da busca
+         * @description Vídeos `published` + `public` + `ready` de todos os canais (unlisted e rascunhos nunca aparecem, nem para o dono), do mais recente ao mais antigo, em cursor keyset. `category` filtra pelo slug; `q` (2..100 caracteres após trim) casa por substring, sem acento nem caixa, o título do vídeo ou o nome/nickname do canal, mantendo a ordem cronológica (home-search-production/TD-01, TD-02, TD-03). Autenticação opcional; limite próprio de 60 req/min por visitante.
+         */
+        get: operations["VideosController_listPublic"];
         put?: never;
         /**
          * Pré-cadastro do vídeo e abertura do upload multipart
@@ -1002,6 +1006,11 @@ export interface components {
             /** @description ISO-8601 */
             published_at: string | null;
             channel: components["schemas"]["VideoCardChannel"];
+        };
+        PublicVideosPage: {
+            items: components["schemas"]["VideoCardItem"][];
+            /** @description Cursor da próxima página; `null` na última. */
+            next_cursor: string | null;
         };
         RelatedVideosResponse: {
             items: components["schemas"]["VideoCardItem"][];
@@ -1826,6 +1835,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Too Many Requests — limite de 60 req/min por visitante */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     CategoriesController_findAll: {
@@ -1845,6 +1861,82 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["CategoryResponse"][];
                 };
+            };
+            /** @description Too Many Requests — limite de 60 req/min por visitante */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    VideosController_listPublic: {
+        parameters: {
+            query?: {
+                /** @description Itens por página (1..50). */
+                limit?: number;
+                /** @description `slug` da categoria; sem correspondência → 404 CATEGORY_NOT_FOUND. */
+                category?: string;
+                /**
+                 * @description Termo de busca (2..100 caracteres após `trim`): casa por substring, sem acento nem caixa, o
+                 *     título do vídeo ou o nome/nickname do canal.
+                 */
+                q?: string;
+                /** @description Cursor opaco devolvido em `next_cursor` pela página anterior. */
+                cursor?: string;
+            };
+            header?: {
+                /** @description Opcional: `Bearer <access_token>`. Sem header → anônimo; token inválido ou expirado → 401. */
+                Authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Página de vídeos */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicVideosPage"];
+                };
+            };
+            /** @description VALIDATION_ERROR — `q` fora de 2..100 caracteres, `limit` fora de 1..50 ou `cursor` inválido */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description Token presente mas inválido ou expirado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description CATEGORY_NOT_FOUND — `category` sem slug correspondente */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description Too Many Requests — limite de 60 req/min por visitante */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -1949,6 +2041,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorEnvelope"];
                 };
+            };
+            /** @description Too Many Requests — limite de 60 req/min por visitante */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description STORAGE_UNAVAILABLE (mantido do contrato da Fase 03; a thumbnail agora é URL estável) */
             503: {
@@ -2132,6 +2231,13 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorEnvelope"];
                 };
             };
+            /** @description Too Many Requests — limite de 60 req/min por visitante */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description STORAGE_UNAVAILABLE — falha ao assinar as URLs */
             503: {
                 headers: {
@@ -2196,6 +2302,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorEnvelope"];
                 };
+            };
+            /** @description Too Many Requests — limite de 60 req/min por visitante */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -2914,6 +3027,13 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorEnvelope"];
                 };
             };
+            /** @description Too Many Requests — limite de 60 req/min por visitante (scroll infinito) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     SubscriptionFeedController_feed: {
@@ -2949,6 +3069,13 @@ export interface operations {
             };
             /** @description Token ausente, inválido ou expirado */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Limite de 60 req/min por visitante excedido (home-search-production/TD-01) */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3217,6 +3344,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorEnvelope"];
                 };
+            };
+            /** @description Too Many Requests — limite de 60 req/min por visitante */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
