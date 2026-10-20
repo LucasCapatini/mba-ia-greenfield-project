@@ -1,6 +1,8 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Public } from '../auth/decorators/public.decorator';
+import { CATEGORIES_THROTTLE } from './categories.constants';
 import { CategoriesService } from './categories.service';
 import {
   CategoryResponse,
@@ -16,6 +18,7 @@ export class CategoriesController {
 
   @Public()
   @Get()
+  @Throttle(CATEGORIES_THROTTLE)
   @ApiOperation({
     summary: 'Listar categorias',
     description:
@@ -26,6 +29,10 @@ export class CategoriesController {
     description: 'Categorias em ordem de exibição',
     type: CategoryResponse,
     isArray: true,
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too Many Requests — limite de 60 req/min por visitante',
   })
   async findAll(): Promise<CategoryResponse[]> {
     const categories = await this.categoriesService.findAll();

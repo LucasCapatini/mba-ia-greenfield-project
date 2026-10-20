@@ -189,8 +189,8 @@ describe('exportSpec (integration)', () => {
     // Phase 04 (SI-04.3, TD-07): the two reads became public with optional auth — no security
     // requirement, an optional Authorization header, and no 403 (a hidden draft answers 404).
     it.each([
-      ['/videos/{publicId}', ['200', '401', '404', '503']],
-      ['/videos/{publicId}/playback', ['200', '401', '404', '409', '503']],
+      ['/videos/{publicId}', ['200', '401', '404', '429', '503']],
+      ['/videos/{publicId}/playback', ['200', '401', '404', '409', '429', '503']],
     ])(
       '%s get is a public read with an optional Authorization header',
       (path, statuses) => {
