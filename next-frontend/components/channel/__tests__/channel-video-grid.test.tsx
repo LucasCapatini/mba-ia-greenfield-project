@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen, within } from "@testing-library/react";
+import Link from "next/link";
 import { describe, expect, it } from "vitest";
 
 import { ChannelVideoGrid } from "../channel-video-grid";
@@ -26,9 +27,9 @@ describe("ChannelVideoGrid", () => {
   it("wraps every card in a list item of the labelled grid", () => {
     const { container } = render(
       <ChannelVideoGrid>
-        <a key="a" href="/watch/a">Video A</a>
-        <a key="b" href="/watch/b">Video B</a>
-        <a key="c" href="/watch/c">Video C</a>
+        <Link key="a" href="/watch/a">Video A</Link>
+        <Link key="b" href="/watch/b">Video B</Link>
+        <Link key="c" href="/watch/c">Video C</Link>
       </ChannelVideoGrid>,
     );
 
@@ -43,7 +44,7 @@ describe("ChannelVideoGrid", () => {
   it("renders the Load more slot below the grid", () => {
     render(
       <ChannelVideoGrid footer={<button type="button">Load more</button>}>
-        <a href="/watch/a">Video A</a>
+        <Link href="/watch/a">Video A</Link>
       </ChannelVideoGrid>,
     );
 
