@@ -164,7 +164,7 @@ Política: lint limpo nos dois subprojetos. No backend o script roda com `--max-
 
 ## ✅ Funcionalidades implementadas
 
-As Fases **01 — Configuração base**, **02 — Autenticação**, **03 — Upload e processamento**, **04 — Gerenciamento de vídeos e canal** e **05 — Página de visualização** estão concluídas. A Fase 03 entregou o backend (API + worker); as telas de upload chegaram com o estúdio da Fase 04.
+As Fases **01 — Configuração base**, **02 — Autenticação**, **03 — Upload e processamento**, **04 — Gerenciamento de vídeos e canal**, **05 — Página de visualização** e **06 — Interações sociais** estão concluídas. A Fase 03 entregou o backend (API + worker); as telas de upload chegaram com o estúdio da Fase 04.
 
 ### Autenticação (Fase 02)
 
@@ -270,6 +270,33 @@ Endpoints da API (`nestjs-project`; públicos com auth opcional):
 
 Route Handlers BFF (`next-frontend`): `GET /api/videos/{publicId}/playback` (o player renova a URL) e `POST /api/videos/{publicId}/views`; ambos enviam a sessão só quando ela existe e repassam IP e User-Agent do visitante.
 
+### Interações sociais (Fase 06)
+
+Likes/dislikes em vídeos e comentários, comentários com respostas, inscrição em canais e a área de canais seguidos. Ver e ler é livre para anônimos; reagir, comentar e se inscrever exigem login — o anônimo que tenta é levado ao login e volta para a mesma página. Decisões em `docs/decisions/technical-decisions-social-interactions.md`.
+
+- **Reações:** like e dislike são exclusivos; clicar no ativo remove a reação. As escritas são idempotentes e devolvem o estado resultante com as contagens. Contadores e linhas mudam na mesma transação, então ficam consistentes mesmo com cliques concorrentes. A UI mostra só a contagem de likes.
+- **Comentários:** texto puro de 1 a 2.000 caracteres, ordenados por `Latest` ou `Top` (mais curtidos), com "Show more comments". As respostas têm um nível só — responder uma resposta grava na raiz com `@nickname` pré-preenchido — e carregam sob demanda em "N replies". Só o autor edita ("(edited)") ou exclui; excluir uma raiz leva as respostas. Só vídeos publicados aceitam comentários e reações, inclusive para o dono.
+- **Inscrições:** "Subscribe"/"Subscribed" na watch page e na página do canal, com "N subscribers"; o dono não vê o botão. Com sessão, as rotas da aplicação (exceto a watch page) ganham o menu lateral com Home, Subscriptions, Your videos e os canais seguidos em ordem alfabética (7 + "Show more"), atualizado na hora pelo Subscribe.
+- **Feed:** `/feed/subscriptions` lista os vídeos públicos dos canais seguidos, do mais recente ao mais antigo, com "Load more"; exige sessão.
+- **Interface otimista:** cada interação muda a tela na hora e é reconciliada pela resposta da API, sem recarregar a página; em erro volta ao estado anterior com um toast.
+
+Endpoints da API (`nestjs-project`):
+
+| Método & Rota | Descrição |
+|---------------|-----------|
+| `PUT` / `DELETE /videos/{publicId}/reaction` | Define (`{ value: "like" \| "dislike" }`) ou remove a reação ao vídeo |
+| `PUT` / `DELETE /comments/{commentId}/reaction` | O mesmo para comentários e respostas |
+| `PUT` / `DELETE /channels/{nickname}/subscription` | Inscreve ou cancela (`{ subscribed, subscriber_count }`; próprio canal → 422) |
+| `GET` / `POST /videos/{publicId}/comments` | Raízes paginadas (`sort=latest\|top`, cursor) e criação |
+| `PATCH` / `DELETE /comments/{commentId}` | Edição e exclusão pelo autor (outro usuário → 403) |
+| `GET` / `POST /comments/{commentId}/replies` | Respostas em ordem cronológica e criação |
+| `GET /me/subscriptions` | Canais seguidos, em ordem alfabética |
+| `GET /me/subscriptions/videos` | Feed dos vídeos dos canais seguidos |
+
+`GET /videos/{publicId}` passa a trazer `viewer_reaction` e o canal com `subscriber_count`/`viewer_subscribed`; `GET /channels/{nickname}`, `subscriber_count` e `viewer_subscribed`.
+
+Route Handlers BFF (`next-frontend`): as mesmas rotas sob `/api/**` (`/api/videos/{publicId}/reaction`, `/api/videos/{publicId}/comments`, `/api/comments/{commentId}`, `…/replies`, `…/reaction`, `/api/channels/{nickname}/subscription` e `/api/me/subscriptions`); as leituras de comentários vão com a sessão só quando ela existe, as mutações exigem sessão.
+
 ## 🛠️ Estrutura do Projeto
 
 ```
@@ -289,9 +316,10 @@ mba-ia-greenfield-project/
 │   │   ├── phase-02-auth-frontend/      # Auth (frontend)
 │   │   ├── phase-03-upload-processing/  # Upload multipart, worker e playback (backend)
 │   │   ├── phase-04-video-channel-management/ # Gerenciamento de vídeos e canal (backend + frontend) + drift report do Figma
-│   │   └── phase-05-watch-page/         # Página de visualização (backend + frontend) + drift report do Figma
+│   │   ├── phase-05-watch-page/         # Página de visualização (backend + frontend) + drift report do Figma
+│   │   └── phase-06-social-interactions/ # Interações sociais (backend + frontend) + drift report do Figma
 │   ├── tasks/                           # Trabalhos ad-hoc (mesmos artefatos das fases) — ex.: task-saneamento-fase-02-e-infra/
-│   ├── inventories/                     # Inventário de telas extraído do Figma (fases 02, 04 e 05)
+│   ├── inventories/                     # Inventário de telas extraído do Figma (fases 02, 04, 05 e 06)
 │   └── diagrams/
 │       ├── software-arch.mermaid        # Diagrama de arquitetura (C4)
 │       └── skills-workflow.mermaid      # Pipeline de skills de planejamento/implementação
@@ -305,7 +333,10 @@ mba-ia-greenfield-project/
 │   │   ├── channels/                    # Canal 1:1 por usuário (nickname do e-mail); /channels/me e página pública
 │   │   ├── categories/                  # Categorias de vídeo (GET /categories)
 │   │   ├── mail/                        # Envio de e-mails (templates Handlebars; links usam FRONTEND_URL)
-│   │   ├── videos/                      # Upload multipart, estado, playback, edição/publicação, thumbnail, exclusão, listagens, visualizações e sugestões
+│   │   ├── videos/                      # Upload multipart, estado, playback, edição/publicação, thumbnail, exclusão, listagens, visualizações, sugestões e feed das inscrições
+│   │   ├── reactions/                   # Likes/dislikes em vídeos e comentários (escrita idempotente + contadores)
+│   │   ├── comments/                    # Comentários e respostas (um nível), edição/exclusão pelo autor
+│   │   ├── subscriptions/               # Inscrição em canais, contagem de inscritos e canais seguidos
 │   │   ├── storage/                     # StorageModule: clientes S3 (interno e público) e presigner
 │   │   ├── queue/                       # QueueModule: pg-boss sobre o PostgreSQL
 │   │   ├── worker/                      # WorkerModule: jobs video.process (ffmpeg), upload.expire, video.delete e video-views.cleanup (cron)
@@ -322,16 +353,17 @@ mba-ia-greenfield-project/
 ├── next-frontend/                       # Frontend (Next.js 16, App Router)
 │   ├── app/
 │   │   ├── (auth)/                      # signup, login, forgot-password, reset-password, confirm-email, resend-confirmation
-│   │   ├── (app)/                       # Área da aplicação (layout com AppHeader): home, studio/**, channel/[nickname] e watch/[publicId]
-│   │   └── api/                         # Route Handlers BFF (proxy same-origin para a API): auth/**, videos/** e channel
-│   ├── components/                      # auth, layout (AppHeader), upload, studio, channel, video(s), watch (player e página), UI (shadcn) e ícones
-│   ├── hooks/                           # Hooks (useSession, useProcessingPoll, useMediaState, useViewRegistration)
+│   │   ├── (app)/                       # Área da aplicação (layout com AppHeader): (shell)/ — home, channel/[nickname], studio/** e feed/subscriptions,
+│   │   │                                #   com menu lateral quando há sessão — e watch/[publicId], fora do grupo
+│   │   └── api/                         # Route Handlers BFF (proxy same-origin para a API): auth/**, videos/**, comments/**, channels/**, me/** e channel
+│   ├── components/                      # auth, layout (AppHeader, AppShell, menu lateral), upload, studio, channel, video(s), watch, comments, feed, UI (shadcn) e ícones
+│   ├── hooks/                           # Hooks (useSession, useProcessingPoll, useMediaState, useViewRegistration, useOptimisticMutation)
 │   ├── lib/                             # env, api (openapi-fetch + types.gen.ts + BFF com sessão opcional + publicRead), auth/session, upload (cliente multipart)
 │   ├── mocks/                           # MSW (handlers + server; também usado server-side via instrumentation.ts)
 │   ├── specs/                           # Test specs (*.plan.md) que originam os E2E
 │   ├── tests/                           # E2E (Playwright)
 │   ├── instrumentation.ts               # Liga o MSW no servidor quando MSW_ENABLED=true
-│   ├── proxy.ts                         # Proxy do Next 16: redireciona anônimos de /studio/** para o login
+│   ├── proxy.ts                         # Proxy do Next 16: redireciona anônimos de /studio/** e /feed/** para o login
 │   ├── openapi.json                     # Cópia do contrato do backend (fonte de lib/api/types.gen.ts)
 │   ├── .env.example                     # Variáveis de ambiente (copiar para .env.local)
 │   ├── compose.yaml                     # Docker Compose (dev server)
@@ -367,10 +399,10 @@ git push -u origin feature/<slug>     # abra o PR para dev
 | **03** | Upload e Processamento de Vídeos | ✅ Concluída (backend: API + worker; telas na Fase 04) |
 | **04** | Gerenciamento de Vídeos e Canal | ✅ Concluída (backend + frontend) |
 | **05** | Página de Visualização do Vídeo | ✅ Concluída (backend + frontend) |
-| **06** | Interações Sociais (Likes, Comentários, Inscrições) | ⏳ Planejada |
+| **06** | Interações Sociais (Likes, Comentários, Inscrições) | ✅ Concluída (backend + frontend) |
 | **07** | Página Inicial, Busca e Finalização | ⏳ Planejada |
 
-Detalhes completos em `docs/project-plan.md`. Pendências da Fase 02 (telas de confirmação/reset, logout, rede Docker compartilhada, CI do contrato OpenAPI) foram saneadas em `docs/tasks/task-saneamento-fase-02-e-infra/`. A Fase 03 entregou o backend (`docs/phases/phase-03-upload-processing/`) e a Fase 04 entregou o estúdio — upload, painel de vídeos, edição, configurações do canal — e a página pública do canal (`docs/phases/phase-04-video-channel-management/`). A dívida de lint do backend em specs/e2e das Fases 02/03 e a validação de nicknames reservados ou curtos no cadastro (`createChannel`) foram saneadas em `docs/tasks/task-saneamento-fase-04/`. Pendência conhecida da Fase 04: a reauditoria de um frame do Figma (154:1724) e do valor escuro do token `--progress-track`, quando a cota do MCP do Figma voltar. A Fase 05 entregou a página de visualização com player próprio, contagem de visualizações, sugestões e download (`docs/phases/phase-05-watch-page/`); a auditoria visual foi feita contra PNGs exportados do Figma, sem o MCP. As pendências pequenas da Fase 05 foram resolvidas em `docs/tasks/task-manutencao-pos-fase-05/` (volume nomeado do banco, `ip_range` na rede `streamtube`, token tipográfico `--text-overlay-md`, `requestOrigin` único e procedimento seguro de install do shadcn); continua pendente o proxy reverso exigido para o deploy (`watch-page/TD-03`).
+Detalhes completos em `docs/project-plan.md`. Pendências da Fase 02 (telas de confirmação/reset, logout, rede Docker compartilhada, CI do contrato OpenAPI) foram saneadas em `docs/tasks/task-saneamento-fase-02-e-infra/`. A Fase 03 entregou o backend (`docs/phases/phase-03-upload-processing/`) e a Fase 04 entregou o estúdio — upload, painel de vídeos, edição, configurações do canal — e a página pública do canal (`docs/phases/phase-04-video-channel-management/`). A dívida de lint do backend em specs/e2e das Fases 02/03 e a validação de nicknames reservados ou curtos no cadastro (`createChannel`) foram saneadas em `docs/tasks/task-saneamento-fase-04/`. Pendência conhecida da Fase 04: a reauditoria de um frame do Figma (154:1724) e do valor escuro do token `--progress-track`, quando a cota do MCP do Figma voltar. A Fase 05 entregou a página de visualização com player próprio, contagem de visualizações, sugestões e download (`docs/phases/phase-05-watch-page/`); a auditoria visual foi feita contra PNGs exportados do Figma, sem o MCP. As pendências pequenas da Fase 05 foram resolvidas em `docs/tasks/task-manutencao-pos-fase-05/` (volume nomeado do banco, `ip_range` na rede `streamtube`, token tipográfico `--text-overlay-md`, `requestOrigin` único e procedimento seguro de install do shadcn); continua pendente o proxy reverso exigido para o deploy (`watch-page/TD-03`). A Fase 06 entregou reações, comentários com respostas, inscrições, o menu lateral com os canais seguidos e o feed das inscrições (`docs/phases/phase-06-social-interactions/`), também auditada contra PNGs do Figma.
 
 ## 🤖 Processo com IA
 

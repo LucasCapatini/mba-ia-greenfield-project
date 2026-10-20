@@ -147,6 +147,8 @@ Likes/dislikes em vídeos e comentários, comentários com respostas e inscriç�
 
 **Entregáveis:** likes/dislikes funcionando, comentários com respostas, inscrição em canais, listagem de canais seguidos.
 
+_Status (2026-10-20): concluída (backend + frontend) — `docs/phases/phase-06-social-interactions/` (migration `CreateSocialInteractions` com `video_reactions`, `comments`, `comment_reactions`, `subscriptions` e `channels.subscriber_count`; contadores ajustados na mesma transação por SQL direto, sem tocar no `updated_at`; `PUT|DELETE` idempotentes de reação a vídeo e comentário e de inscrição — próprio canal → 422; comentários paginados por `latest`/`top`, respostas em um nível, edição e exclusão só pelo autor; `viewer_reaction`/`viewer_subscribed`/`subscriber_count` nas leituras; `GET /me/subscriptions` e `GET /me/subscriptions/videos`; no frontend, rotas BFF, `useOptimisticMutation` com reconciliação pela resposta, grupo de rotas `(shell)` com menu lateral e canais seguidos, watch page com like/dislike, Subscribe e comentários, inscritos na página do canal e `/feed/subscriptions` protegido pelo `proxy.ts`). Auditoria visual feita contra PNGs exportados do Figma (sem MCP). Pendências: `VideoViewsService` (Fase 05) usa `increment`, que altera `videos.updated_at` e com isso a URL da thumbnail; suítes de integração sociais só limpam o banco no `beforeEach`; o composer de comentários ainda monta o link de login à mão em vez de `loginHref`; o avatar de iniciais pequeno é ajustado por seletor descendente em vez de uma variante do `ChannelAvatar`._
+
 ---
 
 ### Fase 07 — Página Inicial, Busca e Finalização
