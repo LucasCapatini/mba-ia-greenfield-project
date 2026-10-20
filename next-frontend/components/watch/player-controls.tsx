@@ -128,8 +128,7 @@ function PlayerControls({
           />
         </div>
 
-        {/* Not `text-overlay`: that name is also the `--color-overlay` token and would win over the white. */}
-        <span data-slot="player-time" className="text-body-lg text-neutral-100 tabular-nums">
+        <span data-slot="player-time" className="text-overlay-md text-neutral-100 tabular-nums">
           {clock(currentTime)} / {clock(duration)}
         </span>
 

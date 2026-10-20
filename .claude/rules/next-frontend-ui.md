@@ -36,7 +36,7 @@ Scales available: `red`, `blue`, `almost-black`, `neutral` (each with `-100…-1
 
 ### Typography utilities
 
-Custom text styles (registered in `@theme inline` AND in `lib/utils.ts` tailwind-merge groups): `text-display`, `text-h1`, `text-h2`, `text-h3`, `text-body-lg`, `text-body-md`, `text-caption`, `text-label-md`, `text-label-lg`, `text-label-xl`, `text-label-2xl`, `text-helper`, `text-overlay`. Each carries its own `font-size`, `line-height`, and `font-weight` — **do NOT combine** with `leading-*` or `font-medium` / `font-semibold` unless Figma explicitly overrides. Standalone weights: `font-weight-{400,500,600,700}`.
+Custom text styles (registered in `@theme inline` AND in `lib/utils.ts` tailwind-merge groups): `text-display`, `text-h1`, `text-h2`, `text-h3`, `text-body-lg`, `text-body-md`, `text-caption`, `text-label-md`, `text-label-lg`, `text-label-xl`, `text-label-2xl`, `text-helper`, `text-overlay-md`. Each carries its own `font-size`, `line-height`, and `font-weight` — **do NOT combine** with `leading-*` or `font-medium` / `font-semibold` unless Figma explicitly overrides. Standalone weights: `font-weight-{400,500,600,700}`.
 
 For body copy / headings / labels use these utilities **instead of** raw `text-sm`, `text-base`, etc.
 
