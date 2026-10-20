@@ -8,4 +8,10 @@ export default registerAs('app', () => ({
   // Obrigatória no schema Joi (env.validation.ts); o fallback vazio nunca é
   // alcançado em runtime, existe só para manter a factory chamável como função.
   frontendUrl: process.env.FRONTEND_URL ?? '',
+  // Proxies confiáveis para `X-Forwarded-For` (watch-page/TD-03): o IP fixo do BFF na rede
+  // `streamtube`. Vazio → `trust proxy` desligado (main.ts não chama `app.set`).
+  trustProxy: (process.env.TRUST_PROXY ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry !== ''),
 }));

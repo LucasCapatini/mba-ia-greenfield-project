@@ -139,3 +139,37 @@ describe('envValidationSchema — upload policy (UPLOAD_*, PLAYBACK_URL_TTL)', (
     expect(value.UPLOAD_PART_SIZE).toBe(5242880);
   });
 });
+
+describe('envValidationSchema — TRUST_PROXY (watch-page/TD-03)', () => {
+  it('accepts a missing TRUST_PROXY (trust proxy stays off)', () => {
+    const result = validate(validEnv);
+
+    expect(result.error).toBeUndefined();
+    expect(
+      (result.value as Record<string, unknown>).TRUST_PROXY,
+    ).toBeUndefined();
+  });
+
+  it('accepts a single IP and a comma-separated list of IPs/CIDRs', () => {
+    expect(
+      validate({ ...validEnv, TRUST_PROXY: '172.30.0.10' }).error,
+    ).toBeUndefined();
+    expect(
+      validate({ ...validEnv, TRUST_PROXY: '172.30.0.10, 10.0.0.0/8, ::1' })
+        .error,
+    ).toBeUndefined();
+  });
+
+  it('rejects a value that is not an IP list (e.g. a Compose service name)', () => {
+    const { error } = validate({ ...validEnv, TRUST_PROXY: 'next-frontend' });
+
+    expect(error).toBeDefined();
+    expect(error?.details[0].path).toEqual(['TRUST_PROXY']);
+  });
+
+  it('rejects an empty entry in the list', () => {
+    const { error } = validate({ ...validEnv, TRUST_PROXY: '172.30.0.10,' });
+
+    expect(error?.details[0].path).toEqual(['TRUST_PROXY']);
+  });
+});

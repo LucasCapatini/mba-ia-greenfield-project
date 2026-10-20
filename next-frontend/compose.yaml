@@ -15,7 +15,10 @@ services:
       - node_modules:/home/node/app/node_modules
       - next_cache:/home/node/app/.next
     networks:
-      - streamtube
+      streamtube:
+        # IP fixo (watch-page/TD-03): único endereço em que a API confia para X-Forwarded-For
+        # (TRUST_PROXY no .env do nestjs-project). Fica na sub-rede declarada pela stack do backend.
+        ipv4_address: 172.30.0.10
 
 # Rede criada pela stack do backend (nestjs-project/compose.yaml). Suba o backend antes do frontend;
 # sem a rede, `docker compose up` falha com "network streamtube declared as external, but could not be found".

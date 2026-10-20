@@ -150,6 +150,12 @@ services:
 networks:
   streamtube:
     name: streamtube
+    # Sub-rede fixa (watch-page/TD-03): o next-frontend recebe um IP fixo nela e a API só confia em
+    # X-Forwarded-For vindo desse IP (TRUST_PROXY no .env). Mudar a sub-rede exige recriar a rede:
+    # `docker compose down` no frontend e aqui, depois `up` aqui primeiro.
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
 
 volumes:
   node_modules: {}
