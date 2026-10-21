@@ -2,7 +2,7 @@ import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { WorkerModule } from './worker/worker.module';
 
-// Segundo entrypoint do subprojeto (phase-03-upload-processing/TD-05): contexto de aplicação sem
+// Segundo entrypoint do subprojeto (phase-03-videos/TD-05): contexto de aplicação sem
 // servidor HTTP. `enableShutdownHooks` faz SIGTERM/SIGINT chamarem `app.close()`, que dispara
 // `QueueService.onModuleDestroy` (`boss.stop({ graceful: true })`) e fecha o DataSource — assim o
 // `docker compose stop` encerra o processo sem SIGKILL e sem abandonar jobs no meio.

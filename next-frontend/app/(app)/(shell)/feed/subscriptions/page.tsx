@@ -2,10 +2,11 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { redirect } from "next/navigation"
 
-import { SubscriptionFeedList } from "@/components/feed/subscription-feed-list"
 import { upstream } from "@/lib/api/upstream"
+import { clientHeaders } from "@/lib/api/client-headers"
 import { loginHref } from "@/lib/auth/return-to"
 import { getSession } from "@/lib/auth/session"
+import { InfiniteVideoGrid } from "@/components/videos/infinite-video-grid"
 
 const FEED_PATH = "/feed/subscriptions"
 
@@ -13,46 +14,31 @@ export const metadata: Metadata = {
   title: "Subscriptions — StreamTube",
 }
 
-type SubscriptionsFeedPageProps = {
-  searchParams: Promise<Record<string, string | string[] | undefined>>
-}
-
-function first(value: string | string[] | undefined): string | undefined {
-  const raw = Array.isArray(value) ? value[0] : value
-  return raw === undefined || raw === "" ? undefined : raw
-}
-
 // /feed/subscriptions — vídeos dos canais seguidos (base visual: Figma Home 143:948;
-// social-interactions/TD-08). RSC com o `Bearer` da sessão e `cursor` vindo de `searchParams`, como a
-// página do canal (video-channel-management/TD-12); o `proxy.ts` já mandou o anônimo ao login, e a
-// página revalida a sessão como defesa em profundidade. Erros (UI Contract → UX mapping): 401 →
-// login com `returnTo`; cursor adulterado (400) → primeira página; demais → `error.tsx`.
-export default async function SubscriptionsFeedPage({ searchParams }: SubscriptionsFeedPageProps) {
+// social-interactions/TD-08). O RSC lê só a primeira página com o `Bearer` da sessão; as seguintes
+// chegam pelo scroll infinito via `GET /api/me/subscriptions/videos` (home-search-production/TD-04).
+// O `proxy.ts` já mandou o anônimo ao login, e a página revalida a sessão como defesa em
+// profundidade. Erros (UI Contract → UX mapping): 401 → login com `returnTo`; demais → `error.tsx`.
+export default async function SubscriptionsFeedPage() {
   const session = await getSession()
   if (!session.isLoggedIn) {
     redirect(loginHref(FEED_PATH))
   }
 
-  const cursor = first((await searchParams).cursor)
   const result = await upstream.GET("/me/subscriptions/videos", {
-    params: { query: cursor ? { cursor } : {} },
-    headers: { Authorization: `Bearer ${session.accessToken}` },
+    headers: { ...(await clientHeaders()), Authorization: `Bearer ${session.accessToken}` },
   })
   if (result.response.status === 401) {
     redirect(loginHref(FEED_PATH))
-  }
-  if (result.response.status === 400 && cursor) {
-    redirect(FEED_PATH)
   }
   if (!result.data) {
     throw new Error(`Could not load the subscriptions feed (status ${result.response.status})`)
   }
 
-  const { items, next_cursor: nextCursor } = result.data
   return (
-    <main className="flex w-full flex-col gap-6 px-6 py-6">
+    <main className="flex w-full flex-col gap-6 px-4 py-6 sm:px-6">
       <h1 className="text-h1 text-foreground">Subscriptions</h1>
-      {items.length === 0 && !cursor ? (
+      {result.data.items.length === 0 ? (
         <div className="flex flex-col items-start gap-2">
           <p className="text-body-lg text-muted-foreground">
             Videos from the channels you subscribe to will show up here.
@@ -62,7 +48,11 @@ export default async function SubscriptionsFeedPage({ searchParams }: Subscripti
           </Link>
         </div>
       ) : (
-        <SubscriptionFeedList items={items} cursor={cursor ?? null} nextCursor={nextCursor} />
+        <InfiniteVideoGrid
+          aria-label="Subscription videos"
+          initial={result.data}
+          endpoint="/api/me/subscriptions/videos"
+        />
       )}
     </main>
   )

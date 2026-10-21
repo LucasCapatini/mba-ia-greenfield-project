@@ -4,28 +4,25 @@ import { expect, test } from "./fixtures"
 // pair for any non-trigger e-mail; the BFF seals the iron-session cookie.
 // POST /auth/logout → 204; the BFF destroys the cookie unconditionally.
 test.describe("logout", () => {
-  test("1.1 anonymous home shows Entrar / Criar conta and no Sair", async ({
+  test("1.1 anonymous home shows Sign in and no account menu", async ({
     page,
   }) => {
     await page.goto("/")
 
     const header = page.locator("[data-slot='app-header']")
     await expect(header).toHaveAttribute("data-session", "anonymous")
-    await expect(header.getByRole("link", { name: "Entrar" })).toHaveAttribute(
+    await expect(header.getByRole("link", { name: "Sign in" })).toHaveAttribute(
       "href",
-      "/login"
+      "/login?returnTo=/"
     )
-    await expect(
-      header.getByRole("link", { name: "Criar conta" })
-    ).toHaveAttribute("href", "/signup")
-    await expect(header.getByRole("button", { name: "Sair" })).toHaveCount(0)
+    await expect(header.getByRole("button", { name: "Account" })).toHaveCount(0)
 
     // Boilerplate is gone.
     await expect(page.getByText("To get started, edit the page.tsx file.")).toHaveCount(0)
     await expect(page.getByRole("link", { name: /Templates|Learning/ })).toHaveCount(0)
   })
 
-  test("1.2 login → header shows the e-mail and Sair; Sair returns to the anonymous home and drops the session cookie", async ({
+  test("1.2 login → header shows the avatar; Sign Out in the account menu returns to the anonymous home and drops the session cookie", async ({
     page,
   }) => {
     await page.goto("/login")
@@ -37,21 +34,28 @@ test.describe("logout", () => {
     await expect(page).toHaveURL(/\/$/)
     const header = page.locator("[data-slot='app-header']")
     await expect(header).toHaveAttribute("data-session", "authenticated")
-    await expect(header.getByText("user@example.com")).toBeVisible()
-    const logout = header.getByRole("button", { name: "Sair" })
-    await expect(logout).toBeVisible()
+    await expect(header.getByRole("link", { name: "Upload video" })).toBeVisible()
+    const avatar = header.getByRole("button", { name: "Account" })
+    await expect(avatar).toBeVisible()
     expect(
       (await page.context().cookies()).some((c) => c.name.includes("session"))
     ).toBe(true)
 
+    await avatar.click()
+    const menu = page.getByRole("dialog", { name: "Account" })
+    await expect(menu.getByRole("link", { name: "Edit Channel" })).toHaveAttribute(
+      "href",
+      "/studio/channel"
+    )
+
     const req = page.waitForRequest(
       (r) => r.url().includes("/api/auth/logout") && r.method() === "POST"
     )
-    await logout.click()
+    await menu.getByRole("button", { name: "Sign Out" }).click()
     await req
 
     await expect(header).toHaveAttribute("data-session", "anonymous")
-    await expect(header.getByRole("link", { name: "Entrar" })).toBeVisible()
+    await expect(header.getByRole("link", { name: "Sign in" })).toBeVisible()
     await expect(page).toHaveURL(/\/$/)
     await expect
       .poll(async () =>

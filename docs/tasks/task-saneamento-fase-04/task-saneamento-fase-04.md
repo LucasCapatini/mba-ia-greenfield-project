@@ -9,7 +9,7 @@ sources_mtime:
   docs/decisions/technical-decisions-phase-02-auth-frontend.md: "2026-10-19T20:16:01Z"
   docs/decisions/technical-decisions-next-frontend-openapi-typing.md: "2026-10-17T13:27:46Z"
   docs/decisions/technical-decisions-video-channel-management.md: "2026-10-19T20:16:01Z"
-  docs/decisions/technical-decisions-phase-03-upload-processing.md: "2026-10-19T20:16:01Z"
+  docs/decisions/technical-decisions-phase-03-videos.md: "2026-10-19T20:16:01Z"
   docs/decisions/technical-decisions-saneamento-fase-02-e-infra.md: "2026-10-19T20:16:01Z"
   docs/phases/phase-04-video-channel-management/context.md: "2026-10-19T20:16:01Z"
 ---

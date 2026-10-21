@@ -54,7 +54,7 @@ export type QueueJobHandler<Q extends QueueName> = (
   jobs: QueueJob<Q>[],
 ) => Promise<void>;
 
-// Wrapper fino do pg-boss (phase-03-upload-processing/TD-04): fila sobre o PostgreSQL já
+// Wrapper fino do pg-boss (phase-03-videos/TD-04): fila sobre o PostgreSQL já
 // existente, schema próprio (`pgboss`) criado/migrado em `start()`. A API importa o módulo
 // para `send`; o worker, para `send` + `work`. Nenhuma lógica de domínio vive aqui.
 @Injectable()

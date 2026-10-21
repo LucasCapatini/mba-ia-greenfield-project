@@ -10,7 +10,7 @@ import { UPLOAD_EXPIRE_WORK_OPTIONS } from './worker.constants';
 
 type UploadExpireJob = QueueJob<typeof QUEUE_NAMES.UPLOAD_EXPIRE>;
 
-// Consumidor de `upload.expire` (phase-03-upload-processing/TD-12): o job atrasado agendado no
+// Consumidor de `upload.expire` (phase-03-videos/TD-12): o job atrasado agendado no
 // pré-cadastro fecha o ciclo da sessão multipart sem cron nem varredura. Idempotente por guarda
 // de estado — a transição `active → expired` acontece primeiro e decide tudo: zero linhas
 // afetadas significa que o `complete`/`abort` venceu a corrida (TD-11) e o job vira no-op sem

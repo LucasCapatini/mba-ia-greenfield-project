@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "openapi:types": "openapi-typescript ./openapi.json -o ./lib/api/types.gen.ts"
+    "openapi:types": "openapi-typescript ./openapi.json -o ./lib/api/types.gen.ts",
+    "test:full-stack": "playwright test -c playwright.full-stack.config.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

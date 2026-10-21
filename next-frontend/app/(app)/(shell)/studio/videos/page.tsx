@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 
 import type { OwnerVideosQuery } from "@/lib/api/contracts"
 import { upstream } from "@/lib/api/upstream"
+import { clientHeaders } from "@/lib/api/client-headers"
 import { getSession } from "@/lib/auth/session"
 import { Button } from "@/components/ui/button"
 import { FiltersNotice, INVALID_FILTERS_NOTICE } from "@/components/studio/filters-notice"
@@ -58,7 +59,7 @@ export default async function StudioVideosPage({
   const session = await getSession()
   const { data, response } = await upstream.GET("/channels/me/videos", {
     params: { query: toQuery(params) },
-    headers: { Authorization: `Bearer ${session.accessToken}` },
+    headers: { ...(await clientHeaders()), Authorization: `Bearer ${session.accessToken}` },
   })
   if (response.status === 401) {
     redirect("/login?returnTo=/studio/videos")
@@ -90,7 +91,7 @@ export default async function StudioVideosPage({
         }
       />
       <VideoFilters />
-      <div className="flex w-full flex-col gap-4 px-6 pt-3 pb-6">
+      <div className="flex w-full flex-col gap-4 px-4 pt-3 pb-6 sm:px-6">
         <div className="flex items-center justify-between gap-4">
           <p className="text-body-md text-muted-foreground" aria-live="polite">
             {data.total} {data.total === 1 ? "video" : "videos"}

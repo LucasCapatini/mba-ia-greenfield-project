@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
 import { upstream } from "@/lib/api/upstream"
+import { publicRead } from "@/lib/api/public-read"
 import { getPublicChannel } from "@/lib/channel/get-channel"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ChannelSocialHeader } from "@/components/channel/channel-social-header"
@@ -35,10 +36,14 @@ export async function generateMetadata({ params }: ChannelPageProps): Promise<Me
   }
 }
 
-async function listVideos(nickname: string, sort: ChannelSort, cursor: string | undefined) {
-  return upstream.GET("/channels/{nickname}/videos", {
-    params: { path: { nickname }, query: { sort, ...(cursor ? { cursor } : {}) } },
-  })
+// Só a primeira página: as seguintes vêm do BFF pelo scroll infinito (home-search-production/TD-04).
+async function firstPage(nickname: string, sort: ChannelSort) {
+  return publicRead((headers) =>
+    upstream.GET("/channels/{nickname}/videos", {
+      params: { path: { nickname }, query: { sort } },
+      headers,
+    })
+  )
 }
 
 // /channel/{nickname} — página pública do canal (Figma 155:1926). RSC com sessão opcional
@@ -55,15 +60,8 @@ export default async function ChannelPage({ params, searchParams }: ChannelPageP
   const session = await getSession()
 
   const requested = first(query.sort)
-  let sort: ChannelSort = SORTS.find((value) => value === requested) ?? "latest"
-  let cursor = first(query.cursor)
-  let result = await listVideos(nickname, sort, cursor)
-  // `VALIDATION_ERROR` (stale or forged cursor): render with the defaults instead.
-  if (result.response.status === 400) {
-    sort = "latest"
-    cursor = undefined
-    result = await listVideos(nickname, sort, cursor)
-  }
+  const sort: ChannelSort = SORTS.find((value) => value === requested) ?? "latest"
+  const result = await firstPage(nickname, sort)
   if (!result.data) {
     throw new Error(`Could not load the channel videos (status ${result.response.status})`)
   }
@@ -84,10 +82,10 @@ export default async function ChannelPage({ params, searchParams }: ChannelPageP
       </Tabs>
       <ChannelVideoSort />
       <ChannelVideoList
+        key={sort}
         aria-label={`Videos from ${channel.name}`}
-        items={result.data.items}
-        cursor={cursor ?? null}
-        nextCursor={result.data.next_cursor}
+        nickname={channel.nickname}
+        initial={result.data}
         sort={sort}
       />
     </main>

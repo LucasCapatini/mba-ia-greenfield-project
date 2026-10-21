@@ -1,0 +1,156 @@
+# Production deploy (home-search-production/TD-11): on push to main the CI gates run first, then the
+# images are published to GHCR tagged with the commit SHA, and the `production` job deploys them to
+# the VPS over SSH — compose pull, one-shot migration, up — and runs the read-only smoke.
+# Rollback: run this workflow manually (workflow_dispatch) with the `image_tag` of a previous deploy;
+# it skips the gates and the build and deploys that tag. Setup and operations: docs/deploy/runbook.md.
+#
+# The deploy is opt-in: the `production` job only runs when the REPOSITORY variable DEPLOY_ENABLED is
+# "true" (Settings → Secrets and variables → Actions → Variables). Without it a push to main still runs
+# the gates and publishes the images, and the deploy job is skipped instead of failing for lack of a VPS.
+# It has to be a repository variable: a job-level `if` is evaluated before the Environment applies.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Image tag (commit SHA of a previous deploy) to roll back to
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  gates:
+    name: gates
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/ci.yml
+
+  images:
+    name: images
+    needs: gates
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push streamtube-api and streamtube-web
+        env:
+          TAG: ${{ github.sha }}
+        run: |
+          OWNER="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+          for image in api:nestjs-project web:next-frontend; do
+            name="ghcr.io/${OWNER}/streamtube-${image%%:*}:${TAG}"
+            docker build -t "$name" "${image#*:}"
+            docker push "$name"
+          done
+
+  production:
+    name: deploy
+    needs: images
+    # Opt-in (DEPLOY_ENABLED). Push: only after the images were published. Manual rollback: no gates, no build.
+    if: always() && vars.DEPLOY_ENABLED == 'true' && (needs.images.result == 'success' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    env:
+      IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.image_tag || github.sha }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '~/streamtube' }}
+    steps:
+      # Fails before any access to the VPS when the Environment is not configured.
+      - name: Check the production secrets
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          missing=""
+          for key in SSH_HOST SSH_USER SSH_PRIVATE_KEY DOMAIN; do
+            eval "value=\${$key}"
+            [ -n "$value" ] || missing="$missing $key"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing secrets in the 'production' Environment:$missing (docs/deploy/runbook.md)"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+
+      - name: SSH key and known host
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          # Prefer the pinned host key (secret SSH_KNOWN_HOSTS); fall back to a scan.
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -H "$SSH_HOST" > ~/.ssh/known_hosts
+          fi
+
+      - name: Copy the compose files
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          ssh -i ~/.ssh/id_deploy "$SSH_USER@$SSH_HOST" "mkdir -p $DEPLOY_PATH/deploy"
+          scp -i ~/.ssh/id_deploy deploy/compose.yaml deploy/Caddyfile deploy/backup.sh "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/deploy/"
+
+      # deploy/.env lives only on the VPS. The exported IMAGE_TAG wins over the one in that file.
+      - name: Pull, migrate and start
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          ssh -i ~/.ssh/id_deploy "$SSH_USER@$SSH_HOST" "set -e
+            cd $DEPLOY_PATH
+            test -f deploy/.env || { echo 'deploy/.env missing on the VPS (runbook)'; exit 1; }
+            export IMAGE_TAG='$IMAGE_TAG'
+            COMPOSE='docker compose -f deploy/compose.yaml --env-file deploy/.env'
+            \$COMPOSE pull
+            \$COMPOSE up -d --wait db
+            \$COMPOSE run --rm migrate
+            \$COMPOSE up -d --remove-orphans
+            \$COMPOSE ps"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: next-frontend/package-lock.json
+
+      - name: Smoke (read-only)
+        working-directory: next-frontend
+        env:
+          FULL_STACK_BASE_URL: https://${{ secrets.DOMAIN }}
+          SMOKE_VIDEO_ID: ${{ vars.SMOKE_VIDEO_ID }}
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npx playwright test -c playwright.full-stack.config.ts --grep @smoke
+
+      - name: Smoke report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-smoke
+          path: next-frontend/playwright-report-full-stack
+          retention-days: 14

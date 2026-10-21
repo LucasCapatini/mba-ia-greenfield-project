@@ -1,7 +1,7 @@
 ---
 subproject: backend
 runner: jest+supertest
-scope: phase-03-upload-processing
+scope: phase-03-videos
 si: SI-03.10
 target_file: nestjs-project/test/videos-playback.e2e-spec.ts
 ---
@@ -10,7 +10,7 @@ target_file: nestjs-project/test/videos-playback.e2e-spec.ts
 
 ## Application Overview
 
-`GET /videos/{publicId}` devolve ao dono o estado do vídeo (eixo `processing_status`, `processing_error` quando `failed`, metadados extraídos pelo worker e `thumbnail_url` pré-assinada quando `ready`). `GET /videos/{publicId}/playback` emite, para vídeos `ready`, `stream_url` e `download_url` pré-assinadas com o cliente público e `expiresIn = PLAYBACK_URL_TTL`; o storage atende `Range` (206) e `Content-Disposition: attachment` (`phase-03-upload-processing/TD-09`, `TD-02`). Na Fase 03 todo vídeo é rascunho privado ao dono (AMB-1 → `TD-09`): anônimo recebe `401`, não-dono `403 VIDEO_FORBIDDEN`. Este plano cobre o contrato HTTP do SI-03.10 em `test/videos-playback.e2e-spec.ts`, com `describe` único e um `it` por cenário.
+`GET /videos/{publicId}` devolve ao dono o estado do vídeo (eixo `processing_status`, `processing_error` quando `failed`, metadados extraídos pelo worker e `thumbnail_url` pré-assinada quando `ready`). `GET /videos/{publicId}/playback` emite, para vídeos `ready`, `stream_url` e `download_url` pré-assinadas com o cliente público e `expiresIn = PLAYBACK_URL_TTL`; o storage atende `Range` (206) e `Content-Disposition: attachment` (`phase-03-videos/TD-09`, `TD-02`). Na Fase 03 todo vídeo é rascunho privado ao dono (AMB-1 → `TD-09`): anônimo recebe `401`, não-dono `403 VIDEO_FORBIDDEN`. Este plano cobre o contrato HTTP do SI-03.10 em `test/videos-playback.e2e-spec.ts`, com `describe` único e um `it` por cenário.
 
 **Atenção para o implementador:** este spec testa os endpoints de leitura isoladamente do worker — o estado `ready`/`failed` é semeado diretamente no banco após subir o objeto no storage (o fluxo completo com o worker real é o `test/videos-upload-flow.e2e-spec.ts` do SI-03.11). `S3_PUBLIC_ENDPOINT` deve ser sobrescrito para `http://rustfs:9000` (a suíte roda dentro do container) e `PLAYBACK_URL_TTL` para um valor curto (ex.: `2` segundos) para o cenário de expiração.
 

@@ -27,7 +27,7 @@ function ChannelVideoGrid({
 
   if (cards.length === 0) {
     return (
-      <div data-slot="channel-video-grid" data-state="empty" className={cn("px-6", className)} {...props}>
+      <div data-slot="channel-video-grid" data-state="empty" className={cn("px-4 sm:px-6", className)} {...props}>
         <p className="py-10 text-center text-body-md text-muted-foreground">{emptyMessage}</p>
       </div>
     )
@@ -40,18 +40,22 @@ function ChannelVideoGrid({
       className={cn("flex w-full flex-col gap-10", className)}
       {...props}
     >
-      <ul aria-label={ariaLabel} className="flex flex-wrap gap-x-6 gap-y-10 px-6">
+      {/* Grid of 1/2 columns below `lg`; the Figma wrapping row of fixed-width cards from `lg` (TD-05). */}
+      <ul
+        aria-label={ariaLabel}
+        className="grid grid-cols-1 gap-x-6 gap-y-10 px-4 sm:grid-cols-2 sm:px-6 lg:flex lg:flex-wrap"
+      >
         {cards.map((card, index) => (
           <li
             key={React.isValidElement(card) && card.key != null ? card.key : index}
-            className="w-66.5 max-w-90 min-w-60"
+            className="min-w-0 lg:w-66.5 lg:max-w-90 lg:min-w-60"
           >
             {card}
           </li>
         ))}
       </ul>
       {footer ? (
-        <div data-slot="channel-video-grid-footer" className="flex justify-center px-6">
+        <div data-slot="channel-video-grid-footer" className="flex justify-center px-4 sm:px-6">
           {footer}
         </div>
       ) : null}

@@ -17,11 +17,13 @@ import {
   ApiTags,
   getSchemaPath,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { JwtPayload } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { OptionalUser } from '../auth/decorators/optional-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { ApiErrorEnvelope } from '../common/openapi/api-error-envelope.dto';
+import { READ_THROTTLE } from '../common/throttling/read-throttle';
 import { CommentsService } from './comments.service';
 import { CommentResponse, CommentsPage } from './dto/comment-response.dto';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -44,6 +46,11 @@ export class VideoCommentsController {
 
   @Public()
   @Get(':publicId/comments')
+  @Throttle(READ_THROTTLE)
+  @ApiResponse({
+    status: 429,
+    description: 'Too Many Requests — limite de 60 req/min por visitante',
+  })
   @ApiOperation({
     summary: 'Comentários raiz do vídeo',
     description:

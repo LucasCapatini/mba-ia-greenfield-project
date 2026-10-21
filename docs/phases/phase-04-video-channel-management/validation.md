@@ -86,7 +86,7 @@ _None._ — os pré-requisitos das fases anteriores estão entregues: endpoints 
 
 ### Inherited Constraint Conflicts
 
-_None._ — TD-10 (leitura anônima só do prefixo `thumbnails/*`) não reabre `phase-03-upload-processing/TD-09` (vídeos continuam privados); TD-04 (thumbnail pela API) é exceção explícita ao "nenhum byte de vídeo pela API" de `phase-03/TD-03`, que trata de vídeos; TD-07 estende o `JwtAuthGuard` de `phase-02-auth/TD-02` sem substituí-lo; TD-08 mantém a allowlist de `phase-02-auth/TD-10`; TD-12 segue `phase-02-auth-frontend/TD-06`; TD-01 (data migration manual) é permitido pela convenção de migrations; a revisão de TD-03 mantém `phase-02-auth-frontend/TD-05` (mutações por Route Handler).
+_None._ — TD-10 (leitura anônima só do prefixo `thumbnails/*`) não reabre `phase-03-videos/TD-09` (vídeos continuam privados); TD-04 (thumbnail pela API) é exceção explícita ao "nenhum byte de vídeo pela API" de `phase-03/TD-03`, que trata de vídeos; TD-07 estende o `JwtAuthGuard` de `phase-02-auth/TD-02` sem substituí-lo; TD-08 mantém a allowlist de `phase-02-auth/TD-10`; TD-12 segue `phase-02-auth-frontend/TD-06`; TD-01 (data migration manual) é permitido pela convenção de migrations; a revisão de TD-03 mantém `phase-02-auth-frontend/TD-05` (mutações por Route Handler).
 
 ### Unresolved Open Questions
 

@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { notFound, redirect } from "next/navigation"
 
 import { upstream } from "@/lib/api/upstream"
+import { clientHeaders } from "@/lib/api/client-headers"
 import { getSession } from "@/lib/auth/session"
 import { requestOrigin } from "@/lib/request-origin"
 import { UploadVideoForm } from "@/components/upload/upload-video-form"
@@ -19,11 +20,12 @@ type UploadProcessingPageProps = {
 export default async function UploadProcessingPage({ params }: UploadProcessingPageProps) {
   const { publicId } = await params
   const session = await getSession()
-  const headersInit = { Authorization: `Bearer ${session.accessToken}` }
+  const visitor = await clientHeaders()
+  const headersInit = { ...visitor, Authorization: `Bearer ${session.accessToken}` }
 
   const [videoResult, categoriesResult, origin] = await Promise.all([
     upstream.GET("/videos/{publicId}", { params: { path: { publicId } }, headers: headersInit }),
-    upstream.GET("/categories"),
+    upstream.GET("/categories", { headers: visitor }),
     requestOrigin(),
   ])
   // Leitura como dono (o upstream decide a posse): 404 e 403 viram a página de não encontrado,
@@ -36,7 +38,7 @@ export default async function UploadProcessingPage({ params }: UploadProcessingP
   }
 
   return (
-    <main className="flex w-full flex-col gap-6 px-6 pt-8 pb-6">
+    <main className="flex w-full flex-col gap-6 px-4 pt-8 pb-6 sm:px-6">
       <h1 className="text-h1 text-foreground">Upload video</h1>
       <UploadVideoForm
         video={videoResult.data}

@@ -1,0 +1,2 @@
+# Production secrets (copy of .env.example filled in on the VPS).
+.env

@@ -1,4 +1,5 @@
 import { Controller, Get, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -9,6 +10,7 @@ import {
 import type { JwtPayload } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ApiErrorEnvelope } from '../common/openapi/api-error-envelope.dto';
+import { READ_THROTTLE } from '../common/throttling/read-throttle';
 import { ListSubscriptionsQuery } from './dto/list-subscriptions.dto';
 import { SubscribedChannelsPage } from './dto/subscribed-channels-page.dto';
 import { SubscriptionsService } from './subscriptions.service';
@@ -25,6 +27,11 @@ export class MeSubscriptionsController {
   constructor(private readonly subscriptions: SubscriptionsService) {}
 
   @Get()
+  @Throttle(READ_THROTTLE)
+  @ApiResponse({
+    status: 429,
+    description: 'Too Many Requests — limite de 60 req/min por visitante',
+  })
   @ApiOperation({
     summary: 'Canais seguidos pelo usuário',
     description:

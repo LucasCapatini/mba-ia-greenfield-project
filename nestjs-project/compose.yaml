@@ -22,7 +22,7 @@ services:
       storage-init:
         condition: service_completed_successfully
 
-  # Worker de vídeo (phase-03-upload-processing/TD-05): mesma imagem e mesmos volumes da API,
+  # Worker de vídeo (phase-03-videos/TD-05): mesma imagem e mesmos volumes da API,
   # processo separado (segundo entrypoint `src/worker.ts`). Consome as filas do pg-boss e roda
   # ffmpeg/ffprobe; não expõe HTTP. O comando definitivo (`npm run start:worker`) entra no SI-03.7.
   video-worker:
@@ -75,7 +75,7 @@ services:
     networks:
       - streamtube
 
-  # Object storage S3-compatível para dev (phase-03-upload-processing/TD-01): RustFS 1.0.x com tag
+  # Object storage S3-compatível para dev (phase-03-videos/TD-01): RustFS 1.0.x com tag
   # pinada. API S3 em 9000 (interno `http://rustfs:9000`, navegador `http://localhost:9000`),
   # console web em http://localhost:9001. Credenciais vêm do .env (S3_ACCESS_KEY/S3_SECRET_KEY).
   rustfs:

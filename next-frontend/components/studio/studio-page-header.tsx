@@ -24,7 +24,7 @@ function StudioPageHeader({
     <div
       data-slot="studio-page-header"
       className={cn(
-        "flex w-full items-center justify-between gap-4 border-b border-border px-6 py-4",
+        "flex w-full items-center justify-between gap-4 border-b border-border px-4 py-4 sm:px-6",
         className
       )}
       {...props}

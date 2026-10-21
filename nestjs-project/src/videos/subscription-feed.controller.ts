@@ -1,4 +1,5 @@
 import { Controller, Get, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -12,6 +13,7 @@ import { ApiErrorEnvelope } from '../common/openapi/api-error-envelope.dto';
 import { ListSubscriptionFeedDto } from './dto/list-videos.dto';
 import { SubscriptionFeedPage } from './dto/video-pages.dto';
 import { VideosListingService } from './videos-listing.service';
+import { LISTING_THROTTLE } from './videos.constants';
 
 const errorEnvelope = { $ref: getSchemaPath(ApiErrorEnvelope) };
 
@@ -25,6 +27,7 @@ export class SubscriptionFeedController {
   constructor(private readonly listing: VideosListingService) {}
 
   @Get('videos')
+  @Throttle(LISTING_THROTTLE)
   @ApiOperation({
     summary: 'Feed dos canais seguidos',
     description:
@@ -39,6 +42,11 @@ export class SubscriptionFeedController {
   @ApiResponse({
     status: 401,
     description: 'Token ausente, inválido ou expirado',
+  })
+  @ApiResponse({
+    status: 429,
+    description:
+      'Limite de 60 req/min por visitante excedido (home-search-production/TD-01)',
   })
   async feed(
     @CurrentUser() user: JwtPayload,

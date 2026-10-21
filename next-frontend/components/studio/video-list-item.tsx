@@ -56,7 +56,7 @@ type VideoListItemProps = Omit<React.ComponentProps<"li">, "children"> & {
 }
 
 /**
- * Figma "VideoList" row (158:3096): 256×144 thumbnail, title (one line, ellipsis), muted
+ * Figma "VideoList" row (158:3096): 256×144 thumbnail (full width, stacked, below `md`), title (one line, ellipsis), muted
  * description, metrics row with status, and a trailing actions slot; bottom border, 16px gaps.
  */
 function VideoListItem({ video, href, actions, now, className, ...props }: VideoListItemProps) {
@@ -67,10 +67,20 @@ function VideoListItem({ video, href, actions, now, className, ...props }: Video
     <li
       data-slot="video-list-item"
       data-status={badge.label.toLowerCase()}
-      className={cn("flex items-start gap-4 border-b border-border pb-4", className)}
+      className={cn(
+        // Below `md` the row stacks: full-width thumbnail, then details + actions side by side
+        // (home-search-production/TD-05, Revisions 2026-10-20).
+        "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-3 border-b border-border pb-4 md:flex md:gap-4",
+        className
+      )}
       {...props}
     >
-      <VideoThumbnail src={video.thumbnail_url} alt="" durationSeconds={video.duration_seconds} />
+      <VideoThumbnail
+        src={video.thumbnail_url}
+        alt=""
+        durationSeconds={video.duration_seconds}
+        className="col-span-2 w-full md:w-64"
+      />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         {href ? (
           <Link

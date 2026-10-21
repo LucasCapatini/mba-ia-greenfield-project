@@ -2,87 +2,78 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 
+import { cn } from "@/lib/utils"
+import { loginHref } from "@/lib/auth/return-to"
 import { BrandLogo } from "@/components/auth/brand-logo"
 import { SessionContext } from "@/components/auth/session-provider"
+import { AddIcon } from "@/components/icons/add-icon"
+import { MenuIcon } from "@/components/icons/menu-icon"
+import { AccountMenu } from "@/components/layout/account-menu"
+import { GlobalSearch } from "@/components/layout/global-search"
+import { useNavState } from "@/components/layout/nav-state-provider"
 import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import { IconButton, iconButtonVariants } from "@/components/ui/icon-button"
 
 /**
- * Minimal session-aware header for the application routes (per
- * saneamento-fase-02-e-infra/TD-05). Reads the session the RSC root layout
- * hydrated into the SessionProvider (phase-02-auth-frontend/TD-06) — no
- * round-trip. The full navbar of Phase 07 grows from here. Authenticated users
- * get the studio entry points (Phase 04, OQ-3 — per video-channel-management/TD-12).
+ * Figma TopNav (152:1827) shared by every app route (home-search-production/TD-05): "≡" (side menu
+ * expanded/mini on `lg+`, drawer below it and on the watch page), logo, global search (filled with
+ * the current `q` on `/results`) and — with a session — "+" (upload) and the avatar that opens the
+ * account menu; anonymous visitors get "Sign in" back to the current page. No microphone.
  */
 function AppHeader({ className, ...props }: React.ComponentProps<"header">) {
   const session = React.useContext(SessionContext)
-  const router = useRouter()
-  const [pending, setPending] = React.useState(false)
-
-  async function handleLogout() {
-    setPending(true)
-    try {
-      // BFF destroys the iron-session cookie unconditionally (204); then the
-      // RSC tree must re-render without a session (TD-06 → router.refresh()).
-      await fetch("/api/auth/logout", { method: "POST" })
-    } finally {
-      router.push("/")
-      router.refresh()
-      setPending(false)
-    }
-  }
+  const nav = useNavState()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const search = searchParams.toString()
+  const currentQuery = pathname === "/results" ? (searchParams.get("q") ?? "") : ""
+  const expanded = nav ? (nav.drawerOpen || nav.mode === "expanded") : false
 
   return (
     <header
       data-slot="app-header"
       data-session={session.isLoggedIn ? "authenticated" : "anonymous"}
       className={cn(
-        "flex w-full items-center justify-between gap-4 border-b border-border bg-background px-6 py-3",
+        "relative flex h-15 w-full items-center justify-between gap-4 border-b border-border bg-background px-4 sm:px-6",
         className
       )}
       {...props}
     >
-      <Link href="/" aria-label="StreamTube home" className="flex items-center">
-        <BrandLogo size="md" />
-      </Link>
+      <div className="flex shrink-0 items-center gap-4">
+        <IconButton aria-label="Menu" aria-expanded={expanded} onClick={nav?.toggle}>
+          <MenuIcon />
+        </IconButton>
+        <Link href="/" aria-label="StreamTube home" className="flex items-center">
+          <BrandLogo size="md" />
+        </Link>
+      </div>
 
-      <nav aria-label="Account" className="flex items-center gap-3">
+      <GlobalSearch
+        key={currentQuery}
+        initialQuery={currentQuery}
+        className="justify-end md:max-w-2xl md:flex-1 md:justify-center"
+      />
+
+      <div className="flex shrink-0 items-center gap-3">
         {session.isLoggedIn ? (
           <>
-            <span
-              data-slot="app-header-user"
-              className="text-label-md text-muted-foreground"
+            <Link
+              href="/studio/upload"
+              aria-label="Upload video"
+              className={cn(iconButtonVariants({ variant: "secondary" }))}
             >
-              {session.email}
-            </span>
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/studio/videos">Meus vídeos</Link>
-            </Button>
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/studio/channel">Meu canal</Link>
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleLogout}
-              disabled={pending}
-            >
-              {pending ? "Saindo…" : "Sair"}
-            </Button>
+              <AddIcon />
+            </Link>
+            <AccountMenu channelName={session.channelName} channelSlug={session.channelSlug} />
           </>
         ) : (
-          <>
-            <Button asChild size="sm">
-              <Link href="/login">Entrar</Link>
-            </Button>
-            <Button asChild size="sm">
-              <Link href="/signup">Criar conta</Link>
-            </Button>
-          </>
+          <Button asChild size="sm">
+            <Link href={loginHref(search ? `${pathname}?${search}` : pathname)}>Sign in</Link>
+          </Button>
         )}
-      </nav>
+      </div>
     </header>
   )
 }

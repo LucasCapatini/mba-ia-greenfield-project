@@ -68,7 +68,7 @@ function ChannelVideoSort({ className, ...props }: ChannelVideoSortProps) {
       aria-label="Sort videos"
       aria-busy={isPending || undefined}
       data-slot="channel-video-sort"
-      className={cn("flex items-start gap-4 pl-6", className)}
+      className={cn("flex items-start gap-4 overflow-x-auto px-4 sm:px-6 [&>*]:shrink-0", className)}
       {...props}
     >
       {CHANNEL_VIDEO_SORTS.map((option, index) => {

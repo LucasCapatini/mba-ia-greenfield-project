@@ -2,6 +2,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { NavStateProvider } from "@/components/layout/nav-state-provider";
+
 import { AppShell } from "../app-shell";
 
 describe("AppShell", () => {
@@ -37,5 +39,28 @@ describe("AppShell", () => {
     );
 
     expect(screen.getAllByRole("main")).toHaveLength(1);
+  });
+
+  it.each(["expanded", "mini"] as const)("reflects the %s mode of the navigation state", (mode) => {
+    const { container } = render(
+      <NavStateProvider initialMode={mode}>
+        <AppShell nav={<nav aria-label="Main">menu</nav>}>
+          <main>Page content</main>
+        </AppShell>
+      </NavStateProvider>,
+    );
+
+    expect(container.querySelector("[data-slot='app-shell']")).toHaveAttribute("data-mode", mode);
+    expect(container.querySelector("[data-slot='app-shell-nav']")).toHaveAttribute("data-mode", mode);
+  });
+
+  it("defaults to the expanded column outside the navigation state", () => {
+    const { container } = render(
+      <AppShell nav={<nav aria-label="Main">menu</nav>}>
+        <main>Page content</main>
+      </AppShell>,
+    );
+
+    expect(container.querySelector("[data-slot='app-shell-nav']")).toHaveAttribute("data-mode", "expanded");
   });
 });

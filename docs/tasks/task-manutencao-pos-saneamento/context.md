@@ -39,7 +39,7 @@ _No current-scope TDs._
 
 ### video-channel-management/TD-02
 
-**Recommendation:** é a extensão natural do eixo de publicação decidido em `phase-03-upload-processing/TD-07`, preserva a visibilidade ao despublicar e fornece a coluna de ordenação/tempo que o painel e TD-06 precisam. Regra de negócio a fixar junto: publicar exige `ready` + título; editar título/descrição/categoria/visibilidade é permitido em qualquer `processing_status`.
+**Recommendation:** é a extensão natural do eixo de publicação decidido em `phase-03-videos/TD-07`, preserva a visibilidade ao despublicar e fornece a coluna de ordenação/tempo que o painel e TD-06 precisam. Regra de negócio a fixar junto: publicar exige `ready` + título; editar título/descrição/categoria/visibilidade é permitido em qualquer `processing_status`.
 **Libraries:** —
 
 ### video-channel-management/TD-03
@@ -77,7 +77,7 @@ _No current-scope TDs._
 
 ### video-channel-management/TD-09
 
-**Recommendation:** reaproveita o padrão transacional "linha + job na mesma transação" de `phase-03-upload-processing/TD-11` e garante que os bytes sejam liberados sem bloquear a resposta nem espalhar um filtro `deleted_at` por todas as fases seguintes. Option B só compensa se o produto pedir lixeira.
+**Recommendation:** reaproveita o padrão transacional "linha + job na mesma transação" de `phase-03-videos/TD-11` e garante que os bytes sejam liberados sem bloquear a resposta nem espalhar um filtro `deleted_at` por todas as fases seguintes. Option B só compensa se o produto pedir lixeira.
 **Libraries:** —
 
 ### video-channel-management/TD-10

@@ -228,8 +228,9 @@ function VideoEditForm({
       className={cn("flex w-full flex-col gap-6", className)}
       {...props}
     >
-      <div className="flex w-full items-start gap-16">
-        <div className="flex min-w-0 flex-1 flex-col gap-4.5">
+      {/* Single column below `md`, the config card under the fields (home-search-production/TD-05). */}
+      <div className="flex w-full flex-col items-start gap-8 md:flex-row md:gap-16">
+        <div className="flex w-full min-w-0 flex-1 flex-col gap-4.5">
           <h2 className="text-h2 text-foreground">Details</h2>
 
           {errors.root?.serverError?.message ? (
@@ -277,7 +278,7 @@ function VideoEditForm({
             title="Thumbnail"
             description="Select or upload a picture that shows what's in your video."
           />
-          <div className="flex items-center gap-6">
+          <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6">
             <ThumbnailPreview
               src={video.thumbnail_url}
               alt={`Thumbnail of ${video.title}`}
@@ -352,14 +353,14 @@ function VideoEditForm({
         />
       </div>
 
-      <div className="flex w-full items-center justify-between gap-4 border-t border-border pt-4.5">
+      <div className="flex w-full flex-col items-stretch gap-4 border-t border-border pt-4.5 sm:flex-row sm:items-center sm:justify-between">
         <VideoChecksStatus
           processingStatus={video.processing_status}
           status={video.status}
           processingError={video.processing_error}
           publishedAt={video.published_at}
         />
-        <div className="flex items-center gap-6">
+        <div className="flex items-center justify-end gap-6">
           {cancelAction ?? (
             <Button type="button" variant="outline" onClick={cancel}>
               Cancel

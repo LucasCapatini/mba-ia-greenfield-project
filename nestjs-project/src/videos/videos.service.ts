@@ -84,7 +84,7 @@ function queueDatabaseFrom(manager: EntityManager): QueueDatabase {
   };
 }
 
-// Orquestra o ciclo de vida do upload (phase-03-upload-processing/TD-03, TD-07, TD-08, TD-12, TD-14).
+// Orquestra o ciclo de vida do upload (phase-03-videos/TD-03, TD-07, TD-08, TD-12, TD-14).
 // Nenhum byte de vídeo passa por aqui: só metadados, sessão multipart e jobs.
 @Injectable()
 export class VideosService {

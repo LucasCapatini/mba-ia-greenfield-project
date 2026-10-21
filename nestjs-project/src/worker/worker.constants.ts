@@ -1,4 +1,4 @@
-// Parâmetros do processamento de vídeo (phase-03-upload-processing/TD-06, TD-13).
+// Parâmetros do processamento de vídeo (phase-03-videos/TD-06, TD-13).
 
 /** `ffprobe` lê só os cabeçalhos pela URL assinada; 60 s cobre arquivos grandes em storage lento. */
 export const FFPROBE_TIMEOUT_MS = 60_000;

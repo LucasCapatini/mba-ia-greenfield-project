@@ -1,4 +1,4 @@
-// Tokens dos dois clientes S3 (phase-03-upload-processing/TD-02):
+// Tokens dos dois clientes S3 (phase-03-videos/TD-02):
 // - INTERNAL: chamadas da API/worker ao storage pelo host interno (S3_ENDPOINT).
 // - PUBLIC: usado SOMENTE para assinar URLs que o navegador consome (S3_PUBLIC_ENDPOINT);
 //   a assinatura SigV4 inclui o host, então o cliente que assina precisa apontar para o host

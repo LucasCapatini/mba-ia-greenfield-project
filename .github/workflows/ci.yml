@@ -1,0 +1,202 @@
+# Quality gates of the Definition of Done in CI (home-search-production/TD-07): lint, tsc, unit +
+# integration and e2e of each subproject — inside the same Docker Compose containers used in dev —
+# and, before main, the full-stack journeys against both real stacks (TD-06). openapi-freshness.yml
+# stays a separate check. Required status checks on main: backend, frontend, full-stack,
+# openapi-freshness (configured by the repository owner — see the root CLAUDE.md).
+name: ci
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev]
+  # deploy.yml calls this workflow before publishing images (push to main).
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: nestjs-project
+    steps:
+      - uses: actions/checkout@v7
+
+      # The checkout belongs to the runner user (uid 1001) and the containers run as `node` (uid
+      # 1000): let them write the bind mount (dist/, lint --fix, test fixtures).
+      - name: Workspace writable by the containers
+        run: chmod -R a+rwX .
+
+      - name: Environment
+        run: cp .env.example .env
+
+      - name: Start the backend stack
+        run: docker compose up -d --wait db mailpit rustfs && docker compose up -d
+
+      - name: Install dependencies
+        run: docker compose exec -T nestjs-api npm ci
+
+      - name: Migrations
+        run: docker compose exec -T nestjs-api npm run migration:run
+
+      - name: Lint
+        run: docker compose exec -T nestjs-api npx eslint "{src,apps,libs,test}/**/*.ts" --max-warnings 0
+
+      - name: Type-check
+        run: docker compose exec -T nestjs-api npx tsc --noEmit
+
+      - name: Unit + integration
+        run: docker compose exec -T nestjs-api npm test -- --runInBand
+
+      - name: E2E
+        run: docker compose exec -T nestjs-api npm run test:e2e
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail 200
+
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: next-frontend
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Workspace writable by the container
+        run: chmod -R a+rwX .
+
+      # The frontend stack joins the `streamtube` network created by the backend stack; without the
+      # backend, create it with the same fixed subnet (watch-page/TD-03).
+      - name: Shared network
+        run: docker network create --subnet 172.30.0.0/24 --ip-range 172.30.0.128/25 --gateway 172.30.0.1 streamtube
+
+      - name: Environment
+        run: cp .env.example .env.local
+
+      - name: Start the frontend container
+        run: docker compose up -d
+
+      - name: Install dependencies
+        run: docker compose exec -T next-frontend npm ci
+
+      - name: Lint
+        run: docker compose exec -T next-frontend npm run lint
+
+      - name: Type-check
+        run: docker compose exec -T next-frontend npx tsc --noEmit
+
+      - name: Unit + integration (Vitest + MSW)
+        run: docker compose exec -T next-frontend npm test
+
+      - name: Production build served with server-side MSW
+        run: |
+          docker compose exec -T next-frontend npm run build
+          docker compose exec -d next-frontend sh -c "MSW_ENABLED=true npm run start"
+          curl --retry 30 --retry-delay 2 --retry-all-errors -fsS -o /dev/null http://localhost:3001
+
+      # Playwright is the documented host-side exception (next-frontend/CLAUDE.md).
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: next-frontend/package-lock.json
+
+      - name: Playwright (chromium + mobile)
+        # The compose overlays a named volume on node_modules; Docker created that mount point on the
+        # host as root, so hand it back to the runner user before the host-side install.
+        run: |
+          [ -d node_modules ] && sudo chown "$(id -u):$(id -g)" node_modules
+          npm ci
+          npx playwright install --with-deps chromium
+          npx playwright test
+
+      - name: Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: next-frontend/playwright-report
+          retention-days: 7
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail 200
+
+  full-stack:
+    name: full-stack
+    # Before main only: pull requests to main and pushes to dev (and the deploy gate).
+    if: github.event_name != 'pull_request' || github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Workspace writable by the containers
+        run: chmod -R a+rwX nestjs-project next-frontend
+
+      - name: Environments
+        run: |
+          cp nestjs-project/.env.example nestjs-project/.env
+          cp next-frontend/.env.example next-frontend/.env.local
+
+      - name: Backend stack (API dev server + video worker)
+        working-directory: nestjs-project
+        run: |
+          docker compose up -d --wait db mailpit rustfs
+          docker compose up -d
+          docker compose exec -T nestjs-api npm ci
+          docker compose exec -T nestjs-api npm run migration:run
+          docker compose exec -d nestjs-api npm run start:dev
+          docker compose restart video-worker
+          curl --retry 60 --retry-delay 2 --retry-all-errors -fsS -o /dev/null http://localhost:3000/categories
+
+      - name: Frontend production build WITHOUT MSW
+        working-directory: next-frontend
+        run: |
+          docker compose up -d
+          docker compose exec -T next-frontend npm ci
+          docker compose exec -T next-frontend npm run build
+          docker compose exec -d next-frontend npm run start
+          curl --retry 30 --retry-delay 2 --retry-all-errors -fsS -o /dev/null http://localhost:3001
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: next-frontend/package-lock.json
+
+      - name: Full-stack journeys + smoke
+        working-directory: next-frontend
+        # The compose overlays a named volume on node_modules; Docker created that mount point on the
+        # host as root, so hand it back to the runner user before the host-side install.
+        run: |
+          [ -d node_modules ] && sudo chown "$(id -u):$(id -g)" node_modules
+          npm ci
+          npx playwright install --with-deps chromium
+          npx playwright test -c playwright.full-stack.config.ts
+
+      - name: Full-stack report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-full-stack
+          path: next-frontend/playwright-report-full-stack
+          retention-days: 7
+
+      - name: Logs on failure
+        if: failure()
+        run: |
+          docker compose -f nestjs-project/compose.yaml logs --no-color --tail 200
+          docker compose -f next-frontend/compose.yaml logs --no-color --tail 100

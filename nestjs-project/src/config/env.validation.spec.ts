@@ -173,3 +173,43 @@ describe('envValidationSchema — TRUST_PROXY (watch-page/TD-03)', () => {
     expect(error?.details[0].path).toEqual(['TRUST_PROXY']);
   });
 });
+
+describe('envValidationSchema — authenticated SMTP (MAIL_USER / MAIL_PASSWORD / MAIL_SECURE)', () => {
+  it('accepts neither credential (Mailpit) and defaults MAIL_SECURE to false', () => {
+    const result = validate(validEnv);
+
+    expect(result.error).toBeUndefined();
+    expect(result.value).toMatchObject({ MAIL_SECURE: 'false' });
+  });
+
+  it('accepts both credentials with MAIL_SECURE=true', () => {
+    const result = validate({
+      ...validEnv,
+      MAIL_USER: 'apikey',
+      MAIL_PASSWORD: 'secret',
+      MAIL_SECURE: 'true',
+    });
+
+    expect(result.error).toBeUndefined();
+  });
+
+  it('rejects MAIL_USER without MAIL_PASSWORD, naming the missing key', () => {
+    const { error } = validate({ ...validEnv, MAIL_USER: 'apikey' });
+
+    expect(error).toBeDefined();
+    expect(error?.message).toContain('MAIL_PASSWORD');
+  });
+
+  it('rejects MAIL_PASSWORD without MAIL_USER, naming the missing key', () => {
+    const { error } = validate({ ...validEnv, MAIL_PASSWORD: 'secret' });
+
+    expect(error).toBeDefined();
+    expect(error?.message).toContain('MAIL_USER');
+  });
+
+  it('accepts only true/false for MAIL_SECURE', () => {
+    const { error } = validate({ ...validEnv, MAIL_SECURE: 'yes' });
+
+    expect(error?.details[0].path).toEqual(['MAIL_SECURE']);
+  });
+});

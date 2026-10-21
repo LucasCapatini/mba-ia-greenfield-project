@@ -10,7 +10,7 @@ target_file: tests/subscriptions-feed.e2e-spec.ts
 
 ## Application Overview
 
-`/feed/subscriptions` é a área de acesso rápido aos vídeos dos canais seguidos (`social-interactions/TD-08`): página autenticada (o `proxy.ts` redireciona o anônimo para `/login?returnTo=/feed/subscriptions`), lida no RSC via `GET /me/subscriptions/videos` com o `Bearer` da sessão, com o grid do frame Home (cards com avatar e nome do canal), "Load more" por `cursor` em `searchParams` (scroll infinito fica para a Fase 07) e estado vazio com link para a home. A página vive no grupo `(shell)`, então o item "Subscriptions" do menu lateral fica ativo.
+`/feed/subscriptions` é a área de acesso rápido aos vídeos dos canais seguidos (`social-interactions/TD-08`): página autenticada (o `proxy.ts` redireciona o anônimo para `/login?returnTo=/feed/subscriptions`), lida no RSC via `GET /me/subscriptions/videos` com o `Bearer` da sessão, com o grid do frame Home (cards com avatar e nome do canal), scroll infinito via `GET /api/me/subscriptions/videos` (`home-search-production/TD-04`; "Load more" como fallback de teclado) e estado vazio com link para a home. A página vive no grupo `(shell)`, então o item "Subscriptions" do menu lateral fica ativo.
 
 **Atenção para o implementador (fixtures — SI-06.9):** o handler de `GET /me/subscriptions/videos` monta o feed a partir das inscrições do store (o usuário `studio_canal` segue `tech_mastery`, que tem 24 vídeos públicos — página de 20 + 4) por `published_at` decrescente; desinscrever-se de `tech_mastery` pela página do canal deixa o feed vazio. Imagens em `http://localhost:9000/**` atendidas por `page.route` com PNG; nunca interceptar `/api/**`.
 
@@ -51,13 +51,13 @@ target_file: tests/subscriptions-feed.e2e-spec.ts
 #### 2.2. load-more-appends-and-disappears
 
 **Covers AC:** #3
-**Source:** auto
+**Source:** manual
 **Last sync:** 2026-10-20T04:50:00Z
 
 **Steps:**
-  1. Usuário logado em `/feed/subscriptions` clica em "Load more"
-    - expect: o grid passa a 24 cards, sem repetidos
-    - expect: o botão "Load more" some
+  1. Usuário logado em `/feed/subscriptions` rola até o sentinela abaixo do grid (scroll infinito — `home-search-production/TD-04`)
+    - expect: o grid passa a 24 cards, sem repetidos, sem trocar a URL
+    - expect: o sentinela some quando não há mais páginas
 
 #### 2.3. empty-state-without-subscriptions
 

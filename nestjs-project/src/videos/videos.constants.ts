@@ -1,4 +1,4 @@
-// Estados e códigos do domínio de vídeo (phase-03-upload-processing/TD-07, TD-11, TD-12, TD-14).
+// Estados e códigos do domínio de vídeo (phase-03-videos/TD-07, TD-11, TD-12, TD-14).
 // Os valores são o contrato exposto pela API (`### Data Model` do plano da fase).
 
 /** Eixo de publicação (video-channel-management/TD-02): `draft → published` exige `ready` + título. */
@@ -52,6 +52,19 @@ export const VIDEO_ERROR_CODES = {
 
 /** Limite do título (`videos.title` varchar(100)). */
 export const VIDEO_TITLE_MAX_LENGTH = 100;
+
+/**
+ * Throttle próprio das listagens públicas que o scroll infinito pagina — `GET /videos`,
+ * `GET /channels/{nickname}/videos` e `GET /me/subscriptions/videos`: 60 req/min por visitante
+ * (home-search-production/TD-01). O limite global de 10/min por rota esgota com poucas páginas.
+ */
+export const LISTING_THROTTLE = {
+  default: { limit: 60, ttl: 60_000 },
+} as const;
+
+/** Busca da home (`GET /videos?q=`, home-search-production/TD-02): tamanho do termo após `trim`. */
+export const SEARCH_QUERY_MIN_LENGTH = 2;
+export const SEARCH_QUERY_MAX_LENGTH = 100;
 
 /** Sugestões da watch page (`GET /videos/{publicId}/related`, watch-page/TD-04): padrão e teto de `limit`. */
 export const RELATED_VIDEOS_DEFAULT_LIMIT = 12;

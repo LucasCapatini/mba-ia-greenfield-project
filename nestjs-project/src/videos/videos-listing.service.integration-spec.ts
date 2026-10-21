@@ -10,9 +10,11 @@ import { User } from '../users/entities/user.entity';
 import {
   ListChannelVideosDto,
   ListOwnerVideosDto,
+  ListPublicVideosDto,
 } from './dto/list-videos.dto';
 import { Video } from './entities/video.entity';
 import { VideosListingService } from './videos-listing.service';
+import { CategorySlugNotFoundException } from './videos.exceptions';
 import type { VideosService } from './videos.service';
 
 type Seed = Partial<
@@ -594,6 +596,213 @@ describe('VideosListingService (integration)', () => {
       await expect(
         service.listSubscriptionFeed(loner, { limit: 20 }),
       ).resolves.toEqual({ items: [], next_cursor: null });
+    });
+  });
+
+  describe('listPublic (Fase 07 — home-search-production/TD-01, TD-02, TD-03)', () => {
+    function publicQuery(
+      overrides: Partial<ListPublicVideosDto> = {},
+    ): ListPublicVideosDto {
+      return Object.assign(new ListPublicVideosDto(), overrides);
+    }
+
+    async function channelNamed(
+      name: string,
+      nickname: string,
+    ): Promise<Channel> {
+      const owner = await dataSource.getRepository(User).save(
+        dataSource.getRepository(User).create({
+          email: `${nickname}@example.com`,
+          password: 'hashed',
+        }),
+      );
+      return dataSource
+        .getRepository(Channel)
+        .save(
+          dataSource
+            .getRepository(Channel)
+            .create({ name, nickname, user_id: owner.id }),
+        );
+    }
+
+    async function titlesOf(query: ListPublicVideosDto): Promise<string[]> {
+      const page = await service.listPublic(query);
+      return page.items.map((item) => item.title);
+    }
+
+    it('should list only published + public + ready videos of every channel, newest first, across pages', async () => {
+      const other = await channelNamed('Other', 'other_chan');
+      const published = Array.from({ length: 22 }, (_, i) => ({
+        title: `p${i + 1}`,
+        status: 'published' as const,
+        published_at: minutes(i + 1),
+      }));
+      await seed(published.slice(0, 11));
+      await seed(published.slice(11), other.id);
+      await seed([
+        { title: 'draft', status: 'draft' },
+        {
+          title: 'unlisted',
+          status: 'published',
+          visibility: 'unlisted',
+          published_at: minutes(90),
+        },
+        {
+          title: 'processing',
+          status: 'published',
+          processing_status: 'processing',
+          published_at: minutes(91),
+        },
+        {
+          title: 'failed',
+          status: 'published',
+          processing_status: 'failed',
+          published_at: minutes(92),
+        },
+      ]);
+
+      const first = await service.listPublic(publicQuery());
+      expect(first.items.map((item) => item.title)).toEqual(
+        Array.from({ length: 20 }, (_, i) => `p${22 - i}`),
+      );
+      expect(first.items[0].channel).toEqual({
+        nickname: 'other_chan',
+        name: 'Other',
+      });
+      expect(first.next_cursor).toEqual(expect.any(String));
+
+      const second = await service.listPublic(
+        publicQuery({ cursor: first.next_cursor! }),
+      );
+      expect(second.items.map((item) => item.title)).toEqual(['p2', 'p1']);
+      expect(second.next_cursor).toBeNull();
+    });
+
+    it('should filter by category slug and reject an unknown slug', async () => {
+      await seed([
+        {
+          title: 'm1',
+          status: 'published',
+          published_at: minutes(1),
+          category_id: music,
+        },
+        {
+          title: 'g1',
+          status: 'published',
+          published_at: minutes(2),
+          category_id: gaming,
+        },
+        {
+          title: 'm2',
+          status: 'published',
+          published_at: minutes(3),
+          category_id: music,
+        },
+        { title: 'none', status: 'published', published_at: minutes(4) },
+      ]);
+
+      await expect(
+        titlesOf(publicQuery({ category: 'music' })),
+      ).resolves.toEqual(['m2', 'm1']);
+      await expect(
+        service.listPublic(publicQuery({ category: 'inexistente' })),
+      ).rejects.toThrow(CategorySlugNotFoundException);
+    });
+
+    it('should match the title or the channel name/nickname by substring, ignoring accents and case', async () => {
+      const rock = await channelNamed('Rock Club', 'rock_club');
+      const bia = await channelNamed('Músicas do Bia', 'bia_som');
+      await seed(
+        [
+          {
+            title: 'Música ao vivo',
+            status: 'published',
+            published_at: minutes(1),
+          },
+        ],
+        rock.id,
+      );
+      await seed(
+        [
+          { title: 'Show 1', status: 'published', published_at: minutes(2) },
+          { title: 'Show 2', status: 'published', published_at: minutes(3) },
+        ],
+        bia.id,
+      );
+      await seed([
+        {
+          title: 'Aula de cálculo',
+          status: 'published',
+          published_at: minutes(4),
+        },
+      ]);
+
+      await expect(titlesOf(publicQuery({ q: 'musica' }))).resolves.toEqual([
+        'Show 2',
+        'Show 1',
+        'Música ao vivo',
+      ]);
+      await expect(titlesOf(publicQuery({ q: 'MÚSICA' }))).resolves.toEqual([
+        'Show 2',
+        'Show 1',
+        'Música ao vivo',
+      ]);
+      await expect(titlesOf(publicQuery({ q: 'bia_som' }))).resolves.toEqual([
+        'Show 2',
+        'Show 1',
+      ]);
+      await expect(titlesOf(publicQuery({ q: 'calc' }))).resolves.toEqual([
+        'Aula de cálculo',
+      ]);
+    });
+
+    it('should treat % and _ in the term as literal characters', async () => {
+      await seed([
+        {
+          title: 'Desconto de 100% hoje',
+          status: 'published',
+          published_at: minutes(1),
+        },
+        { title: '100 vídeos', status: 'published', published_at: minutes(2) },
+        {
+          title: 'Tutorial_avancado',
+          status: 'published',
+          published_at: minutes(3),
+        },
+        {
+          title: 'Tutorialxavancado',
+          status: 'published',
+          published_at: minutes(4),
+        },
+      ]);
+
+      await expect(titlesOf(publicQuery({ q: '100%' }))).resolves.toEqual([
+        'Desconto de 100% hoje',
+      ]);
+      await expect(titlesOf(publicQuery({ q: 'l_a' }))).resolves.toEqual([
+        'Tutorial_avancado',
+      ]);
+    });
+
+    it('should combine the search term with the category filter', async () => {
+      await seed([
+        {
+          title: 'Música ao vivo',
+          status: 'published',
+          published_at: minutes(1),
+          category_id: music,
+        },
+        {
+          title: 'Música de jogo',
+          status: 'published',
+          published_at: minutes(2),
+          category_id: gaming,
+        },
+      ]);
+
+      await expect(
+        titlesOf(publicQuery({ q: 'musica', category: 'music' })),
+      ).resolves.toEqual(['Música ao vivo']);
     });
   });
 });

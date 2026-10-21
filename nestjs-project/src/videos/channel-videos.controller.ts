@@ -1,4 +1,5 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -19,6 +20,7 @@ import {
 } from './dto/list-videos.dto';
 import { ChannelVideosPage, OwnerVideosPage } from './dto/video-pages.dto';
 import { VideosListingService } from './videos-listing.service';
+import { LISTING_THROTTLE } from './videos.constants';
 
 const errorEnvelope = { $ref: getSchemaPath(ApiErrorEnvelope) };
 
@@ -69,6 +71,7 @@ export class ChannelVideosController {
 
   @Public()
   @Get(':nickname/videos')
+  @Throttle(LISTING_THROTTLE)
   @ApiOperation({
     summary: 'Vídeos públicos do canal',
     description:
@@ -94,6 +97,11 @@ export class ChannelVideosController {
     status: 404,
     description: 'CHANNEL_NOT_FOUND',
     schema: errorEnvelope,
+  })
+  @ApiResponse({
+    status: 429,
+    description:
+      'Too Many Requests — limite de 60 req/min por visitante (scroll infinito)',
   })
   async listChannelVideos(
     @Param('nickname') nickname: string,

@@ -1,22 +1,26 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, type SelectQueryBuilder } from 'typeorm';
+import { Brackets, DataSource, type SelectQueryBuilder } from 'typeorm';
+import { Category } from '../categories/entities/category.entity';
 import type { Channel } from '../channels/entities/channel.entity';
 import { decodeCursor, encodeCursor } from '../common/pagination/cursor';
 import type {
   ChannelVideoSort,
   ListChannelVideosDto,
   ListOwnerVideosDto,
+  ListPublicVideosDto,
   OwnerVideoSort,
 } from './dto/list-videos.dto';
 import { Subscription } from '../subscriptions/entities/subscription.entity';
 import type {
   ChannelVideosPage,
   OwnerVideosPage,
+  PublicVideosPage,
   RelatedVideosResponse,
   SubscriptionFeedPage,
 } from './dto/video-pages.dto';
 import type { VideoCardItem, VideoListItem } from './dto/video-response.dto';
 import { Video } from './entities/video.entity';
+import { CategorySlugNotFoundException } from './videos.exceptions';
 import { VideosService } from './videos.service';
 
 type SortColumn = 'created_at' | 'published_at' | 'view_count';
@@ -125,6 +129,64 @@ export class VideosListingService {
     );
     return {
       items: videos.map((video) => this.toCardItem(video, channel)),
+      next_cursor: nextCursor,
+    };
+  }
+
+  /**
+   * Home e busca (home-search-production/TD-01, TD-02, TD-03): vídeos `published` + `public` +
+   * `ready` de todos os canais — unlisted e rascunhos nunca aparecem, nem para o dono —, do mais
+   * recente ao mais antigo em keyset `latest`. `category` filtra pelo slug (sem correspondência →
+   * 404); `q` casa por substring, sem acento nem caixa, o título ou o nome/nickname do canal, com
+   * a mesma expressão dos índices de trigramas da migration `AddVideoSearch`.
+   */
+  async listPublic(query: ListPublicVideosDto): Promise<PublicVideosPage> {
+    const qb = this.videos()
+      .innerJoinAndSelect('video.channel', 'channel')
+      .where("video.status = 'published'")
+      .andWhere("video.visibility = 'public'")
+      .andWhere("video.processing_status = 'ready'")
+      .andWhere('video.published_at IS NOT NULL');
+
+    if (query.category !== undefined) {
+      const category = await this.dataSource
+        .getRepository(Category)
+        .findOne({ where: { slug: query.category } });
+      if (!category) {
+        throw new CategorySlugNotFoundException(query.category);
+      }
+      qb.andWhere('video.category_id = :categoryId', {
+        categoryId: category.id,
+      });
+    }
+
+    if (query.q !== undefined) {
+      const pattern = 'public.immutable_unaccent(lower(:q))';
+      qb.andWhere(
+        new Brackets((match) => {
+          match
+            .where(
+              `public.immutable_unaccent(lower(video.title)) LIKE ${pattern}`,
+            )
+            .orWhere(
+              `public.immutable_unaccent(lower(channel.name)) LIKE ${pattern}`,
+            )
+            .orWhere(
+              `public.immutable_unaccent(lower(channel.nickname)) LIKE ${pattern}`,
+            );
+        }),
+        { q: `%${escapeLike(query.q)}%` },
+      );
+    }
+
+    const { videos, nextCursor } = await this.page(
+      qb,
+      'latest',
+      CHANNEL_SORTS.latest,
+      query,
+    );
+    return {
+      items: videos.map((video) => this.toCardItem(video, video.channel)),
       next_cursor: nextCursor,
     };
   }

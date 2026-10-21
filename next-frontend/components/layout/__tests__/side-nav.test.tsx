@@ -59,4 +59,49 @@ describe("SideNav", () => {
     expect(screen.queryByRole("region", { name: "Subscriptions list" })).not.toBeInTheDocument();
     expect(container.querySelectorAll("[data-slot='separator']")).toHaveLength(1);
   });
+
+  it("in mini mode renders only the main items, without the You and Subscriptions sections", () => {
+    const { container } = render(
+      <SideNav
+        mode="mini"
+        mainItems={<SideNavItem href="/" label="Home" icon={icon} layout="column" />}
+        youItems={<SideNavItem href="/studio/videos" label="Your videos" icon={icon} />}
+        subscriptions={<section aria-label="Subscriptions list">channels</section>}
+      />,
+    );
+
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    expect(nav).toHaveAttribute("data-mode", "mini");
+    expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual(["Home"]);
+    expect(screen.queryByRole("region", { name: "You" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Subscriptions list" })).not.toBeInTheDocument();
+    expect(container.querySelectorAll("[data-slot='separator']")).toHaveLength(0);
+  });
+
+  it("in drawer mode renders the full sections, like the expanded column", () => {
+    render(
+      <SideNav
+        mode="drawer"
+        mainItems={<SideNavItem href="/" label="Home" icon={icon} />}
+        youItems={<SideNavItem href="/studio/videos" label="Your videos" icon={icon} />}
+        subscriptions={<section aria-label="Subscriptions list">channels</section>}
+      />,
+    );
+
+    expect(screen.getByRole("navigation", { name: "Main" })).toHaveAttribute("data-mode", "drawer");
+    expect(screen.getByRole("region", { name: "You" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Subscriptions list" })).toBeInTheDocument();
+  });
+
+  it("renders the anonymous invitation instead of the You section", () => {
+    render(
+      <SideNav
+        mainItems={<SideNavItem href="/" label="Home" icon={icon} />}
+        invite={<section aria-label="Sign in">Sign in to see your subscriptions</section>}
+      />,
+    );
+
+    expect(screen.getByRole("region", { name: "Sign in" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "You" })).not.toBeInTheDocument();
+  });
 });

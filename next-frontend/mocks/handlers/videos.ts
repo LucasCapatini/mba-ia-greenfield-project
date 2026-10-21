@@ -8,6 +8,8 @@ import {
   FIXTURE_NOW,
   STORAGE_BUCKET,
   STORAGE_PUBLIC_ORIGIN,
+  buildRockClubCard,
+  buildTechMasteryCards,
   buildUnprocessedVideo,
   thumbnailUrl,
   toVideoCardItem,
@@ -20,7 +22,7 @@ import {
   type UploadEntry,
   type VideoEntry,
 } from "../store";
-import { apiError, requireBearer } from "./_http";
+import { apiError, decodeCursor, paginate, parseLimit, requireBearer } from "./_http";
 import {
   channelView,
   invalidReaction,
@@ -53,7 +55,17 @@ type UploadCompletedOk =
 type ReactionStateOk =
   paths["/videos/{publicId}/reaction"]["put"]["responses"][200]["content"]["application/json"];
 
+type PublicVideosOk =
+  paths["/videos"]["get"]["responses"][200]["content"]["application/json"];
+type VideoCardItem = PublicVideosOk["items"][number];
+
 type VideoParams = { publicId: string };
+
+// `GET /videos`: 500 na primeira página da home (spec `home`). Qualquer outro slug fora de
+// `CATEGORIES` responde 404 CATEGORY_NOT_FOUND, como o backend (`unknown-category` nos specs).
+const UPSTREAM_ERROR_CATEGORY = "upstream-error";
+const SEARCH_MIN = 2;
+const SEARCH_MAX = 100;
 
 // Reserved trigger table (shared with E2E — trigger values must not collide across test suites).
 // `processing-id` vive no store (oculto da listagem) e nunca sai de `processing`.
@@ -240,7 +252,76 @@ function bumpThumbnail(entry: VideoEntry, custom: boolean): void {
   };
 }
 
+/** Termo de `GET /videos?q=`: sem acento nem caixa, como o `immutable_unaccent(lower())` do backend. */
+function fold(text: string): string {
+  return text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+}
+
+type CatalogEntry = { card: VideoCardItem; category: string | null };
+
+/**
+ * Catálogo da listagem pública (`GET /videos`, home-search-production/TD-01): os vídeos do store
+ * `published` + `public` + `ready` fora da listagem oculta, os 24 de `tech_mastery` (categoria
+ * `technology`) e "Música ao vivo" do canal `rock_club` (busca sem acento), do mais recente ao
+ * mais antigo. Recalculado a cada leitura: edições do estúdio aparecem na home.
+ */
+function publicCatalog(): CatalogEntry[] {
+  const { channel, videos } = studioStore();
+  const own = [...videos.values()]
+    .filter(
+      (entry) =>
+        !entry.hidden &&
+        entry.video.status === "published" &&
+        entry.video.visibility === "public" &&
+        entry.video.processing_status === "ready",
+    )
+    .map((entry) => ({
+      card: toVideoCardItem(entry.video, channel),
+      category: entry.video.category?.slug ?? null,
+    }));
+  const tech = buildTechMasteryCards().map((card) => ({ card, category: "technology" }));
+  const extra = { card: buildRockClubCard(), category: "music" };
+  return [...own, ...tech, extra].sort((a, b) =>
+    (b.card.published_at ?? "").localeCompare(a.card.published_at ?? "")
+  );
+}
+
 export const handlers = [
+  // GET /videos — listagem pública da home e da busca (home-search-production/TD-01, TD-02, TD-03)
+  http.get(`${env.API_URL}/videos`, ({ request }) => {
+    const query = new URL(request.url).searchParams;
+    const category = query.get("category");
+    if (category === UPSTREAM_ERROR_CATEGORY) {
+      return apiError(500, "INTERNAL_SERVER_ERROR", "Internal server error");
+    }
+    if (category !== null && !CATEGORIES.some((item) => item.slug === category)) {
+      return apiError(404, "CATEGORY_NOT_FOUND", `Category "${category}" does not exist`);
+    }
+    const rawTerm = query.get("q");
+    const term = rawTerm === null ? null : rawTerm.trim();
+    const limit = parseLimit(query.get("limit"));
+    const offset = decodeCursor(query.get("cursor"));
+    if (
+      limit === null ||
+      offset === null ||
+      (term !== null && (term.length < SEARCH_MIN || term.length > SEARCH_MAX))
+    ) {
+      return apiError(400, "VALIDATION_ERROR", "Invalid query parameters");
+    }
+    const needle = term === null ? null : fold(term);
+    const cards = publicCatalog()
+      .filter((entry) => category === null || entry.category === category)
+      .filter(
+        ({ card }) =>
+          needle === null ||
+          [card.title, card.channel.name, card.channel.nickname].some((text) =>
+            fold(text).includes(needle)
+          )
+      )
+      .map((entry) => entry.card);
+    return HttpResponse.json<PublicVideosOk>(paginate(cards, offset, limit));
+  }),
+
   // POST /videos — cria o rascunho e a sessão multipart (sempre `new-upload-id`)
   http.post(`${env.API_URL}/videos`, async ({ request }) => {
     const unauthorized = requireBearer(request);

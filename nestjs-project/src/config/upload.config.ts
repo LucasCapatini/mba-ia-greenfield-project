@@ -3,7 +3,7 @@ import { registerAs } from '@nestjs/config';
 const MIB = 1024 * 1024;
 const GIB = 1024 * MIB;
 
-// Política de upload/playback — phase-03-upload-processing/TD-03, TD-09, TD-12.
+// Política de upload/playback — phase-03-videos/TD-03, TD-09, TD-12.
 // Tamanhos em bytes; TTLs em segundos. `partSize` mínimo de 5 MiB é limite do S3
 // (validado no schema Joi); os testes o reduzem para provar multipart sem 10 GiB.
 export default registerAs('upload', () => ({

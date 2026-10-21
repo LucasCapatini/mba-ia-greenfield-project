@@ -21,6 +21,7 @@ const authedSession: SessionState = {
   userId: "user-1",
   email: "alice@example.com",
   channelSlug: "alice",
+  channelName: "Alice",
   isLoggedIn: true,
 };
 
@@ -39,7 +40,7 @@ describe("SessionProvider", () => {
   it("exposes an unauthenticated state when isLoggedIn=false", () => {
     render(
       <SessionProvider
-        initialSession={{ userId: "", email: "", channelSlug: "", isLoggedIn: false }}
+        initialSession={{ userId: "", email: "", channelSlug: "", channelName: "", isLoggedIn: false }}
       >
         <SessionDisplay />
       </SessionProvider>

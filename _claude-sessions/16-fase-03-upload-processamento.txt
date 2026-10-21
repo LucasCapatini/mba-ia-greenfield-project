@@ -337,7 +337,7 @@ Vou pesquisar as decisões técnicas da fase 03 (upload/processamento). Começo 
     cd /c/Users/lucas/source/repos/mba-ia-greenfield-project && git show --stat 64b638c | head -40 && echo ---- && ls _claude-sessions | tail -5 && echo ---- && cat docs/diagrams/software-arch.mermaid && echo ---- && cat nestjs-project/package.json && echo ---- && cat next-frontend/package.json && echo ---- && ls nestjs-project/src nestjs-project/src/* && echo ---- && cat nestjs-project/compose.yaml && echo ---- && cat nestjs-project/.env.example
   ⎿ [Bash → resultado]
       commit 64b638c9a877c15ba8edd7dc08195f071dbcb01f
-      Author: Lucas Capatini Ernandes <lucascapatini@gmail.com>
+      Author: [nome do usuário] <[e-mail do usuário]>
       Date:   Sun Oct 18 13:30:56 2026 -0400
       
           sessao 15: planejamento da fase 03 e task dx-volumes-e-jest

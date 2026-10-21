@@ -1384,7 +1384,7 @@ Feed das inscrições: vídeos dos canais seguidos com `status = published`, `vi
 
 #### Validation Rules — interações sociais
 
-- `publicId` (path): string de 11 caracteres base64url (`phase-03-upload-processing/TD-08`); formato inválido → 404 `VIDEO_NOT_FOUND`
+- `publicId` (path): string de 11 caracteres base64url (`phase-03-videos/TD-08`); formato inválido → 404 `VIDEO_NOT_FOUND`
 - `commentId` (path): uuid; formato inválido → 404 `COMMENT_NOT_FOUND`
 - `nickname` (path): formato inválido → 404 `CHANNEL_NOT_FOUND` (mesmo comportamento das rotas da Fase 04)
 - `value` (`SetReactionDto`): required, enum `like` | `dislike`

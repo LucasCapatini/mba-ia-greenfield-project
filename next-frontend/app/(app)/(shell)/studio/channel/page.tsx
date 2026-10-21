@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 
 import { upstream } from "@/lib/api/upstream"
+import { clientHeaders } from "@/lib/api/client-headers"
 import { getSession } from "@/lib/auth/session"
 import { ChannelHeaderCard } from "@/components/channel/channel-header-card"
 import { ChannelSettingsForm } from "@/components/channel/channel-settings-form"
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
 export default async function ChannelSettingsPage() {
   const session = await getSession()
   const { data: channel, response } = await upstream.GET("/channels/me", {
-    headers: { Authorization: `Bearer ${session.accessToken}` },
+    headers: { ...(await clientHeaders()), Authorization: `Bearer ${session.accessToken}` },
   })
   if (response.status === 401) {
     redirect("/login?returnTo=/studio/channel")
@@ -25,7 +26,7 @@ export default async function ChannelSettingsPage() {
   }
 
   return (
-    <main className="flex w-full flex-col gap-6 px-6 pt-8 pb-6">
+    <main className="flex w-full flex-col gap-6 px-4 pt-8 pb-6 sm:px-6">
       <h1 className="text-h1 text-foreground">Channel Settings</h1>
       <ChannelHeaderCard
         name={channel.name}

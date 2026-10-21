@@ -21,6 +21,11 @@ export const envValidationSchema = Joi.object({
   MAIL_HOST: Joi.string().default('mailpit'),
   MAIL_PORT: Joi.number().default(1025),
   MAIL_FROM: Joi.string().default('"StreamTube" <noreply@streamtube.com>'),
+  // SMTP autenticado de produção (home-search-production/TD-09): usuário e senha andam juntos (ver
+  // `.and` no fim); sem eles o transporte é o do Mailpit. MAIL_SECURE = TLS implícito (porta 465).
+  MAIL_USER: Joi.string(),
+  MAIL_PASSWORD: Joi.string(),
+  MAIL_SECURE: Joi.string().valid('true', 'false').default('false'),
   SWAGGER_ENABLED: Joi.string().valid('true', 'false').default('false'),
   // IP(s) do proxy confiável — o BFF next-frontend (watch-page/TD-03). Ausente → `trust proxy`
   // desligado e o throttler rastreia o IP do socket. Lista separada por vírgula de IPs/CIDRs.
@@ -32,7 +37,7 @@ export const envValidationSchema = Joi.object({
     );
     return valid ? value : helpers.error('any.invalid');
   }),
-  // Object storage S3-compatível (phase-03-upload-processing/TD-01, TD-02)
+  // Object storage S3-compatível (phase-03-videos/TD-01, TD-02)
   // Somente http/https: o SDK S3 exige esquema explícito (`rustfs:9000` seria um URI válido para o Joi).
   S3_ENDPOINT: Joi.string()
     .uri({ scheme: ['http', 'https'] })
@@ -67,4 +72,4 @@ export const envValidationSchema = Joi.object({
   // Fila pg-boss (TD-04)
   QUEUE_SCHEMA: Joi.string().default('pgboss'),
   QUEUE_SUPERVISE: Joi.string().valid('true', 'false').default('true'),
-});
+}).and('MAIL_USER', 'MAIL_PASSWORD');

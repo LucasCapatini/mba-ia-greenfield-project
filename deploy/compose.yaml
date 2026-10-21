@@ -1,0 +1,123 @@
+# StreamTube — production on a single VPS (home-search-production/TD-08, TD-09, TD-10, TD-11).
+#
+#   docker compose -f deploy/compose.yaml --env-file deploy/.env up -d
+#
+# Caddy is the only service with published ports (80/443): it terminates TLS and proxies to the
+# Next.js frontend (`web`), which is the BFF — the browser never reaches the API. The API, the
+# video worker and the one-shot `migrate` share one image; PostgreSQL runs here with a named volume.
+# Object storage (AWS S3) and e-mail (transactional SMTP) are external services configured in .env.
+# Local validation of this exact file: deploy/compose.local.yaml (see docs/deploy/runbook.md).
+
+name: streamtube
+
+x-api-image: &api-image ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/streamtube-api:${IMAGE_TAG:?set IMAGE_TAG}
+
+services:
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - internal
+    depends_on:
+      - web
+
+  # Next.js standalone (BFF). Fixed IP: the API trusts X-Forwarded-For only from it (TRUST_PROXY,
+  # watch-page/TD-03); Caddy overwrites X-Forwarded-For with the real client IP before it gets here.
+  web:
+    image: ghcr.io/${GHCR_OWNER}/streamtube-web:${IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      API_URL: http://api:3000
+      SESSION_PASSWORD: ${SESSION_PASSWORD:?set SESSION_PASSWORD}
+    networks:
+      internal:
+        ipv4_address: 172.31.0.10
+    depends_on:
+      - api
+
+  api:
+    image: *api-image
+    command: ["node", "dist/main"]
+    restart: unless-stopped
+    env_file: .env
+    networks:
+      - internal
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  # Second entrypoint of the same image (phase-03-videos/TD-05). Node runs directly so
+  # SIGTERM reaches it and the queue stops gracefully (see nestjs-project/CLAUDE.md).
+  worker:
+    image: *api-image
+    command: ["node", "dist/worker"]
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 15s
+    env_file: .env
+    networks:
+      - internal
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  # One-shot: applies the compiled migrations (dist/database/data-source.js) on every deploy, before
+  # the API and the worker start (home-search-production/TD-11). Idempotent.
+  migrate:
+    image: *api-image
+    command: ["npm", "run", "migration:run:prod"]
+    restart: "no"
+    env_file: .env
+    environment:
+      NPM_CONFIG_UPDATE_NOTIFIER: "false"
+    networks:
+      - internal
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:?set DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:?set DB_NAME}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+networks:
+  internal:
+    # Fixed subnet so `web` keeps 172.31.0.10 (= TRUST_PROXY); dynamic addresses stay in .128–.254.
+    ipam:
+      config:
+        - subnet: 172.31.0.0/24
+          ip_range: 172.31.0.128/25
+          gateway: 172.31.0.1
+
+volumes:
+  pg_data: {}
+  caddy_data: {}
+  caddy_config: {}

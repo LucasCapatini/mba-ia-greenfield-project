@@ -12,7 +12,7 @@ import { bigintTransformer } from '../../common/typeorm/column-transformers';
 import type { VideoUploadState } from '../videos.constants';
 import { Video } from './video.entity';
 
-// Sessão multipart transitória 1:1 com o vídeo (phase-03-upload-processing/TD-07, TD-03, TD-12).
+// Sessão multipart transitória 1:1 com o vídeo (phase-03-videos/TD-07, TD-03, TD-12).
 // Nasce `active` no pré-cadastro e termina `completed` (complete), `aborted` (DELETE) ou
 // `expired` (job upload.expire). Retomada (ListParts) e limpeza operam só sobre `active`.
 @Entity('video_uploads')

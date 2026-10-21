@@ -6,7 +6,7 @@ sources_mtime:
   docs/tasks/task-manutencao-pos-fase-05/context.md: "2026-10-20T02:56:48Z"
   docs/decisions/technical-decisions-watch-page.md: "2026-10-20T02:51:17Z"
   docs/decisions/technical-decisions-saneamento-fase-02-e-infra.md: "2026-10-19T20:16:01Z"
-  docs/decisions/technical-decisions-phase-03-upload-processing.md: "2026-10-19T20:16:01Z"
+  docs/decisions/technical-decisions-phase-03-videos.md: "2026-10-19T20:16:01Z"
   docs/decisions/technical-decisions-saneamento-fase-04.md: "2026-10-19T21:30:21Z"
   docs/phases/phase-05-watch-page/context.md: "2026-10-20T02:42:59Z"
 ---
@@ -27,7 +27,7 @@ manutenção após a Fase 05. (1) nestjs-project/compose.yaml: dar ao serviço d
 
 **Technical actions:**
 
-1. Em `nestjs-project/compose.yaml`, montar no serviço `db` o volume nomeado `pg_data` em `/var/lib/postgresql/data` (diretório de dados da imagem `postgres:17`) e declará-lo no bloco `volumes:` de topo, ao lado de `node_modules` e `rustfs_data` (topologia de compose por stack, per `saneamento-fase-02-e-infra/TD-01`; serviços no compose do backend, per `phase-03-upload-processing/TD-10`).
+1. Em `nestjs-project/compose.yaml`, montar no serviço `db` o volume nomeado `pg_data` em `/var/lib/postgresql/data` (diretório de dados da imagem `postgres:17`) e declará-lo no bloco `volumes:` de topo, ao lado de `node_modules` e `rustfs_data` (topologia de compose por stack, per `saneamento-fase-02-e-infra/TD-01`; serviços no compose do backend, per `phase-03-videos/TD-10`).
 2. Em `nestjs-project/CLAUDE.md`, registrar o volume `pg_data` na lista de serviços (o banco sobrevive a `docker compose down`/`up` e a recriações da rede; só `docker compose down -v` o apaga, junto com os demais volumes nomeados) e substituir, na seção "IP real do visitante atrás do BFF", o aviso de que recriar o container do Postgres apaga os dados.
 3. Documentar no mesmo `CLAUDE.md` o passo único da troca: na primeira subida com `pg_data` o banco nasce vazio e é preciso rodar `npm run migration:run` uma vez — os dados de desenvolvimento anteriores não são migrados (resolução AMB-2 da validação).
 4. Aplicar no ambiente local: `docker compose up -d` (recria o `db` com o volume) seguido de `docker compose exec nestjs-api npm run migration:run`.

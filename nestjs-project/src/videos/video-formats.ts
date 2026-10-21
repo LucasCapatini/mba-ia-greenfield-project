@@ -1,4 +1,4 @@
-// Allowlist de formatos aceitos (phase-03-upload-processing/TD-14) — constante ÚNICA
+// Allowlist de formatos aceitos (phase-03-videos/TD-14) — constante ÚNICA
 // compartilhada pelo DTO de pré-cadastro (SI-03.5), pelo validador do worker (SI-03.8)
 // e, via openapi.json, pela futura UI. Sem transcodificação na fase, "aceito" significa
 // "toca nativamente em todos os navegadores": MP4 (H.264/AAC) e WebM (VP8/VP9/AV1/Opus).
