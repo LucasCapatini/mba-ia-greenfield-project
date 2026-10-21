@@ -3,6 +3,11 @@
 # the VPS over SSH — compose pull, one-shot migration, up — and runs the read-only smoke.
 # Rollback: run this workflow manually (workflow_dispatch) with the `image_tag` of a previous deploy;
 # it skips the gates and the build and deploys that tag. Setup and operations: docs/deploy/runbook.md.
+#
+# The deploy is opt-in: the `production` job only runs when the REPOSITORY variable DEPLOY_ENABLED is
+# "true" (Settings → Secrets and variables → Actions → Variables). Without it a push to main still runs
+# the gates and publishes the images, and the deploy job is skipped instead of failing for lack of a VPS.
+# It has to be a repository variable: a job-level `if` is evaluated before the Environment applies.
 name: deploy
 
 on:
@@ -56,8 +61,8 @@ jobs:
   production:
     name: deploy
     needs: images
-    # Push: only after the images were published. Manual rollback: no gates, no build.
-    if: always() && (needs.images.result == 'success' || github.event_name == 'workflow_dispatch')
+    # Opt-in (DEPLOY_ENABLED). Push: only after the images were published. Manual rollback: no gates, no build.
+    if: always() && vars.DEPLOY_ENABLED == 'true' && (needs.images.result == 'success' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 30

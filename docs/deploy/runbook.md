@@ -135,6 +135,8 @@ Variáveis opcionais: `DEPLOY_PATH` (padrão `~/streamtube`) e `SMOKE_VIDEO_ID` 
 
 Sem os quatro secrets obrigatórios, o job `deploy` falha no primeiro passo, antes de acessar a VPS.
 
+**Ligar o deploy:** o job `deploy` só roda com a **variável de repositório** `DEPLOY_ENABLED` = `true` (*Settings → Secrets and variables → Actions → Variables → New repository variable*). Precisa ser de repositório, não do Environment, porque o `if` do job é avaliado antes de o Environment ser aplicado. Sem ela, o push em `main` roda os gates e publica as imagens no GHCR, e o job `deploy` aparece como *skipped*. É o estado padrão enquanto não houver VPS. Crie a variável só depois de concluir (a)–(f).
+
 Proteção de branch: em `main`, exija os checks `backend`, `frontend`, `full-stack` e `openapi.json + types.gen.ts em sincronia` (o GitHub nomeia o check pelo job do workflow `openapi-freshness`); em `dev`, exija `backend`, `frontend` e `openapi.json + types.gen.ts em sincronia`. Um check só aparece na lista depois de rodar uma vez.
 
 ## (g) Backup e restauração
@@ -164,6 +166,8 @@ Proteção de branch: em `main`, exija os checks `backend`, `frontend`, `full-st
 ## (h) Primeiro deploy, rollback e pós-deploy
 
 **Primeiro deploy**
+
+0. Crie a variável de repositório `DEPLOY_ENABLED=true` (seção f). Sem ela, o merge em `main` não faz deploy.
 
 1. Conclua (a)–(f).
 2. Faça merge de `dev` em `main`. O workflow `deploy` roda os gates, publica as imagens e faz o deploy. Para disparar antes do primeiro merge, use *Run workflow* com `image_tag` de uma imagem já publicada.
