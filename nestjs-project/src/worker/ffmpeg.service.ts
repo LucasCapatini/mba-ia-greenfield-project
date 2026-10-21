@@ -43,7 +43,7 @@ interface ExecResult {
 
 const MAX_BUFFER = 8 * 1024 * 1024;
 
-// Fachada sobre os binários `ffprobe`/`ffmpeg` do apt via `execFile` (phase-03-upload-processing/
+// Fachada sobre os binários `ffprobe`/`ffmpeg` do apt via `execFile` (phase-03-videos/
 // TD-06): sem wrapper npm (fluent-ffmpeg está deprecado), sem shell (argumentos como array), e a
 // entrada é sempre uma URL assinada — o vídeo nunca é baixado para o disco do worker.
 @Injectable()

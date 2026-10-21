@@ -13,7 +13,7 @@ sources_mtime:
   docs/phases/phase-01-configuracao-base/context.md: "2026-10-17T09:27:46-04:00"
   docs/phases/phase-02-auth/context.md: "2026-10-17T09:27:46-04:00"
   docs/phases/phase-02-auth-frontend/context.md: "2026-10-19T16:16:01-04:00"
-  docs/phases/phase-03-upload-processing/context.md: "2026-10-19T16:16:01-04:00"
+  docs/phases/phase-03-videos/context.md: "2026-10-19T16:16:01-04:00"
   docs/phases/phase-04-video-channel-management/context.md: "2026-10-19T16:16:01-04:00"
   docs/phases/phase-05-watch-page/context.md: "2026-10-19T23:49:39-04:00"
   docs/phases/phase-06-social-interactions/context.md: "2026-10-20T12:13:22-04:00"
@@ -299,72 +299,72 @@ _Source files:_
 **Recommendation:** Three reasons. (1) **First-paint-correct** — the user sees the right outcome on the first paint, no skeleton, no flicker. (2) **Single integration pattern across both flows** — confirmation is RSC-only; reset is RSC + Client form (TD-04, TD-05 patterns reused) — both share the "RSC owns the token, Client Component owns the input" split. (3) **Email-prefetch behavior** is solved at the backend's idempotent-confirmation level (a small note for `/plan-build` to confirm; not a separate TD). Option B's Route-Handler-as-link-target adds redirects for no clean gain. Option C is dominated.
 **Libraries:** —
 
-### phase-03-upload-processing/TD-01
+### phase-03-videos/TD-01
 
 **Recommendation:** é a única alternativa livre que cobre todas as operações exigidas pelas TDs 03/09/12 (presigned multipart, CORS, `response-content-disposition`, lifecycle) com um container, um volume e console web, mantendo o backend acoplado apenas à API S3 (TD-02) para que produção use S3 real ou outro servidor sem mudar código. O risco de maturidade é mitigado por um smoke test obrigatório na primeira SI de storage; **Garage (B) é o fallback** se o smoke test falhar. Contrato de ambiente proposto (chaves canônicas para Joi + compose + `.env.example`): `S3_ENDPOINT` (interno, `http://rustfs:9000`), `S3_PUBLIC_ENDPOINT` (voltado ao navegador, `http://localhost:9000` em dev — base das URLs pré-assinadas de upload/stream), `S3_REGION` (`us-east-1`, exigido pelo SDK), `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET` (`streamtube-videos`), `S3_FORCE_PATH_STYLE=true`.
 **Libraries:** —
 
-### phase-03-upload-processing/TD-02
+### phase-03-videos/TD-02
 
 **Recommendation:** mantém o backend acoplado somente à API S3, o que é a razão de ser de TD-01, e tem o ecossistema de mocks que TD-13 usa nos unit tests. A configuração obrigatória (`forcePathStyle`, `WHEN_REQUIRED` nos dois checksums, cliente interno vs. cliente de assinatura pública) vira parte do contrato do `StorageModule`.
 **Libraries:** @aws-sdk/client-s3, @aws-sdk/s3-request-presigner
 
-### phase-03-upload-processing/TD-03
+### phase-03-videos/TD-03
 
 **Recommendation:** é a única que cumpre literalmente "10 GB sem impacto na performance" e "retomar após falha", porque o backend só orquestra metadados e o storage recebe os bytes; o custo (CORS + endpoint público + fatiamento no cliente) é pago uma vez pela fatia de UI. A exceção ao Strict BFF fica explícita e limitada: o navegador só fala com `S3_PUBLIC_ENDPOINT` usando URLs assinadas que a API emite via BFF — nunca com `nestjs-api`. Parâmetros propostos: `UPLOAD_PART_SIZE` (default 64 MiB, mínimo 5 MiB, configurável para que TD-13 teste multipart com partes de 5 MiB), `UPLOAD_MAX_BYTES` (10 GiB), `UPLOAD_URL_TTL` (ex.: 1 h por lote de partes).
 **Libraries:** —
 
-### phase-03-upload-processing/TD-04
+### phase-03-videos/TD-04
 
 **Recommendation:** entrega todos os primitivos que TD-11 e TD-12 pedem (chave singleton por vídeo, retry com backoff, `startAfter` para limpeza, expiração de jobs travados) sobre o PostgreSQL já presente, sem novo container em dev/testes/produção e sem apostar em um backend de três meses (B). **A (BullMQ + Redis) é uma escolha igualmente válida** se o time preferir a integração Nest nativa e já antever dashboards/escala horizontal; o custo é um serviço a mais em cada ambiente e no `cleanAllTables` dos testes. B fica como candidato a supersede quando `nestjs/bull#2924` for lançado.
 **Libraries:** pg-boss
 
-### phase-03-upload-processing/TD-05
+### phase-03-videos/TD-05
 
 **Recommendation:** mantém um só código-base para entidades, config e testes (sem introduzir workspaces nesta fase) e, ao mesmo tempo, isola o processamento em um container próprio como o C4 prevê. O custo do ffmpeg na imagem compartilhada é aceitável em dev; a imagem de produção pode usar build arg/stage para omiti-lo na API, decisão que pertence à Fase 07.
 **Libraries:** —
 
-### phase-03-upload-processing/TD-06
+### phase-03-videos/TD-06
 
 **Recommendation:** evita qualquer cópia do vídeo, usa o binário mantido pela distro e segue a orientação do próprio autor do `fluent-ffmpeg` (chamar o processo sem wrapper). A thumbnail nasce em `/tmp` do worker e sobe para `thumbnails/{publicId}/auto.jpg` via TD-02. A versão 5.1.9 do bookworm é suficiente; migrar para `trixie-slim` (7.1.5) fica como ajuste opcional registrado na SI do Dockerfile, não como TD.
 **Libraries:** —
 
-### phase-03-upload-processing/TD-07
+### phase-03-videos/TD-07
 
 **Recommendation:** os dois eixos de estado são obrigatórios para não bloquear a Fase 04, e separar a sessão multipart mantém `videos` como aggregate limpo para as Fases 04/05 enquanto TD-12 e a retomada (TD-03) trabalham só na tabela transitória, em linha com o princípio de responsabilidade única do projeto. A diferença de custo para A é uma entidade e um join; se o time preferir minimalismo, A é aceitável desde que mantenha os dois eixos.
 **Libraries:** —
 
-### phase-03-upload-processing/TD-08
+### phase-03-videos/TD-08
 
 **Recommendation:** atende "curta e única" sem dependência, reusa o padrão de retry por SAVEPOINT já existente e evita a incompatibilidade de `engines` do `nanoid` com o Node 25 do container. A PK continua UUID (regra de entidades); `public_id` é a chave externa de URL e de storage.
 **Libraries:** —
 
-### phase-03-upload-processing/TD-09
+### phase-03-videos/TD-09
 
 **Recommendation:** mantém os bytes fora de Nest/Next como em TD-03, dá `Range` e download por configuração do storage e concentra a autorização no endpoint que emite a URL, o que absorve drafts privados hoje e unlisted/published na Fase 04 sem mudar o mecanismo. Verificação concreta na SI: `curl -r 0-1023 <streamUrl>` → 206 e `curl -I <downloadUrl>` → `Content-Disposition: attachment`.
 **Libraries:** —
 
-### phase-03-upload-processing/TD-10
+### phase-03-videos/TD-10
 
 **Recommendation:** segue a topologia já decidida, deixa o ambiente pronto para integração/e2e com um único `up` e mantém a API sem privilégios de administração do storage. Entregáveis concretos: `Dockerfile.dev` com `ffmpeg`, `compose.yaml` com `rustfs`, `storage-init`, `video-worker` (e `redis` só se TD-04 = A), `.env.example` com as chaves de TD-01/TD-03/TD-09 e `nestjs-project/CLAUDE.md` com os novos probes (`curl http://localhost:9000/health`, console em `:9001`).
 **Libraries:** —
 
-### phase-03-upload-processing/TD-11
+### phase-03-videos/TD-11
 
 **Recommendation:** é a única opção portável entre servidores de storage e filas, e a combinação chave única + guarda de estado garante que retries e entregas duplicadas não corrompam o vídeo. Com TD-04 = C ou B (fila em Postgres) o `send` entra na mesma transação do update, fechando a janela de falha apontada nos Cons.
 **Libraries:** —
 
-### phase-03-upload-processing/TD-12
+### phase-03-videos/TD-12
 
 **Recommendation:** resolve o caso comum com o primitivo mais simples da fila escolhida, sem cron nem varredura, e com política explícita (`UPLOAD_TTL`, default 24 h). A regra de lifecycle de B pode ser adicionada no `storage-init` (TD-10) como rede de segurança opcional, com TTL maior que `UPLOAD_TTL` para nunca abortar antes do job.
 **Libraries:** —
 
-### phase-03-upload-processing/TD-13
+### phase-03-videos/TD-13
 
 **Recommendation:** é a continuação direta do padrão atual (Postgres e Mailpit reais nas integrações, mocks nas unit) e a única que valida os contratos de storage e ffmpeg que TD-01 e TD-06 assumem. `UPLOAD_PART_SIZE` configurável é o que permite provar multipart com 15 MiB em vez de 10 GiB.
 **Libraries:** aws-sdk-client-mock
 
-### phase-03-upload-processing/TD-14
+### phase-03-videos/TD-14
 
 **Recommendation:** sem transcodificação, a única política honesta é "aceitar o que os navegadores tocam", e checar duas vezes custa uma constante compartilhada: a allowlist declarada poupa o usuário de subir 10 GB de um arquivo errado, e o `ffprobe` pega o que a declaração não revela. HEVC e MOV ficam de fora por suporte parcial (reavaliar quando houver transcodificação). Contrato de erro: `POST /videos` responde 400 com código de domínio `VIDEO_UNSUPPORTED_MEDIA_TYPE` (filtro de `phase-02-auth/TD-07`); no processamento, `processing_status = failed` com `processing_error = UNSUPPORTED_FORMAT` e o detalhe do ffprobe. Depende de TD-03 (onde o tipo declarado entra), TD-06 (ffprobe), TD-07 (coluna `processing_error`) e TD-11 (transição para `failed`).
 **Libraries:** —
@@ -379,7 +379,7 @@ _Source files:_
 
 ### video-channel-management/TD-02
 
-**Recommendation:** é a extensão natural do eixo de publicação decidido em `phase-03-upload-processing/TD-07`, preserva a visibilidade ao despublicar e fornece a coluna de ordenação/tempo que o painel e TD-06 precisam. Regra de negócio a fixar junto: publicar exige `ready` + título; editar título/descrição/categoria/visibilidade é permitido em qualquer `processing_status`.
+**Recommendation:** é a extensão natural do eixo de publicação decidido em `phase-03-videos/TD-07`, preserva a visibilidade ao despublicar e fornece a coluna de ordenação/tempo que o painel e TD-06 precisam. Regra de negócio a fixar junto: publicar exige `ready` + título; editar título/descrição/categoria/visibilidade é permitido em qualquer `processing_status`.
 **Libraries:** —
 
 ### video-channel-management/TD-03
@@ -417,7 +417,7 @@ _Source files:_
 
 ### video-channel-management/TD-09
 
-**Recommendation:** reaproveita o padrão transacional "linha + job na mesma transação" de `phase-03-upload-processing/TD-11` e garante que os bytes sejam liberados sem bloquear a resposta nem espalhar um filtro `deleted_at` por todas as fases seguintes. Option B só compensa se o produto pedir lixeira.
+**Recommendation:** reaproveita o padrão transacional "linha + job na mesma transação" de `phase-03-videos/TD-11` e garante que os bytes sejam liberados sem bloquear a resposta nem espalhar um filtro `deleted_at` por todas as fases seguintes. Option B só compensa se o produto pedir lixeira.
 **Libraries:** —
 
 ### video-channel-management/TD-10
@@ -477,7 +477,7 @@ _Source files:_
 
 ### watch-page/TD-06
 
-**Recommendation:** o `public_id` já cumpre o requisito de URL curta e única (`phase-03-upload-processing/TD-08`), o path já está implementado e testado em cinco pontos e ainda não há links em produção que justifiquem um alias; a divergência é só textual no Figma e se resolve registrando-a no `/screen-inventory 5`.
+**Recommendation:** o `public_id` já cumpre o requisito de URL curta e única (`phase-03-videos/TD-08`), o path já está implementado e testado em cinco pontos e ainda não há links em produção que justifiquem um alias; a divergência é só textual no Figma e se resolve registrando-a no `/screen-inventory 5`.
 **Libraries:** —
 
 ### watch-page/TD-07

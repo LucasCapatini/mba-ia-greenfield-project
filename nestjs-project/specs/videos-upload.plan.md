@@ -1,7 +1,7 @@
 ---
 subproject: backend
 runner: jest+supertest
-scope: phase-03-upload-processing
+scope: phase-03-videos
 si: SI-03.6
 target_file: nestjs-project/test/videos-upload.e2e-spec.ts
 ---
@@ -10,7 +10,7 @@ target_file: nestjs-project/test/videos-upload.e2e-spec.ts
 
 ## Application Overview
 
-Os quatro endpoints de `/videos/{publicId}/upload*` orquestram o multipart pré-assinado sem que nenhum byte passe pela API (`phase-03-upload-processing/TD-03`): `POST …/upload/parts` emite URLs de `UploadPart` em lote (cliente público, `UPLOAD_URL_TTL`); `GET …/upload` devolve as partes já aceitas via `ListParts` para retomada; `POST …/upload/complete` valida a lista do cliente contra o storage, chama `CompleteMultipartUpload`, grava `size_bytes`, marca a sessão `completed`, transita `processing_status` `uploading → processing` e enfileira `video.process` com `singletonKey video:<id>` na mesma transação (`TD-11`); `DELETE …/upload` aborta o multipart e remove o rascunho (`TD-12`). Todos exigem o dono do canal (`### Authorization Matrix`). Este plano cobre o contrato HTTP do SI-03.6 em `test/videos-upload.e2e-spec.ts`, com `describe` único e um `it` por cenário.
+Os quatro endpoints de `/videos/{publicId}/upload*` orquestram o multipart pré-assinado sem que nenhum byte passe pela API (`phase-03-videos/TD-03`): `POST …/upload/parts` emite URLs de `UploadPart` em lote (cliente público, `UPLOAD_URL_TTL`); `GET …/upload` devolve as partes já aceitas via `ListParts` para retomada; `POST …/upload/complete` valida a lista do cliente contra o storage, chama `CompleteMultipartUpload`, grava `size_bytes`, marca a sessão `completed`, transita `processing_status` `uploading → processing` e enfileira `video.process` com `singletonKey video:<id>` na mesma transação (`TD-11`); `DELETE …/upload` aborta o multipart e remove o rascunho (`TD-12`). Todos exigem o dono do canal (`### Authorization Matrix`). Este plano cobre o contrato HTTP do SI-03.6 em `test/videos-upload.e2e-spec.ts`, com `describe` único e um `it` por cenário.
 
 **Atenção para o implementador:** a suíte roda dentro do container `nestjs-api`; `S3_PUBLIC_ENDPOINT` deve ser sobrescrito para `http://rustfs:9000` antes de compilar o módulo (a assinatura fixa o host), e os `PUT` das partes usam `fetch` nativo do Node contra as URLs devolvidas. Com `UPLOAD_PART_SIZE = 5 MiB`, um arquivo de 12 MiB gera 3 partes (5 + 5 + 2 MiB) — "10 GB sem 10 GB" (`TD-13`).
 

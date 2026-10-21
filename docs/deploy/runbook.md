@@ -67,7 +67,7 @@ Crie um bucket na região escolhida (ex.: `streamtube-videos` em `us-east-1`), c
    ]
    ```
 
-4. **Lifecycle** — regra "Delete expired object delete markers or incomplete multipart uploads" → *incomplete multipart uploads* após **2 dias**. É maior que o `UPLOAD_TTL` de 24 h e funciona como rede de segurança do job `upload.expire` (`phase-03-upload-processing/TD-12`).
+4. **Lifecycle** — regra "Delete expired object delete markers or incomplete multipart uploads" → *incomplete multipart uploads* após **2 dias**. É maior que o `UPLOAD_TTL` de 24 h e funciona como rede de segurança do job `upload.expire` (`phase-03-videos/TD-12`).
 5. **Usuário IAM** só com o necessário (gere a access key e guarde-a no `.env` da VPS):
 
    ```json

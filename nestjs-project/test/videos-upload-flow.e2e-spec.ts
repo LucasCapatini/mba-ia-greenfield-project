@@ -1,4 +1,4 @@
-// SI-03.11 — phase-03-upload-processing: fluxo completo com serviços reais e o worker no mesmo
+// SI-03.11 — phase-03-videos: fluxo completo com serviços reais e o worker no mesmo
 // processo Jest. "10 GB sem 10 GB" (TD-13): UPLOAD_PART_SIZE = 5 MiB e uma fixture de ~10,8 MiB
 // provam o multipart com 3 partes; o limite de 10 GiB é verificado como política (413).
 import type { S3Client } from '@aws-sdk/client-s3';

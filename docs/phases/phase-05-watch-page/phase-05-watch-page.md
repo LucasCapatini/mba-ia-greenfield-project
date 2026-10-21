@@ -234,7 +234,7 @@ _Bootstrap (`SI-05.0.k`, sintetizadas dos marcadores `(new)` dos UI Contracts) �
 
 1. Criar `src/videos/entities/video-view.entity.ts` com `id` (uuid PK), `video_id` (FK → `videos.id` `ON DELETE CASCADE`), `viewer_key` varchar(80), `window_start` date, `created_at` timestamp default now(); `@Unique` em `(video_id, viewer_key, window_start)` e `@Index` em `window_start` (per `### Data Model → VideoView`; `watch-page/TD-02`, Revisions 2026-10-19).
 2. Gerar a migration em `src/database/migrations/` via `npm run migration:generate` e revisar o SQL (tabela, FK em cascata, unique e índice) (per `phase-01-configuracao-base` — `synchronize` desligado).
-3. Registrar `VideoView` no `TypeOrmModule.forFeature` do `VideosModule` e no `WorkerModule` (o job de limpeza o usa) (per `phase-03-upload-processing/TD-05`).
+3. Registrar `VideoView` no `TypeOrmModule.forFeature` do `VideosModule` e no `WorkerModule` (o job de limpeza o usa) (per `phase-03-videos/TD-05`).
 
 **Tests:**
 
@@ -293,9 +293,9 @@ _Bootstrap (`SI-05.0.k`, sintetizadas dos marcadores `(new)` dos UI Contracts) �
 
 **Technical actions:**
 
-1. Adicionar `VIDEO_VIEWS_CLEANUP: 'video-views.cleanup'` a `QUEUE_NAMES` e o payload vazio a `QueuePayloads` em `src/queue/queue.constants.ts`, e um método `schedule(queue, cron)` ao `QueueService` (wrapper do `boss.schedule`, sem lógica de domínio) (per `### Events/Messages → video-views.cleanup`; `phase-03-upload-processing/TD-04`).
+1. Adicionar `VIDEO_VIEWS_CLEANUP: 'video-views.cleanup'` a `QUEUE_NAMES` e o payload vazio a `QueuePayloads` em `src/queue/queue.constants.ts`, e um método `schedule(queue, cron)` ao `QueueService` (wrapper do `boss.schedule`, sem lógica de domínio) (per `### Events/Messages → video-views.cleanup`; `phase-03-videos/TD-04`).
 2. Criar `src/worker/video-views-cleanup.worker.ts`: na inicialização registra `schedule('video-views.cleanup', '0 3 * * *')` (UTC, idempotente) e consome a fila executando `DELETE FROM video_views WHERE window_start < (now() AT TIME ZONE 'UTC')::date - 2` (per `watch-page/TD-02`, Revisions 2026-10-19).
-3. Registrar o handler no `WorkerModule` (nunca no `AppModule`) e documentar a fila no `nestjs-project/CLAUDE.md` (seção do `video-worker`) (per `phase-03-upload-processing/TD-05`).
+3. Registrar o handler no `WorkerModule` (nunca no `AppModule`) e documentar a fila no `nestjs-project/CLAUDE.md` (seção do `video-worker`) (per `phase-03-videos/TD-05`).
 
 **Tests:**
 
@@ -438,7 +438,7 @@ _Bootstrap (`SI-05.0.k`, sintetizadas dos marcadores `(new)` dos UI Contracts) �
 1. Criar `hooks/use-media-state.ts` (`"use client"`): assina os eventos do `<video>` (`play`, `pause`, `timeupdate`, `progress`, `durationchange`, `volumechange`, `waiting`, `playing`, `ended`) e do documento (`fullscreenchange`) e expõe `paused`, `currentTime`, `duration`, `buffered`, `volume`, `muted`, `waiting`, `fullscreen` (per `watch-page/TD-05`).
 2. Criar `hooks/use-view-registration.ts`: acumula o tempo efetivamente reproduzido pelos deltas de `timeupdate` (ignora saltos de busca); ao atingir `min(10, duration)` s — ou no `ended` — chama `POST /api/videos/{publicId}/views` **uma vez** por montagem; desligado quando `enabled = false`; falha silenciosa (per `watch-page/TD-01`).
 3. Author `components/watch/video-player.tsx` (`"use client"`): props `publicId`, `streamUrl`, `expiresAt`, `posterUrl`, `trackViews = true`; `<video playsInline preload="metadata" poster>` + `PlayerControls`; clique no vídeo alterna play/pause; tela cheia no contêiner; indicador de buffering em `waiting` (per `### UI Contracts → Screen: Página de visualização do vídeo`).
-4. No `video-player.tsx`, tratar `error` do `<video>` (ou `expiresAt` vencido ao retomar): salvar `currentTime` e o estado de reprodução, chamar `GET /api/videos/{publicId}/playback`, trocar o `src`, voltar ao tempo salvo e retomar; uma tentativa — se falhar, estado de erro com "tentar novamente" (per `watch-page/TD-05`; `phase-03-upload-processing/TD-09`).
+4. No `video-player.tsx`, tratar `error` do `<video>` (ou `expiresAt` vencido ao retomar): salvar `currentTime` e o estado de reprodução, chamar `GET /api/videos/{publicId}/playback`, trocar o `src`, voltar ao tempo salvo e retomar; uma tentativa — se falhar, estado de erro com "tentar novamente" (per `watch-page/TD-05`; `phase-03-videos/TD-09`).
 
 **Tests:**
 
@@ -640,7 +640,7 @@ _Backend tier (NestJS, `Scope: Backend | Cross-layer`). Envelope de erro herdado
 **Request headers:**
 - Authorization: Bearer <access_token> — opcional
 
-**Response 200:** `{ stream_url, download_url, thumbnail_url, expires_at }` — `download_url` é emitida para **todo** leitor autorizado pela regra de visibilidade, inclusive anônimo (per `watch-page/TD-08`); `stream_url` atende `Range` (206) e `download_url` carrega `Content-Disposition: attachment` (per `phase-03-upload-processing/TD-09`); ambas expiram em `expires_at` (`PLAYBACK_URL_TTL`).
+**Response 200:** `{ stream_url, download_url, thumbnail_url, expires_at }` — `download_url` é emitida para **todo** leitor autorizado pela regra de visibilidade, inclusive anônimo (per `watch-page/TD-08`); `stream_url` atende `Range` (206) e `download_url` carrega `Content-Disposition: attachment` (per `phase-03-videos/TD-09`); ambas expiram em `expires_at` (`PLAYBACK_URL_TTL`).
 
 **Error responses:**
 - 401 Unauthorized: token presente mas inválido/expirado
@@ -691,7 +691,7 @@ Sugestões da sidebar (per `watch-page/TD-04`). Público com auth opcional; o v�
 
 #### Validation Rules — visualizações e sugestões
 
-- `publicId` (path, todas as rotas): string de 11 caracteres base64url (`phase-03-upload-processing/TD-08`); formato inválido → 404 `VIDEO_NOT_FOUND` (mesmo comportamento das rotas da Fase 04)
+- `publicId` (path, todas as rotas): string de 11 caracteres base64url (`phase-03-videos/TD-08`); formato inválido → 404 `VIDEO_NOT_FOUND` (mesmo comportamento das rotas da Fase 04)
 - `limit` (`GET /videos/{publicId}/related`): optional, integer, min 1, max 24, default 12
 
 ---
@@ -780,8 +780,8 @@ _Nenhum código de domínio novo nesta fase — todos herdados das Fases 02–04
 {}
 ```
 
-**Producer:** agendador do pg-boss (`schedule` cron diário, `0 3 * * *` UTC), registrado pelo `video-worker` na inicialização — idempotente, sobrescreve o agendamento existente (per `watch-page/TD-02`, Revisions 2026-10-19; fila sobre o pg-boss de `phase-03-upload-processing/TD-04`)
-**Consumer:** handler de limpeza no `WorkerModule` (`video-worker`, per `phase-03-upload-processing/TD-05`) — `DELETE FROM video_views WHERE window_start < (now() AT TIME ZONE 'UTC')::date - 2` (linhas com `window_start` anterior a 2 dias)
+**Producer:** agendador do pg-boss (`schedule` cron diário, `0 3 * * *` UTC), registrado pelo `video-worker` na inicialização — idempotente, sobrescreve o agendamento existente (per `watch-page/TD-02`, Revisions 2026-10-19; fila sobre o pg-boss de `phase-03-videos/TD-04`)
+**Consumer:** handler de limpeza no `WorkerModule` (`video-worker`, per `phase-03-videos/TD-05`) — `DELETE FROM video_views WHERE window_start < (now() AT TIME ZONE 'UTC')::date - 2` (linhas com `window_start` anterior a 2 dias)
 **Trigger:** uma vez por dia; só o balde do dia corrente deduplica visualizações novas, então os baldes vencidos são lixo — a margem de 2 dias evita apagar o balde de ontem enquanto ainda há fusos/relógios atrasados escrevendo nele
 **Delivery semantics:** at-least-once — o `DELETE` é idempotente, então reexecução ou atraso não mudam o resultado; falha → retry padrão da fila, e o balde vencido é varrido no dia seguinte de qualquer forma
 

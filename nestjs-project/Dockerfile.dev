@@ -1,6 +1,6 @@
 FROM node:25.6.0-slim
 
-# ffmpeg/ffprobe: usados pelo worker de vídeo (phase-03-upload-processing/TD-06).
+# ffmpeg/ffprobe: usados pelo worker de vídeo (phase-03-videos/TD-06).
 # A imagem é Debian bookworm → ffmpeg 5.1.x; a mesma imagem serve nestjs-api e video-worker (TD-05, TD-10).
 RUN apt update && apt install -y --no-install-recommends procps curl ffmpeg \
   && rm -rf /var/lib/apt/lists/*

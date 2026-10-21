@@ -1,4 +1,4 @@
-// Estados e códigos do domínio de vídeo (phase-03-upload-processing/TD-07, TD-11, TD-12, TD-14).
+// Estados e códigos do domínio de vídeo (phase-03-videos/TD-07, TD-11, TD-12, TD-14).
 // Os valores são o contrato exposto pela API (`### Data Model` do plano da fase).
 
 /** Eixo de publicação (video-channel-management/TD-02): `draft → published` exige `ready` + título. */

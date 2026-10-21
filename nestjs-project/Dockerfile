@@ -12,7 +12,7 @@ COPY . .
 RUN npm run build
 
 FROM node:25.6.0-slim AS runtime
-# ffmpeg/ffprobe for the video worker (phase-03-upload-processing/TD-05, TD-06).
+# ffmpeg/ffprobe for the video worker (phase-03-videos/TD-05, TD-06).
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
   && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production

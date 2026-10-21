@@ -9,7 +9,7 @@ export function truncateDetail(detail: string): string {
 }
 
 // Erros do pipeline do worker. Não são exceções de domínio HTTP: viram `processing_error`
-// na tabela `videos` (phase-03-upload-processing/TD-06, TD-14) ou retry do pg-boss (TD-11).
+// na tabela `videos` (phase-03-videos/TD-06, TD-14) ou retry do pg-boss (TD-11).
 
 export class ProbeFailedError extends Error {
   readonly detail: string;

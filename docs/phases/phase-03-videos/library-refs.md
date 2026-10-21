@@ -17,12 +17,12 @@ libs:
     context7_id: "n/a — context7 indisponível nesta sessão; README oficial via WebFetch"
     fetched_at: "2026-10-18T14:45:00-04:00"
 sources_mtime:
-  docs/decisions/technical-decisions-phase-03-upload-processing.md: "2026-10-18T14:40:55-04:00"
+  docs/decisions/technical-decisions-phase-03-videos.md: "2026-10-18T14:40:55-04:00"
 ---
 
-# Library References — phase-03-upload-processing
+# Library References — phase-03-videos
 
-_Cache de documentação para as bibliotecas decididas em `technical-decisions-phase-03-upload-processing` (TD-02, TD-04, TD-13). O MCP `context7` não estava disponível; as fontes foram lidas via WebFetch em 2026-10-18: AWS SDK for JavaScript v3 Developer Guide (checksums), README do `@aws-sdk/s3-request-presigner`, Amazon S3 User Guide (multipart upload overview), README do `pg-boss` + pgboss.io, README do `aws-sdk-client-mock`. Versões = `latest` no registro npm em 2026-10-18; nenhuma está instalada ainda (o `implement` fixa o range no `package.json`)._
+_Cache de documentação para as bibliotecas decididas em `technical-decisions-phase-03-videos` (TD-02, TD-04, TD-13). O MCP `context7` não estava disponível; as fontes foram lidas via WebFetch em 2026-10-18: AWS SDK for JavaScript v3 Developer Guide (checksums), README do `@aws-sdk/s3-request-presigner`, Amazon S3 User Guide (multipart upload overview), README do `pg-boss` + pgboss.io, README do `aws-sdk-client-mock`. Versões = `latest` no registro npm em 2026-10-18; nenhuma está instalada ainda (o `implement` fixa o range no `package.json`)._
 
 ### @aws-sdk/client-s3
 

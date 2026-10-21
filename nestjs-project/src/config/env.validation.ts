@@ -37,7 +37,7 @@ export const envValidationSchema = Joi.object({
     );
     return valid ? value : helpers.error('any.invalid');
   }),
-  // Object storage S3-compatível (phase-03-upload-processing/TD-01, TD-02)
+  // Object storage S3-compatível (phase-03-videos/TD-01, TD-02)
   // Somente http/https: o SDK S3 exige esquema explícito (`rustfs:9000` seria um URI válido para o Joi).
   S3_ENDPOINT: Joi.string()
     .uri({ scheme: ['http', 'https'] })

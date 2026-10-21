@@ -14,7 +14,7 @@ _Subprojects in scope:_
 - `next-frontend/` — recebe as primeiras telas autenticadas com dados (painel de vídeos do canal, edição de vídeo, edição de canal), a página pública do canal e a UI de upload que a Fase 03 adiou explicitamente para esta fase (`project-plan.md`, status da Fase 03: "a UI de upload entra na Fase 04 com o painel do canal"). TD-11 e TD-12 são exclusivos dele; TD-01, TD-03, TD-04, TD-06, TD-08 e TD-10 são contratos que ele consome.
 - repositório (raiz) — nenhuma decisão repo-wide aberta: não há serviço novo no `compose.yaml` nem mudança de CI. TD-10 (Option B) acrescenta um comando ao `storage-init` existente, mas isso é consequência de um TD Cross-layer, não um TD próprio.
 
-_Decisões herdadas que esta fase NÃO reabre:_ modelo `Video` + `VideoUpload` com dois eixos de estado (`phase-03-upload-processing/TD-07`), `public_id` de 11 chars (`TD-08`), URLs GET pré-assinadas para stream/download (`TD-09`), protocolo multipart pré-assinado com o navegador falando com `S3_PUBLIC_ENDPOINT` (`TD-03`), pg-boss e contrato do job (`TD-04`, `TD-11`), allowlist de formatos (`TD-14`); sessão BFF com `iron-session`, mutações por Route Handler + `fetch`, sessão servida por RSC + Provider (`phase-02-auth-frontend/TD-01..TD-06`); cadeia OpenAPI → `types.gen.ts` (`next-frontend-openapi-typing/TD-01..TD-05`); MSW por domínio (`next-frontend-msw-foundation`); geração do nickname `[a-z0-9_]` (`phase-02-auth/TD-10`); envelope de erro e `DomainException` (`phase-02-auth/TD-07`).
+_Decisões herdadas que esta fase NÃO reabre:_ modelo `Video` + `VideoUpload` com dois eixos de estado (`phase-03-videos/TD-07`), `public_id` de 11 chars (`TD-08`), URLs GET pré-assinadas para stream/download (`TD-09`), protocolo multipart pré-assinado com o navegador falando com `S3_PUBLIC_ENDPOINT` (`TD-03`), pg-boss e contrato do job (`TD-04`, `TD-11`), allowlist de formatos (`TD-14`); sessão BFF com `iron-session`, mutações por Route Handler + `fetch`, sessão servida por RSC + Provider (`phase-02-auth-frontend/TD-01..TD-06`); cadeia OpenAPI → `types.gen.ts` (`next-frontend-openapi-typing/TD-01..TD-05`); MSW por domínio (`next-frontend-msw-foundation`); geração do nickname `[a-z0-9_]` (`phase-02-auth/TD-10`); envelope de erro e `DomainException` (`phase-02-auth/TD-07`).
 
 _Observação sobre o Figma:_ `docs/figma-audit.json` não contém nenhum frame com "canal", "studio", "painel", "upload" ou "thumbnail". O `/screen-inventory 4` precisa confirmar se existem telas desenhadas para esta fase; os TDs de frontend abaixo não dependem disso, mas o `/plan-build` dependerá.
 
@@ -60,7 +60,7 @@ _Observação sobre o Figma:_ `docs/figma-audit.json` não contém nenhum frame 
 
 **Capability:** Visibilidade do vídeo: público (aparece para todos) ou unlisted (somente via link); Fluxo de rascunho → publicação
 
-**Context:** `videos.status` existe desde a Fase 03 com o único valor `draft` (eixo de publicação, `phase-03-upload-processing/TD-07`). A Fase 04 precisa representar "publicado", "público vs. unlisted" e o "tempo de publicação" exibido no painel; a Fase 05 filtra o que aparece em listagens (unlisted só por link) e a Fase 07 lista só o público. A pergunta é como os três conceitos se distribuem em colunas e quais transições existem — isso condiciona TD-03, TD-06 (ordenação), TD-07 (regras de leitura) e as fases seguintes.
+**Context:** `videos.status` existe desde a Fase 03 com o único valor `draft` (eixo de publicação, `phase-03-videos/TD-07`). A Fase 04 precisa representar "publicado", "público vs. unlisted" e o "tempo de publicação" exibido no painel; a Fase 05 filtra o que aparece em listagens (unlisted só por link) e a Fase 07 lista só o público. A pergunta é como os três conceitos se distribuem em colunas e quais transições existem — isso condiciona TD-03, TD-06 (ordenação), TD-07 (regras de leitura) e as fases seguintes.
 
 **Options:**
 
@@ -79,7 +79,7 @@ _Observação sobre o Figma:_ `docs/figma-audit.json` não contém nenhum frame 
 - **Pros:** menos uma transição de enum; "tempo de publicação" e flag na mesma coluna.
 - **Cons:** `status: 'draft'` já é contrato público (`VideoResponse`) e passaria a mentir para vídeos publicados; despublicar exige anular `published_at` e perder o histórico; estado derivado em vez de explícito.
 
-**Recommendation:** **Option A (`status` + `visibility` + `published_at`)** — é a extensão natural do eixo de publicação decidido em `phase-03-upload-processing/TD-07`, preserva a visibilidade ao despublicar e fornece a coluna de ordenação/tempo que o painel e TD-06 precisam. Regra de negócio a fixar junto: publicar exige `ready` + título; editar título/descrição/categoria/visibilidade é permitido em qualquer `processing_status`.
+**Recommendation:** **Option A (`status` + `visibility` + `published_at`)** — é a extensão natural do eixo de publicação decidido em `phase-03-videos/TD-07`, preserva a visibilidade ao despublicar e fornece a coluna de ordenação/tempo que o painel e TD-06 precisam. Regra de negócio a fixar junto: publicar exige `ready` + título; editar título/descrição/categoria/visibilidade é permitido em qualquer `processing_status`.
 
 **Decision:** A (`status` + `visibility` + `published_at`)
 
@@ -278,7 +278,7 @@ _Observação sobre o Figma:_ `docs/figma-audit.json` não contém nenhum frame 
 
 **Scope:** Backend
 
-**Capability:** Painel de gerenciamento de vídeos do canal (thumbnail, título, visualizações, likes, comentários, tempo de publicação e status) — _bullet implícito: "gerenciamento" inclui remover; o plano da Fase 03 adiou explicitamente "deletion of ready videos is Phase 04 scope" (`docs/phases/phase-03-upload-processing/phase-03-upload-processing.md`, erro 409 de `DELETE …/upload`). Se o usuário considerar exclusão fora do escopo da Fase 04, este TD cai._
+**Capability:** Painel de gerenciamento de vídeos do canal (thumbnail, título, visualizações, likes, comentários, tempo de publicação e status) — _bullet implícito: "gerenciamento" inclui remover; o plano da Fase 03 adiou explicitamente "deletion of ready videos is Phase 04 scope" (`docs/phases/phase-03-videos/phase-03-videos.md`, erro 409 de `DELETE …/upload`). Se o usuário considerar exclusão fora do escopo da Fase 04, este TD cai._
 
 **Context:** hoje só existe `DELETE /videos/{id}/upload` para sessões ativas. Excluir um vídeo pronto envolve a linha em `videos` (e, nas Fases 06+, likes/comentários em cascata) e dois objetos no storage (`source`, thumbnails). O plano destaca custo de armazenamento como ponto de atenção, então "apagar a linha e esquecer os bytes" não serve. A escolha condiciona como as Fases 05/06 filtram vídeos e se existe "lixeira".
 
@@ -299,7 +299,7 @@ _Observação sobre o Figma:_ `docs/figma-audit.json` não contém nenhum frame 
 - **Pros:** sem job novo; mais simples de ler.
 - **Cons:** falha no storage após apagar um objeto deixa estado inconsistente; latência do endpoint depende do storage; contraria o padrão da fase anterior (efeitos no storage via fila com retry).
 
-**Recommendation:** **Option A (hard delete + job `video.delete`)** — reaproveita o padrão transacional "linha + job na mesma transação" de `phase-03-upload-processing/TD-11` e garante que os bytes sejam liberados sem bloquear a resposta nem espalhar um filtro `deleted_at` por todas as fases seguintes. Option B só compensa se o produto pedir lixeira.
+**Recommendation:** **Option A (hard delete + job `video.delete`)** — reaproveita o padrão transacional "linha + job na mesma transação" de `phase-03-videos/TD-11` e garante que os bytes sejam liberados sem bloquear a resposta nem espalhar um filtro `deleted_at` por todas as fases seguintes. Option B só compensa se o produto pedir lixeira.
 
 **Decision:** A (hard delete + job `video.delete`)
 
@@ -437,4 +437,4 @@ Sources consulted during research:
 - [TanStack Query — Advanced SSR (App Router)](https://tanstack.com/query/latest/docs/framework/react/guides/advanced-ssr) — `HydrationBoundary`, "treat Server Components as a place to prefetch", recomendação de preferir data fetching nativo do framework em apps RSC.
 - [RustFS — Bucket Policy](https://docs.rustfs.com/en/administration/data/bucket/policy), [issue #1336](https://github.com/rustfs/rustfs/issues/1336) (Principal `"*"` corrigido em `1.0.0-alpha.79`) e [issue #1874](https://github.com/rustfs/rustfs/issues/1874) (acesso anônimo por policy suportado).
 - Next.js 16 docs locais (`next-frontend/node_modules/next/dist/docs/01-app/`): `02-guides/caching-without-cache-components.md` (`fetch` não cacheado por padrão), `03-api-reference/04-functions/use-router.md` (`router.refresh()` re-renderiza RSC sem perder estado cliente), `01-getting-started/12-images.md` (`images.remotePatterns`).
-- Em repositório: `docs/decisions/technical-decisions-phase-03-upload-processing.md` (TD-03, TD-06..TD-09, TD-11, TD-12), `technical-decisions-phase-02-auth-frontend.md` (TD-02, TD-05, TD-06), `technical-decisions-phase-02-auth.md` (TD-07, TD-10), `nestjs-project/src/videos/**`, `src/channels/**`, `src/auth/guards/jwt-auth.guard.ts`, `nestjs-project/compose.yaml` (`storage-init`), `next-frontend/lib/auth/session.ts`, `.claude/rules/{nestjs-controllers,auth-jwt,typeorm-migrations,next-frontend-bff-api}.md`.
+- Em repositório: `docs/decisions/technical-decisions-phase-03-videos.md` (TD-03, TD-06..TD-09, TD-11, TD-12), `technical-decisions-phase-02-auth-frontend.md` (TD-02, TD-05, TD-06), `technical-decisions-phase-02-auth.md` (TD-07, TD-10), `nestjs-project/src/videos/**`, `src/channels/**`, `src/auth/guards/jwt-auth.guard.ts`, `nestjs-project/compose.yaml` (`storage-init`), `next-frontend/lib/auth/session.ts`, `.claude/rules/{nestjs-controllers,auth-jwt,typeorm-migrations,next-frontend-bff-api}.md`.

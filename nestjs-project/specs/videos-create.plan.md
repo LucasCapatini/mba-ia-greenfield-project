@@ -1,7 +1,7 @@
 ---
 subproject: backend
 runner: jest+supertest
-scope: phase-03-upload-processing
+scope: phase-03-videos
 si: SI-03.5
 target_file: nestjs-project/test/videos-create.e2e-spec.ts
 ---
@@ -10,7 +10,7 @@ target_file: nestjs-project/test/videos-create.e2e-spec.ts
 
 ## Application Overview
 
-`POST /videos` é o pré-cadastro do vídeo: valida a declaração do cliente (`original_filename`, `content_type` na allowlist MP4/WebM, `size_bytes` ≤ `UPLOAD_MAX_BYTES`), cria o `Video` como rascunho (`status = draft`, `processing_status = uploading`) com `public_id` único de 11 caracteres, abre a sessão multipart no object storage (`CreateMultipartUpload`), persiste a `VideoUpload` (`part_size`, `part_count`, `expected_bytes`, `expires_at = now + UPLOAD_TTL`) e agenda o job `upload.expire` no `pg-boss` — tudo em uma transação (`phase-03-upload-processing/TD-03`, `TD-07`, `TD-08`, `TD-12`, `TD-14`). Nenhum byte de vídeo passa por este endpoint. Este plano cobre o contrato HTTP do SI-03.5 em um arquivo E2E próprio (`test/videos-create.e2e-spec.ts`), com `describe` único e um `it` por cenário.
+`POST /videos` é o pré-cadastro do vídeo: valida a declaração do cliente (`original_filename`, `content_type` na allowlist MP4/WebM, `size_bytes` ≤ `UPLOAD_MAX_BYTES`), cria o `Video` como rascunho (`status = draft`, `processing_status = uploading`) com `public_id` único de 11 caracteres, abre a sessão multipart no object storage (`CreateMultipartUpload`), persiste a `VideoUpload` (`part_size`, `part_count`, `expected_bytes`, `expires_at = now + UPLOAD_TTL`) e agenda o job `upload.expire` no `pg-boss` — tudo em uma transação (`phase-03-videos/TD-03`, `TD-07`, `TD-08`, `TD-12`, `TD-14`). Nenhum byte de vídeo passa por este endpoint. Este plano cobre o contrato HTTP do SI-03.5 em um arquivo E2E próprio (`test/videos-create.e2e-spec.ts`), com `describe` único e um `it` por cenário.
 
 **Atenção para o implementador:** a suíte roda **dentro** do container `nestjs-api`, onde `localhost:9000` é o próprio container. Como a assinatura SigV4 fixa o host, a suíte deve sobrescrever `S3_PUBLIC_ENDPOINT` para o host interno alcançável (`http://rustfs:9000`) antes de compilar o módulo, e as asserções sobre URLs comparam com o valor configurado, nunca com o literal `localhost`.
 

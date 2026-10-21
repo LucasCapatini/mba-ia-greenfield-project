@@ -54,7 +54,7 @@ export async function DELETE(_request: Request, context: UploadContext) {
 
 // POST /api/videos/{publicId}/upload/parts → POST /videos/{publicId}/upload/parts. As URLs
 // devolvidas apontam para o storage público: o navegador faz o PUT das partes direto nelas
-// (exceção explícita ao Strict BFF, per phase-03-upload-processing/TD-03).
+// (exceção explícita ao Strict BFF, per phase-03-videos/TD-03).
 // POST /api/videos/{publicId}/upload/complete → POST /videos/{publicId}/upload/complete (202).
 export async function POST(request: Request, context: UploadContext) {
   const { publicId, action } = await resolve(context);

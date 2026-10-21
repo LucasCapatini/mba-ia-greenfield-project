@@ -4,6 +4,32 @@ Projeto da disciplina **Desenvolvimento de Aplicações de IA** do MBA de Engenh
 
 Este é um projeto greenfield desenvolvido para demonstrar como construir uma aplicação do zero utilizando IA de forma adequada no processo de desenvolvimento.
 
+## 🎯 Entrega do desafio — Fase 03: Upload e Processamento de Vídeos
+
+O desafio pede a **Fase 03** (backend: API, worker, infraestrutura e os artefatos do processo), conduzida com o Claude Code pelo workflow do projeto. Onde está cada critério de aceite:
+
+| Critério | Evidência |
+|---|---|
+| Decisões técnicas (fila, upload, streaming, processamento/thumbnail, ciclo de status) | [`docs/decisions/technical-decisions-phase-03-videos.md`](./docs/decisions/technical-decisions-phase-03-videos.md) — TD-01…TD-14 com opções, trade-offs, recomendação e decisão (fila: pg-boss, TD-04; upload: multipart pré-assinado direto no storage, TD-03; worker: segundo entrypoint, TD-05; FFmpeg/ffprobe, TD-06; status, TD-07; URL única, TD-08; streaming/download, TD-09) |
+| Pasta da fase | [`docs/phases/phase-03-videos/`](./docs/phases/phase-03-videos/) — `context.md`, `validation.md` (`status: clean`), `library-refs.md`, o plano `phase-03-videos.md` e `progress.md` (`completed`) |
+| Formato do plano | `phase-03-videos.md`: SIs `SI-03.1`…`SI-03.12`; Technical Specifications com Data Model, API Contracts, Authorization Matrix, Error Catalog e Events/Messages; Dependency Map; Deliverables |
+| Upload de até 10 GB sem travar a API, com rascunho ao iniciar | `POST /videos` cria o rascunho e abre o multipart; o navegador envia as partes direto ao storage por URLs pré-assinadas — nenhum byte passa pela API (`nestjs-project/src/videos/`, `src/storage/`) |
+| Processamento automático (metadados + thumbnail) | Job `video.process` na fila; o worker (`src/worker.ts` → `src/worker/video-processing.worker.ts`) roda `ffprobe` e `ffmpeg` lendo o vídeo por URL assinada |
+| URL única | `public_id` de 11 caracteres (`src/videos/public-id.util.ts`), coluna `unique` com nova tentativa em colisão |
+| Streaming e download | `GET /videos/{publicId}/playback` → URLs assinadas: `Range` → 206 para o streaming e `Content-Disposition: attachment` para o download |
+| Ciclo de status no banco | `src/videos/entities/video.entity.ts`: `status` (`draft`/`published`) e `processing_status` (`uploading` → `processing` → `ready`/`failed`, com código de erro) |
+| Storage, fila e worker no Compose | `nestjs-project/compose.yaml`: `rustfs` (S3-compatível) + `storage-init` (bucket), `video-worker`, e a fila pg-boss no próprio `db` (schema `pgboss`) |
+| Migration e entidade ligada ao canal | `src/database/migrations/1792352807074-CreateVideosAndVideoUploads.ts` (FK para `channels`) |
+| Testes verdes | unit, integração (banco, RustFS, pg-boss e ffmpeg reais) e e2e (`test/videos-*.e2e-spec.ts`) — `npm test -- --runInBand` e `npm run test:e2e`; também no CI (`.github/workflows/ci.yml`) |
+| Definition of Done | `npx tsc --noEmit` = 0 e `npm run lint` limpo, nos dois subprojetos |
+| Git Flow | branches `feature/*`, `bugfix/*` e `docs/*` a partir de `dev`, mescladas por Pull Request; `main` só recebe `dev` por PR (nenhum commit direto) |
+| CLAUDE.md com a seção de vídeos | [`nestjs-project/CLAUDE.md`](./nestjs-project/CLAUDE.md) (worker e pipelines, variáveis da Fase 03, roteiro manual do upload multipart) e o [`CLAUDE.md`](./CLAUDE.md) da raiz (arquitetura) |
+| IA observável | pipeline `/research → /plan-context → /plan-validate ⇄ /plan-resolve → /plan-build → /plan-test-specs → /implement` e a transcrição da sessão em [`_claude-sessions/16-fase-03-upload-processamento.txt`](./_claude-sessions/16-fase-03-upload-processamento.txt) |
+
+O object storage em dev é o **RustFS** (S3-compatível) em vez do MinIO citado no enunciado: com o MinIO community arquivado, o TD-01 avaliou as alternativas (inclusive o MinIO congelado) e manteve o código preso só à API S3 (TD-02), então o servidor de dev é substituível e a troca por S3 em produção vale do mesmo jeito.
+
+O projeto seguiu além da Fase 03 — gerenciamento de vídeos e canal (04), página de visualização (05), interações sociais (06) e página inicial, busca e ambiente de produção (07) —, descritos nas seções abaixo.
+
 ## Professor
 
 <a href="https://github.com/argentinaluiz">
@@ -44,10 +70,11 @@ O projeto é um monorepo baseado em containers Docker. Cada subprojeto sobe sua 
 - **Frontend** (Next.js 16, App Router + React Server Components) — interface da plataforma. Segue o **modelo BFF**: o navegador nunca chama a API NestJS diretamente; todo tráfego passa por Route Handlers same-origin em `app/api/**`, que fazem proxy server-side para a API.
 - **API** (NestJS 11) — regras de negócio, autenticação (JWT + refresh token rotation), envio de e-mails, acesso ao banco e orquestração do upload de vídeos (multipart pré-assinado direto no storage — nenhum byte de vídeo passa pela API).
 - **Database** (PostgreSQL 17) — usuários, canais, tokens de autenticação, vídeos e sessões de upload; também hospeda a fila (schema `pgboss`).
-- **Email Service** (Mailpit) — captura os e-mails transacionais (confirmação de conta e recuperação de senha) em uma UI local.
+- **Email Service** (Mailpit em dev; provedor SMTP transacional autenticado em produção) — captura os e-mails transacionais (confirmação de conta e recuperação de senha) em uma UI local.
 - **Video Worker** (FFmpeg) — segundo entrypoint do `nestjs-project` (`src/worker.ts`, serviço `video-worker`): consome os jobs da fila, valida o formato pelos bytes com `ffprobe`, extrai metadados e thumbnail com `ffmpeg` lendo o vídeo por URL assinada e marca o vídeo como `ready`/`failed`.
-- **Object Storage** (S3-compatível; RustFS em dev) — arquivos de vídeo e thumbnails. O navegador envia e lê direto do storage por URLs pré-assinadas (multipart, `Range`, download).
+- **Object Storage** (S3-compatível; RustFS em dev, AWS S3 em produção) — arquivos de vídeo e thumbnails. O navegador envia e lê direto do storage por URLs pré-assinadas (multipart, `Range`, download).
 - **Message Queue** (pg-boss sobre o PostgreSQL) — jobs `video.process`, `upload.expire`, `video.delete` e o agendado `video-views.cleanup` (diário, 03:00 UTC); sem broker adicional.
+- **Borda de produção** (Caddy) — termina o TLS (certificado automático), é o único serviço com portas publicadas e sobrescreve o `X-Forwarded-For` com o IP real do visitante antes de repassar ao frontend. Tudo roda num compose único (`deploy/compose.yaml`) numa VPS.
 
 O diagrama de arquitetura completo (C4) está em `docs/diagrams/software-arch.mermaid`.
 
@@ -108,6 +135,20 @@ A aplicação ficará disponível em **http://localhost:3001**.
 >
 > `node_modules` (e, no frontend, também `.next`) ficam em **volumes nomeados** do Docker, não no bind mount do Windows — é o que mantém a compilação do Nest e os testes do Vitest rápidos. Consequências: o `npm install` roda sempre dentro do container, o `node_modules` do host não é o do container, e `docker compose down -v` apaga os volumes (o próximo `up` exige `npm install` de novo).
 
+### 3. Ambiente de produção (opcional)
+
+A Fase 07 entrega o ambiente de produção como **artefatos validados localmente** — o deploy numa VPS real é uma tarefa operacional, conduzida pelo [`docs/deploy/runbook.md`](./docs/deploy/runbook.md). O mesmo compose de produção sobe numa máquina de teste, com RustFS e Mailpit no lugar do AWS S3 e do provedor SMTP:
+
+```bash
+cp deploy/.env.example deploy/.env        # GHCR_OWNER=local e IMAGE_TAG=validation; o resto pode ficar como está
+docker compose -f deploy/compose.yaml -f deploy/compose.local.yaml --env-file deploy/.env --profile local-validation up -d --build
+curl -k https://localhost                 # 200 — Caddy com CA local; o migrate termina antes de api/worker subirem
+docker compose -f deploy/compose.yaml -f deploy/compose.local.yaml --env-file deploy/.env --profile local-validation down -v
+rm deploy/.env
+```
+
+Imagens de produção: `nestjs-project/Dockerfile` (uma imagem para `api`, `worker` e `migrate`, com ffmpeg) e `next-frontend/Dockerfile` (Next.js `standalone`). O deploy real só roda no GitHub Actions quando a variável de repositório `DEPLOY_ENABLED` é `true` (ver runbook).
+
 ## 🧪 Testes
 
 ### Backend (Jest)
@@ -136,10 +177,25 @@ cd next-frontend
 docker compose restart next-frontend                  # garante que nenhum next dev está rodando
 docker compose exec next-frontend npm run build       # refaça após mudar app/, components/, lib/ ou mocks/
 docker compose exec -d next-frontend sh -c "MSW_ENABLED=true npm run start"
-curl --retry 15 --retry-delay 2 --retry-connrefused -I http://localhost:3001
+curl --retry 15 --retry-delay 2 --retry-all-errors -I http://localhost:3001
 docker compose logs next-frontend | grep "\[msw\]"   # deve mostrar: [msw] server-side mocking enabled
-npx playwright test                                   # ou: npx playwright test tests/<arquivo>.e2e-spec.ts
+npx playwright test                                   # projetos chromium (todos os specs) e mobile (Pixel 7, shell responsivo)
+npx playwright test tests/<arquivo>.e2e-spec.ts       # um spec; --project=mobile só o perfil de celular
 ```
+
+**Suíte full-stack** (Fase 07): poucas jornadas contra as **duas stacks reais**, sem MSW — cadastro com o link lido do Mailpit, upload processado pelo worker real até aparecer na home e na busca, e comentário, like e inscrição até o feed — mais um smoke somente leitura (`@smoke`), o mesmo que o deploy roda contra produção. Com o backend no ar (`start:dev`) e o frontend em `next build` + `next start` **sem** `MSW_ENABLED`:
+
+```bash
+cd next-frontend
+npx playwright test -c playwright.full-stack.config.ts                # jornadas + smoke
+npx playwright test -c playwright.full-stack.config.ts --grep @smoke  # só o smoke
+```
+
+Detalhes (inclusive o limite de 10 req/min por IP das rotas de auth, que permite uma passada por minuto) em `next-frontend/CLAUDE.md`.
+
+### CI
+
+`.github/workflows/ci.yml` roda os mesmos gates do dia a dia, dentro dos containers do Compose: job `backend` (lint, tsc, unitários + integração, e2e), job `frontend` (lint, tsc, Vitest, build de produção + Playwright `chromium` e `mobile`) e, em PRs para `main` e pushes em `dev`, o job `full-stack`. O `openapi-freshness.yml` continua à parte. A proteção de `main` exige os quatro checks; a de `dev`, os três primeiros.
 
 > **Por que `next start` e não `next dev`:** no bind mount do Docker Desktop (Windows), o `next dev` (16.2.6, Turbopack e webpack) responde 404 de forma intermitente em Route Handlers profundos (ex.: `/api/videos/{id}/upload/*`); o build de produção serve todas as rotas de forma determinística. O `playwright.config.ts` usa `workers: 1` porque o store do MSW é um estado em memória por servidor, compartilhado entre os arquivos de spec.
 >
@@ -164,7 +220,7 @@ Política: lint limpo nos dois subprojetos. No backend o script roda com `--max-
 
 ## ✅ Funcionalidades implementadas
 
-As Fases **01 — Configuração base**, **02 — Autenticação**, **03 — Upload e processamento**, **04 — Gerenciamento de vídeos e canal**, **05 — Página de visualização** e **06 — Interações sociais** estão concluídas. A Fase 03 entregou o backend (API + worker); as telas de upload chegaram com o estúdio da Fase 04.
+As Fases **01 — Configuração base**, **02 — Autenticação**, **03 — Upload e processamento**, **04 — Gerenciamento de vídeos e canal**, **05 — Página de visualização**, **06 — Interações sociais** e **07 — Página inicial, busca e finalização** estão concluídas. A Fase 03 entregou o backend (API + worker); as telas de upload chegaram com o estúdio da Fase 04.
 
 ### Autenticação (Fase 02)
 
@@ -188,7 +244,7 @@ Telas e Route Handlers BFF (`next-frontend`):
 
 - `/(auth)/signup`, `/(auth)/login`, `/(auth)/forgot-password`, `/(auth)/reset-password`, `/(auth)/resend-confirmation` — formulários com React Hook Form + Zod e validação inline.
 - `/(auth)/confirm-email` — página RSC que confirma a conta ao abrir o link do e-mail (estados: sucesso, link expirado, link inválido — os dois últimos oferecem o reenvio inline).
-- `/(app)` — área da aplicação com `AppHeader` (`components/layout/app-header.tsx`): mostra Entrar/Criar conta para anônimos e e-mail + botão Sair (logout) para autenticados.
+- `/(app)` — área da aplicação com o header (`components/layout/app-header.tsx`): na Fase 02 mostrava Entrar/Criar conta e Sair; desde a Fase 07 é o header do Figma — "Sign in" (com volta para a página atual) para anônimos e, com sessão, o atalho de upload e o avatar que abre o menu da conta com "Sign Out".
 - `app/api/auth/{signup,login,logout,forgot-password,reset-password,resend-confirmation}` — proxy same-origin para a API.
 - Os e-mails transacionais apontam para o frontend: `${FRONTEND_URL}/confirm-email?token=` e `${FRONTEND_URL}/reset-password?token=` (variável obrigatória no `.env` do backend).
 
@@ -244,8 +300,8 @@ Telas e Route Handlers BFF (`next-frontend`):
 - `/studio/videos` — painel de vídeos com filtros, ordenação, "carregar mais", publicar/despublicar e excluir; vídeos em processamento são atualizados por polling (`hooks/use-processing-poll.ts`).
 - `/studio/videos/{publicId}/edit` — edição de título, descrição, categoria, visibilidade e thumbnail; salvar um vídeo `ready` também o publica.
 - `/studio/channel` — edição do canal (handle, nome e descrição).
-- `/channel/{nickname}` — página pública do canal (anônima), com ordenação e "carregar mais"; nickname inexistente responde 404.
-- O `AppHeader` ganhou, para usuários autenticados, os atalhos "Meus vídeos" (`/studio/videos`) e "Meu canal" (`/studio/channel`); toasts de sucesso/erro via Sonner.
+- `/channel/{nickname}` — página pública do canal (anônima), com ordenação e, desde a Fase 07, scroll infinito; nickname inexistente responde 404.
+- Os atalhos "Meus vídeos" e "Meu canal" que o header ganhou nesta fase viraram, na Fase 07, o item "Your videos" do menu lateral e o "Edit Channel" do menu da conta; toasts de sucesso/erro via Sonner.
 - Todo `/studio/**` é protegido por `proxy.ts` (Proxy do Next 16), que redireciona anônimos para `/login?returnTo=…`; o estado do upload sobrevive à navegação dentro do estúdio (`UploadProvider`).
 - `app/api/videos/**` e `app/api/channel` — proxy same-origin para a API. Leituras acontecem em Server Components; mutações passam pelo BFF e chamam `router.refresh()`.
 - Os cards de vídeo apontam para `/watch/{publicId}`, a página de visualização da Fase 05.
@@ -276,8 +332,8 @@ Likes/dislikes em vídeos e comentários, comentários com respostas, inscriçã
 
 - **Reações:** like e dislike são exclusivos; clicar no ativo remove a reação. As escritas são idempotentes e devolvem o estado resultante com as contagens. Contadores e linhas mudam na mesma transação, então ficam consistentes mesmo com cliques concorrentes. A UI mostra só a contagem de likes.
 - **Comentários:** texto puro de 1 a 2.000 caracteres, ordenados por `Latest` ou `Top` (mais curtidos), com "Show more comments". As respostas têm um nível só — responder uma resposta grava na raiz com `@nickname` pré-preenchido — e carregam sob demanda em "N replies". Só o autor edita ("(edited)") ou exclui; excluir uma raiz leva as respostas. Só vídeos publicados aceitam comentários e reações, inclusive para o dono.
-- **Inscrições:** "Subscribe"/"Subscribed" na watch page e na página do canal, com "N subscribers"; o dono não vê o botão. Com sessão, as rotas da aplicação (exceto a watch page) ganham o menu lateral com Home, Subscriptions, Your videos e os canais seguidos em ordem alfabética (7 + "Show more"), atualizado na hora pelo Subscribe.
-- **Feed:** `/feed/subscriptions` lista os vídeos públicos dos canais seguidos, do mais recente ao mais antigo, com "Load more"; exige sessão.
+- **Inscrições:** "Subscribe"/"Subscribed" na watch page e na página do canal, com "N subscribers"; o dono não vê o botão. Com sessão, o menu lateral mostra Home, Subscriptions, Your videos e os canais seguidos em ordem alfabética (7 + "Show more"), atualizado na hora pelo Subscribe — desde a Fase 07 o menu também aparece para o anônimo (Home + convite para entrar) e, na watch page, abre como drawer.
+- **Feed:** `/feed/subscriptions` lista os vídeos públicos dos canais seguidos, do mais recente ao mais antigo, com scroll infinito (Fase 07); exige sessão.
 - **Interface otimista:** cada interação muda a tela na hora e é reconciliada pela resposta da API, sem recarregar a página; em erro volta ao estado anterior com um toast.
 
 Endpoints da API (`nestjs-project`):
@@ -297,14 +353,37 @@ Endpoints da API (`nestjs-project`):
 
 Route Handlers BFF (`next-frontend`): as mesmas rotas sob `/api/**` (`/api/videos/{publicId}/reaction`, `/api/videos/{publicId}/comments`, `/api/comments/{commentId}`, `…/replies`, `…/reaction`, `/api/channels/{nickname}/subscription` e `/api/me/subscriptions`); as leituras de comentários vão com a sessão só quando ela existe, as mutações exigem sessão.
 
+### Página inicial, busca e finalização (Fase 07)
+
+Home com filtro por categoria, busca por título e canal, scroll infinito, o shell de navegação do Figma em todas as larguras de tela e o ambiente de produção. Decisões em `docs/decisions/technical-decisions-home-search-production.md` (TD-01…TD-11).
+
+- **Home (`/`):** chips "All" + categorias (`/?category=<slug>`) e a grade dos vídeos públicos mais recentes. Slug desconhecido mostra a lista geral com "All" ativo e um aviso; falha da API leva a "Try again".
+- **Busca (`/results?q=`):** pelo campo do header (Enter ou lupa; no celular, ícone que expande). Casa título ou nome/nickname do canal **sem acento e sem diferenciar maiúsculas** (`pg_trgm` + `unaccent` com índices de trigramas). Termo vazio volta para a home; 1 caractere mostra a regra sem chamar a API; sem resultado, sugestão e link para a home.
+- **Scroll infinito:** home, busca, página do canal e feed carregam a página seguinte ao chegar ao fim da grade (com "Load more" acessível por teclado), sem trocar a URL. Ao voltar da watch page, cards e posição de rolagem são restaurados do `sessionStorage`.
+- **Shell responsivo:** header com "≡", logo, busca, "+" (upload) e o avatar com o menu da conta (nome, `@nickname`, "Edit Channel", "Sign Out"); "Sign in" para anônimos. Menu lateral expandido ou mini (escolha guardada em cookie e aplicada já no HTML do servidor), drawer abaixo de `lg` e na watch page, também para anônimos. Watch page, canal, feed, telas de auth e estúdio usáveis em 390 px — no estúdio, a tabela vira lista empilhada e os formulários ficam em coluna única.
+- **Rate limit por visitante:** listagens, `GET /categories` e as leituras de alta frequência (vídeo, playback, sugestões, comentários e `GET /me/subscriptions`) aceitam 60 req/min por visitante; o resto segue o limite global de 10/min. Toda leitura feita no servidor encaminha o IP do visitante, para que cada pessoa tenha o próprio orçamento.
+- **Produção:** SMTP autenticado (`MAIL_USER`/`MAIL_PASSWORD`/`MAIL_SECURE`), migrations executadas a partir do código compilado (`npm run migration:run:prod`), imagens multi-stage, compose de produção com Caddy (TLS automático e `X-Forwarded-For` sobrescrito), PostgreSQL com volume, migration como job único e backup diário para o bucket (`deploy/backup.sh`), CI (`ci.yml`) e deploy por GHCR + SSH com smoke pós-deploy (`deploy.yml`, ativado por `DEPLOY_ENABLED`). Validado localmente — ver [`docs/deploy/runbook.md`](./docs/deploy/runbook.md).
+
+Endpoints da API (`nestjs-project`):
+
+| Método & Rota | Descrição |
+|---------------|-----------|
+| `GET /videos` | Listagem pública (publicados, públicos e prontos), do mais recente ao mais antigo, com `category` (slug), `q` (2–100 caracteres após `trim`), `cursor` e `limit`; categoria inexistente → 404 `CATEGORY_NOT_FOUND` |
+
+Route Handlers BFF (`next-frontend`), usados pelo scroll infinito: `GET /api/videos`, `GET /api/channels/{nickname}/videos` (sessão opcional) e `GET /api/me/subscriptions/videos` (exige sessão).
+
 ## 🛠️ Estrutura do Projeto
 
 ```
 mba-ia-greenfield-project/
 ├── .claude/                             # Fundação de IA: rules (por path), skills (pipeline de planejamento), agents, hooks
 ├── .github/workflows/
+│   ├── ci.yml                           # CI: backend, frontend (Vitest + Playwright chromium/mobile) e full-stack, dentro dos containers
+│   ├── deploy.yml                       # Push em main: gates → imagens no GHCR → deploy por SSH + smoke (só com DEPLOY_ENABLED)
 │   └── openapi-freshness.yml            # CI: garante que o contrato OpenAPI do frontend está em sincronia com o backend
 ├── _claude-sessions/                    # Transcrições brutas das sessões com o Claude, numeradas NN-slug.txt (ver "Processo com IA")
+├── deploy/                              # Produção numa VPS: compose.yaml (Caddy, web, api, worker, migrate, db), Caddyfile, .env.example,
+│                                        #   compose.local.yaml (validação local com RustFS + Mailpit) e backup.sh
 ├── docs/
 │   ├── project-plan.md                  # Planejamento geral do projeto
 │   ├── design-system-pillars.md         # Pilares do design system
@@ -314,12 +393,14 @@ mba-ia-greenfield-project/
 │   │   ├── phase-01-configuracao-base/
 │   │   ├── phase-02-auth/               # Auth (backend)
 │   │   ├── phase-02-auth-frontend/      # Auth (frontend)
-│   │   ├── phase-03-upload-processing/  # Upload multipart, worker e playback (backend)
+│   │   ├── phase-03-videos/  # Upload multipart, worker e playback (backend)
 │   │   ├── phase-04-video-channel-management/ # Gerenciamento de vídeos e canal (backend + frontend) + drift report do Figma
 │   │   ├── phase-05-watch-page/         # Página de visualização (backend + frontend) + drift report do Figma
-│   │   └── phase-06-social-interactions/ # Interações sociais (backend + frontend) + drift report do Figma
+│   │   ├── phase-06-social-interactions/ # Interações sociais (backend + frontend) + drift report do Figma
+│   │   └── phase-07-home-search-production/ # Home, busca, shell responsivo e produção (backend + frontend + infra) + drift report
 │   ├── tasks/                           # Trabalhos ad-hoc (mesmos artefatos das fases) — ex.: task-saneamento-fase-02-e-infra/
-│   ├── inventories/                     # Inventário de telas extraído do Figma (fases 02, 04, 05 e 06)
+│   ├── deploy/runbook.md                # Do zero ao primeiro deploy: VPS, DNS, S3, SMTP, secrets, backup e rollback
+│   ├── inventories/                     # Inventário de telas extraído do Figma (fases 02, 04, 05, 06 e 07)
 │   └── diagrams/
 │       ├── software-arch.mermaid        # Diagrama de arquitetura (C4)
 │       └── skills-workflow.mermaid      # Pipeline de skills de planejamento/implementação
@@ -349,24 +430,29 @@ mba-ia-greenfield-project/
 │   ├── openapi.json                     # Contrato gerado por `npm run openapi:export`
 │   ├── .env.example                     # Variáveis de ambiente (copiar para .env)
 │   ├── compose.yaml                     # Docker Compose (API + worker + PostgreSQL + Mailpit + RustFS + storage-init)
+│   ├── Dockerfile                       # Imagem de produção (api, worker e migrate) com ffmpeg
 │   └── Dockerfile.dev                   # Node + ffmpeg/ffprobe
 ├── next-frontend/                       # Frontend (Next.js 16, App Router)
 │   ├── app/
 │   │   ├── (auth)/                      # signup, login, forgot-password, reset-password, confirm-email, resend-confirmation
-│   │   ├── (app)/                       # Área da aplicação (layout com AppHeader): (shell)/ — home, channel/[nickname], studio/** e feed/subscriptions,
-│   │   │                                #   com menu lateral quando há sessão — e watch/[publicId], fora do grupo
+│   │   ├── (app)/                       # Área da aplicação (layout com header, drawer e canais seguidos): (shell)/ — (home), results, channel/[nickname],
+│   │   │                                #   studio/** e feed/subscriptions, com o menu lateral — e watch/[publicId], fora do grupo
 │   │   └── api/                         # Route Handlers BFF (proxy same-origin para a API): auth/**, videos/**, comments/**, channels/**, me/** e channel
-│   ├── components/                      # auth, layout (AppHeader, AppShell, menu lateral), upload, studio, channel, video(s), watch, comments, feed, UI (shadcn) e ícones
-│   ├── hooks/                           # Hooks (useSession, useProcessingPoll, useMediaState, useViewRegistration, useOptimisticMutation)
-│   ├── lib/                             # env, api (openapi-fetch + types.gen.ts + BFF com sessão opcional + publicRead), auth/session, upload (cliente multipart)
+│   ├── components/                      # auth, layout (header, menu da conta, AppShell, menu lateral, drawer, busca), home (chips), videos (grade infinita),
+│   │                                    #   upload, studio, channel, video, watch, comments, UI (shadcn) e ícones
+│   ├── hooks/                           # Hooks (useSession, useCursorList, useProcessingPoll, useMediaState, useViewRegistration, useOptimisticMutation)
+│   ├── lib/                             # env, api (openapi-fetch + types.gen.ts + BFF com sessão opcional + publicRead), auth/session, upload (cliente multipart),
+│   │                                    #   home (primeira página da home) e search (normalização do termo)
 │   ├── mocks/                           # MSW (handlers + server; também usado server-side via instrumentation.ts)
 │   ├── specs/                           # Test specs (*.plan.md) que originam os E2E
-│   ├── tests/                           # E2E (Playwright)
+│   ├── tests/                           # E2E (Playwright) com MSW no servidor — projetos chromium e mobile
+│   ├── full-stack/                      # E2E contra as stacks reais (playwright.full-stack.config.ts); @smoke = smoke pós-deploy
 │   ├── instrumentation.ts               # Liga o MSW no servidor quando MSW_ENABLED=true
 │   ├── proxy.ts                         # Proxy do Next 16: redireciona anônimos de /studio/** e /feed/** para o login
 │   ├── openapi.json                     # Cópia do contrato do backend (fonte de lib/api/types.gen.ts)
 │   ├── .env.example                     # Variáveis de ambiente (copiar para .env.local)
 │   ├── compose.yaml                     # Docker Compose (dev server)
+│   ├── Dockerfile                       # Imagem de produção (Next.js standalone)
 │   └── Dockerfile.dev
 ├── CLAUDE.md                            # Instruções para IA (cada subprojeto tem o seu próprio CLAUDE.md)
 ├── FC Tube.fig                          # Design system do projeto (Figma)
@@ -400,9 +486,9 @@ git push -u origin feature/<slug>     # abra o PR para dev
 | **04** | Gerenciamento de Vídeos e Canal | ✅ Concluída (backend + frontend) |
 | **05** | Página de Visualização do Vídeo | ✅ Concluída (backend + frontend) |
 | **06** | Interações Sociais (Likes, Comentários, Inscrições) | ✅ Concluída (backend + frontend) |
-| **07** | Página Inicial, Busca e Finalização | ⏳ Planejada |
+| **07** | Página Inicial, Busca e Finalização | ✅ Concluída (backend + frontend + infra; produção validada localmente, deploy real opcional) |
 
-Detalhes completos em `docs/project-plan.md`. Pendências da Fase 02 (telas de confirmação/reset, logout, rede Docker compartilhada, CI do contrato OpenAPI) foram saneadas em `docs/tasks/task-saneamento-fase-02-e-infra/`. A Fase 03 entregou o backend (`docs/phases/phase-03-upload-processing/`) e a Fase 04 entregou o estúdio — upload, painel de vídeos, edição, configurações do canal — e a página pública do canal (`docs/phases/phase-04-video-channel-management/`). A dívida de lint do backend em specs/e2e das Fases 02/03 e a validação de nicknames reservados ou curtos no cadastro (`createChannel`) foram saneadas em `docs/tasks/task-saneamento-fase-04/`. Pendência conhecida da Fase 04: a reauditoria de um frame do Figma (154:1724) e do valor escuro do token `--progress-track`, quando a cota do MCP do Figma voltar. A Fase 05 entregou a página de visualização com player próprio, contagem de visualizações, sugestões e download (`docs/phases/phase-05-watch-page/`); a auditoria visual foi feita contra PNGs exportados do Figma, sem o MCP. As pendências pequenas da Fase 05 foram resolvidas em `docs/tasks/task-manutencao-pos-fase-05/` (volume nomeado do banco, `ip_range` na rede `streamtube`, token tipográfico `--text-overlay-md`, `requestOrigin` único e procedimento seguro de install do shadcn); continua pendente o proxy reverso exigido para o deploy (`watch-page/TD-03`). A Fase 06 entregou reações, comentários com respostas, inscrições, o menu lateral com os canais seguidos e o feed das inscrições (`docs/phases/phase-06-social-interactions/`), também auditada contra PNGs do Figma.
+Detalhes completos em `docs/project-plan.md`. Pendências da Fase 02 (telas de confirmação/reset, logout, rede Docker compartilhada, CI do contrato OpenAPI) foram saneadas em `docs/tasks/task-saneamento-fase-02-e-infra/`. A Fase 03 entregou o backend (`docs/phases/phase-03-videos/`) e a Fase 04 entregou o estúdio — upload, painel de vídeos, edição, configurações do canal — e a página pública do canal (`docs/phases/phase-04-video-channel-management/`). A dívida de lint do backend em specs/e2e das Fases 02/03 e a validação de nicknames reservados ou curtos no cadastro (`createChannel`) foram saneadas em `docs/tasks/task-saneamento-fase-04/`. Pendência conhecida da Fase 04: a reauditoria de um frame do Figma (154:1724) e do valor escuro do token `--progress-track`, quando a cota do MCP do Figma voltar. A Fase 05 entregou a página de visualização com player próprio, contagem de visualizações, sugestões e download (`docs/phases/phase-05-watch-page/`); a auditoria visual foi feita contra PNGs exportados do Figma, sem o MCP. As pendências pequenas da Fase 05 foram resolvidas em `docs/tasks/task-manutencao-pos-fase-05/` (volume nomeado do banco, `ip_range` na rede `streamtube`, token tipográfico `--text-overlay-md`, `requestOrigin` único e procedimento seguro de install do shadcn); o proxy reverso exigido para o deploy (`watch-page/TD-03`) chegou com o Caddy da Fase 07. A Fase 06 entregou reações, comentários com respostas, inscrições, o menu lateral com os canais seguidos e o feed das inscrições (`docs/phases/phase-06-social-interactions/`), também auditada contra PNGs do Figma. A Fase 07 entregou a home com categorias, a busca, o scroll infinito, o shell responsivo, a suíte full-stack, o CI e o ambiente de produção validado localmente (`docs/phases/phase-07-home-search-production/`); a suíte full-stack revelou limites de requisição que estouravam no uso normal, corrigidos e registrados nas Revisions de `home-search-production/TD-01` e `watch-page/TD-03`. As pendências da Fase 07 (variante do chip de categoria, limite das rotas de autenticação, handles abertos no Jest e limpeza dos usuários da suíte full-stack) estão em `docs/project-plan.md`.
 
 ## 🤖 Processo com IA
 
@@ -421,9 +507,10 @@ O objetivo central do desafio é mostrar **como** a aplicação foi construída 
 | Backend | NestJS 11, TypeScript, TypeORM, JWT, Argon2, Mailer (Handlebars), AWS SDK S3 (presigner), pg-boss, sharp (thumbnails) |
 | Worker de vídeo | NestJS (application context) + FFmpeg/ffprobe |
 | Banco de Dados | PostgreSQL 17 (dados + fila pg-boss) |
-| Object storage (dev) | RustFS (S3-compatível) |
-| E-mail (dev) | Mailpit |
-| Containerização | Docker, Docker Compose |
-| Testes | Jest, Supertest (backend); Vitest, MSW, Playwright (frontend) |
+| Object storage | RustFS (S3-compatível) em dev; AWS S3 em produção |
+| E-mail | Mailpit em dev; provedor SMTP transacional em produção |
+| Containerização | Docker, Docker Compose (imagens multi-stage de produção; Next.js `standalone`) |
+| Produção | Caddy (TLS automático), GHCR, GitHub Actions (CI + deploy por SSH), PostgreSQL com backup para o S3 |
+| Testes | Jest, Supertest (backend); Vitest, MSW, Playwright com projeto mobile e suíte full-stack (frontend) |
 | Qualidade | ESLint, Prettier |
 </content>

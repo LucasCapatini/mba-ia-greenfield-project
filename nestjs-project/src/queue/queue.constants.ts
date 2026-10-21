@@ -1,4 +1,4 @@
-// Filas (phase-03-upload-processing/TD-04, TD-11, TD-12; video-channel-management/TD-09) e seus
+// Filas (phase-03-videos/TD-04, TD-11, TD-12; video-channel-management/TD-09) e seus
 // defaults de envio.
 // Produtor: API (VideosService). Consumidor: processo video-worker (TD-05).
 
